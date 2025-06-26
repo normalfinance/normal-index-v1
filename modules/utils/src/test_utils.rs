@@ -60,22 +60,6 @@ pub fn install_dummy_wasm<'a>(e: &Env) -> BytesN<32> {
     e.deployer().upload_contract_wasm(WASM)
 }
 
-//   ______    ______    _____  ___    ________  ___________   __      _____  ___  ___________  ________
-//  /" _  "\  /    " \  (\"   \|"  \  /"       )("     _   ") /""\    (\"   \|"  \("     _   ")/"       )
-// (: ( \___)// ____  \ |.\\   \    |(:   \___/  )__/  \\__/ /    \   |.\\   \    |)__/  \\__/(:   \___/
-//  \/ \    /  /    ) :)|: \.   \\  | \___  \       \\_ /   /' /\  \  |: \.   \\  |   \\_ /    \___  \
-//  //  \ _(: (____/ // |.  \    \. |  __/  \\      |.  |  //  __'  \ |.  \    \. |   |.  |     __/  \\
-// (:   _) \\        /  |    \    \ | /" \   :)     \:  | /   /  \\  \|    \    \ |   \:  |    /" \   :)
-//  \_______)\"_____/    \___|\____\)(_______/       \__|(___/    \___)\___|\____\)    \__|   (_______/
-
-pub fn get_mock_oracle_registry_ids<'a>(e: &Env) -> (Symbol, Symbol) {
-    (Symbol::new(e, "BTC"), Symbol::new(e, "XLM"))
-}
-
-pub fn get_mock_lp_token_info<'a>(e: &Env) -> (String, String) {
-    (String::from_str(e, "Pool Share Token"), String::from_str(e, "Pool Share Token"))
-}
-
 //  ____  ____  ___________  __    ___        ________
 // ("  _||_ " |("     _   ")|" \  |"  |      /"       )
 // |   (  ) : | )__/  \\__/ ||  | ||  |     (:   \___/
@@ -114,10 +98,5 @@ pub fn install_token_wasm(e: &Env) -> BytesN<32> {
     soroban_sdk::contractimport!(
         file = "../../target/wasm32v1-none/release/soroban_token_contract.wasm"
     );
-    e.deployer().upload_contract_wasm(WASM)
-}
-
-pub fn install_liq_pool_hash(e: &Env) -> BytesN<32> {
-    soroban_sdk::contractimport!(file = "../../target/wasm32v1-none/release/pool.wasm");
     e.deployer().upload_contract_wasm(WASM)
 }
