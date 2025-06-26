@@ -73,6 +73,7 @@ impl IndexFactory {
         set_max_manager_fee_fraction(&e, &max_manager_fee_fraction);
         set_protocol_fee_recipient(&e, &protocol_fee_recipient);
     }
+}
 
     // set_index_contract_wasm
     // Updates the WASM hash for the swap fee contract.
@@ -137,7 +138,7 @@ impl IndexFactory {
     //
     // Returns:
     //   - The address of the newly deployed swap fee contract.
-    pub fn deploy_index_contract(
+    fn deploy_index_contract(
         e: Env,
         operator: Address,
         fee_destination: Address,
@@ -174,7 +175,7 @@ impl IndexFactory {
         address
     }
 
-    pub fn swap(
+    fn swap(
         e: Env,
         token_in: Address,
         token_out: Address,
@@ -274,6 +275,63 @@ impl IndexFactory {
     //     let addresses = get_deployed_indexes(&e, &operator);
     //     IndexFactory::query_multiple_indexes_info(e, addresses)
     // }
+}
+
+impl AdminInterface for IndexFactory {
+    //   ________  _______  ___________  ___________  _______   _______    ________
+    //  /"       )/"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
+    // (:   \___/(: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
+    //  \___  \   \/    |      \\_ /        \\_ /    \/    |  |_____/   ) \___  \
+    //   __/  \\  // ___)_     |.  |        |.  |    // ___)_  //      /   __/  \\
+    //  /" \   :)(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
+    // (_______/  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
+
+    fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_fee_contract_wasm(&e, &index_contract_wasm);
+        Events::new(&e).set_wasm(index_contract_wasm);
+    }
+
+    fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_protocol_fee_fraction(&e, &fraction);
+    }
+
+    fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_max_manager_fee_fraction(&e, &fraction);
+    }
+
+    //    _______     __       ____  ____   ________  _______  ________
+    //   |   __ "\   /""\     ("  _||_ " | /"       )/"     "||"      "\
+    //   (. |__) :) /    \    |   (  ) : |(:   \___/(: ______)(.  ___  :)
+    //   |:  ____/ /' /\  \   (:  |  | . ) \___  \   \/    |  |: \   ) ||
+    //   (|  /    //  __'  \   \\ \__/ //   __/  \\  // ___)_ (| (___\ ||
+    //  /|__/ \  /   /  \\  \  /\\ __ //\  /" \   :)(:      "||:       :)
+    // (_______)(___/    \___)(__________)(_______/  \_______)(________/
+
+    fn kill_create(e: Env, admin: Address) {
+        admin.require_auth();
+        require_admin(&e, &admin);
+
+        set_is_killed_create(&e, &true);
+        FundEvents::new(&e).kill_create();
+    }
+
+    fn unkill_create(e: Env, admin: Address) {
+        admin.require_auth();
+        require_admin(&e, &admin);
+
+        set_is_killed_create(&e, &false);
+        FundEvents::new(&e).unkill_create();
+    }
+
+    fn get_is_killed_create(e: Env) -> bool {
+        get_is_killed_create(&e)
+    }
 }
 
 #[contractimpl]
