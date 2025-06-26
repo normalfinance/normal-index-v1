@@ -54,6 +54,14 @@ generate_instance_storage_getter_and_setter!(
     BytesN<32>
 );
 
+// paused ops
+generate_instance_storage_getter_and_setter_with_default!(
+    is_killed_create,
+    DataKey::IsKilledCreate,
+    bool,
+    false
+);
+
 pub(crate) fn get_contract_sequence(env: &Env, operator: Address) -> u32 {
     let key = DataKey::ContractSequence(operator);
     match env.storage().persistent().get(&key) {
