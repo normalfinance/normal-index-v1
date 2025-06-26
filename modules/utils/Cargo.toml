@@ -1,0 +1,22 @@
+[package]
+name = "utils"
+version.workspace = true
+edition = "2021"
+publish = false
+rust-version.workspace = true
+
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+sep-40-oracle = { workspace = true }
+
+[dev-dependencies]
+sep-40-oracle = { workspace = true, features = ["testutils"] }
+
+[features]
+default = []
+testutils = []

@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# Text file backups
+**/*.rs.bk
+
+# Build results
+target/
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+
+# Auto-gen
+.cargo-ok
+/artifacts/
+
+cobertura.xml
+
+**/test_snapshots
+
+lib
+packages
+wasm
+.stellar
+node_modules
+.env
