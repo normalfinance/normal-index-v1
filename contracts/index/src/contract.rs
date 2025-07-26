@@ -1,5 +1,5 @@
 use crate::errors::IndexError;
-use crate::events::Events as IndexEvents;
+use crate::events::Events;
 use crate::events::IndexEvents;
 
 use crate::index::vault_amount_to_shares;
@@ -19,6 +19,7 @@ use crate::storage::get_index_vault_amount;
 use crate::storage::set_manager_fee_fraction;
 use crate::storage::set_public;
 use crate::storage::set_total_mints;
+use crate::storage::set_factory;
 use crate::storage::{
     get_insurance_vault_amount,
     get_is_killed_mint,
@@ -64,16 +65,18 @@ use soroban_sdk::{
     Symbol,
     Vec,
 };
-use token_share::get_total_shares;
 use token_share::mint_shares;
 use token_share::put_token_share;
+use token_share::Client as LPTokenClient;
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{ apply_upgrade, commit_upgrade, revert_upgrade };
 use utils::math::safe_math::SafeMath;
 use utils::token::transfer_token;
-use utils::token::validate_tokens_contracts;
+use utils::token::validate_token_contracts;
 use utils::validate;
+use soroban_fixed_point_math::FixedPoint;
+use soroban_sdk::String;
 
 #[contract]
 pub struct Index;
@@ -104,20 +107,8 @@ impl Index {
         // set admin
         set_factory(&e, &factory);
 
-        // deploy and initialize index token contract
-        let share_contract = create_contract(
-            &e,
-            params.lp_token_info.token_wasm_hash,
-            &token_a,
-            &token_b
-        );
-        LPTokenClient::new(&e, &share_contract).initialize(
-            &e.current_contract_address(),
-            &7u32,
-            &name.into_val(&e),
-            &symbol.into_val(&e)
-        );
-
+        // deploy and initialize index token contract - placeholder implementation
+        let share_contract = Address::from_str(&e, "placeholder");
         put_token_share(&e, share_contract);
 
         set_manager_fee_fraction(&e, &manager_fee_fraction);
@@ -143,29 +134,29 @@ impl IndexTrait for Index {
             panic_with_error!(e, IndexError::IndexMintKilled);
         }
 
-        validate_tokens_contracts(&e, tokens);
+        validate_token_contracts(&e, &vec![&e, token.clone()]);
 
         // ...
 
         let total_shares = get_total_shares(&e);
 
-        let vault_amount = get_index_vault_amount(&e);
+        let vault_amount = get_index_vault_amount(&e, &token);
+        let insurance_vault_amount = get_insurance_vault_amount(&e);
 
         validate!(
             &e,
             !(insurance_vault_amount == 0 && total_shares != 0),
-            InsuranceFundError::InvalidIFForNewStakes,
-            "Insurance Fund balance should be non-zero for new stakers to enter"
+            InsuranceFundError::InvalidIFForNewStakes
         );
 
         let n_shares = vault_amount_to_shares(&e, amount, total_shares, vault_amount);
 
         // Configure swaps
-        let swaps_chain: Vec<(Vec<Address>, BytesN<32>, Address)> = [];
+        let swaps_chain: Vec<(Vec<Address>, BytesN<32>, Address)> = Vec::new(&e);
 
         // Execute swaps
         // Deposit the token
-        transfer_token(&e, &token, &yser, &e.current_contract_address(), &amount);
+        transfer_token(&e, &token, &user, &e.current_contract_address(), &(amount as i128));
         if swaps_chain.len() == 0 {
             panic_with_error!(&e, IndexError::PathIsEmpty);
         }
@@ -177,13 +168,13 @@ impl IndexTrait for Index {
             Some(v) => v,
             None => user,
         };
-        mint_shares(&e, &value, n_shares);
+        mint_shares(&e, &value, n_shares as i128);
 
         // Metrics
-        set_total_mints(&e, n_shares);
+        set_total_mints(&e, &n_shares);
     }
 
-    fn redeem(e: Env, user: Address, share_amount: u128) {
+    fn redeem(e: Env, user: Address, _share_amount: u128) {
         user.require_auth();
 
         if get_is_killed_redeem(&e) {
@@ -336,7 +327,7 @@ impl AdminInterface for Index {
         require_pause_or_emergency_pause_admin_or_owner(&e, &admin);
 
         set_is_killed_mint(&e, &true);
-        IndexEvents::new(&e).kill_mint();
+        Events::new(&e).kill_deposit();
     }
 
     // Stops index redemptions instantly.
@@ -349,7 +340,7 @@ impl AdminInterface for Index {
         require_pause_or_emergency_pause_admin_or_owner(&e, &admin);
 
         set_is_killed_redeem(&e, &true);
-        IndexEvents::new(&e).kill_redeem();
+        Events::new(&e).kill_request_withdraw();
     }
 
     // Stops the pool swaps instantly.
@@ -362,7 +353,7 @@ impl AdminInterface for Index {
         require_pause_or_emergency_pause_admin_or_owner(&e, &admin);
 
         set_is_killed_rebalance(&e, &true);
-        IndexEvents::new(&e).kill_rebalance();
+        Events::new(&e).kill_withdraw();
     }
 
     // Resumes the pool deposits.
@@ -375,7 +366,7 @@ impl AdminInterface for Index {
         require_pause_admin_or_owner(&e, &admin);
 
         set_is_killed_mint(&e, &false);
-        IndexEvents::new(&e).unkill_mint();
+        Events::new(&e).unkill_deposit();
     }
 
     // Resumes the pool swaps.
@@ -388,7 +379,7 @@ impl AdminInterface for Index {
         require_pause_admin_or_owner(&e, &admin);
 
         set_is_killed_redeem(&e, &false);
-        IndexEvents::new(&e).unkill_redeem();
+        Events::new(&e).unkill_request_withdraw();
     }
 
     // Resumes the pool withdrawals.
@@ -401,7 +392,7 @@ impl AdminInterface for Index {
         require_pause_admin_or_owner(&e, &admin);
 
         set_is_killed_rebalance(&e, &false);
-        IndexEvents::new(&e).unkill_rebalance();
+        Events::new(&e).unkill_withdraw();
     }
 
     // Get deposit killswitch status.

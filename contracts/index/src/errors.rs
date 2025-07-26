@@ -7,7 +7,7 @@ pub enum IndexError {
     #[doc = "IndexError"]
     MaxIFWithdrawReached = 0,
    
-
+    PathIsEmpty = 29,
     IndexMintKilled = 30,
     IndexRedeemKilled = 31,
     IndexRebalanceKilled = 32,

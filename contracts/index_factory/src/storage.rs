@@ -21,6 +21,7 @@ pub struct DexDistribution {
 #[contracttype]
 enum DataKey { 
     Aggregator, // DEX Aggregator 
+    Router, // DEX Router
     ProtocolFeeFraction,
     MaxManagerFeeFraction,
     IndexContractWASM,
@@ -28,6 +29,7 @@ enum DataKey {
 }
 
 generate_instance_storage_getter_and_setter!(aggregator, DataKey::Aggregator, Address);
+generate_instance_storage_getter_and_setter!(router, DataKey::Router, Address);
 generate_instance_storage_getter_and_setter!(
     protocol_fee_fraction,
     DataKey::ProtocolFeeFraction,

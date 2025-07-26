@@ -1,4 +1,4 @@
-use soroban_sdk::{ Address, Env, Symbol };
+use soroban_sdk::{ Address, Env, Symbol, Vec };
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -22,6 +22,8 @@ pub(crate) trait IndexEvents {
 
     fn rebalance(&self, ts: u64, user: Address);
 
+    fn swap(&self, tokens: Vec<Address>, user: Address, pool_id: Symbol, token_in: Address, token_out: Address, amount_in: i128, amount_out: i128);
+
     fn kill_deposit(&self);
 
     fn unkill_deposit(&self);
@@ -36,22 +38,28 @@ pub(crate) trait IndexEvents {
 }
 
 impl IndexEvents for Events {
-    fn mint(&self, user: Address) {
+    fn mint(&self, ts: u64, user: Address) {
         self.env()
             .events()
-            .publish((Symbol::new(self.env(), "mint"), user), ());
+            .publish((Symbol::new(self.env(), "mint"), ts, user), ());
     }
 
-    fn redeem(&self, user: Address) {
+    fn redeem(&self, ts: u64, user: Address) {
         self.env()
             .events()
-            .publish((Symbol::new(self.env(), "redeem"), user), ());
+            .publish((Symbol::new(self.env(), "redeem"), ts, user), ());
     }
 
-    fn rebalance(&self, user: Address) {
+    fn rebalance(&self, ts: u64, user: Address) {
         self.env()
             .events()
-            .publish((Symbol::new(self.env(), "rebalance"), user), ());
+            .publish((Symbol::new(self.env(), "rebalance"), ts, user), ());
+    }
+
+    fn swap(&self, tokens: Vec<Address>, user: Address, pool_id: Symbol, token_in: Address, token_out: Address, amount_in: i128, amount_out: i128) {
+        self.env()
+            .events()
+            .publish((Symbol::new(self.env(), "swap"), tokens, user, pool_id, token_in, token_out, amount_in, amount_out), ());
     }
 
     fn kill_deposit(&self) {
