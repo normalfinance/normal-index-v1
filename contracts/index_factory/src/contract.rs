@@ -1,6 +1,6 @@
 use crate::events::{ Events, FactoryConfigEvents, FactoryEvents };
 use crate::storage::{
-    get_aggregator, get_contract_sequence, get_fee_contract_wasm, set_aggregator, set_contract_sequence, set_fee_contract_wasm, set_max_manager_fee_fraction, set_protocol_fee_fraction, DexDistribution
+    get_aggregator, get_contract_sequence, get_fee_contract_wasm, set_aggregator, set_contract_sequence, set_fee_contract_wasm, set_max_manager_fee_fraction, set_protocol_fee_fraction, get_router, set_router, DexDistribution, get_protocol_fee_recipient, set_protocol_fee_recipient
 };
 use access_control::access::{ AccessControl, AccessControlTrait };
 use access_control::emergency::{ get_emergency_mode, set_emergency_mode };
@@ -31,15 +31,18 @@ impl IndexFactory {
     //   - admin: The address to be assigned the Admin role.
     //   - emergency_admin: The address to be assigned the EmergencyAdmin role.
     //   - aggregator: The address of the swap aggregator contract.
+    //   - router: The address of the router contract.
     //   - index_contract_wasm: The WASM hash (BytesN<32>) for the swap fee contract.
     pub fn __constructor(
         e: Env,
         admin: Address,
         emergency_admin: Address,
         aggregator: Address,
+        router: Address,
         index_contract_wasm: BytesN<32>,
         max_manager_fee_fraction: u32,
-        protocol_fee_fraction: u32
+        protocol_fee_fraction: u32,
+        protocol_fee_recipient: Address
     ) {
         let access_control = AccessControl::new(&e);
         access_control.set_role_address(&Role::Admin, &admin);
@@ -47,9 +50,11 @@ impl IndexFactory {
         access_control.apply_transfer_ownership(&Role::EmergencyAdmin);
 
         set_aggregator(&e, &aggregator);
+        set_router(&e, &router);
         set_fee_contract_wasm(&e, &index_contract_wasm);
         set_protocol_fee_fraction(&e, &protocol_fee_fraction);
         set_max_manager_fee_fraction(&e, &max_manager_fee_fraction);
+        set_protocol_fee_recipient(&e, &protocol_fee_recipient);
     }
 
     // set_index_contract_wasm
@@ -90,6 +95,18 @@ impl IndexFactory {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
         set_max_manager_fee_fraction(&e, &fraction);
+    }
+
+    // Sets the protocol fee recipient address.
+    pub fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_protocol_fee_recipient(&e, &recipient);
+    }
+
+    // Gets the protocol fee recipient address.
+    pub fn get_protocol_fee_recipient(e: Env) -> Address {
+        get_protocol_fee_recipient(&e)
     }
 
     // deploy_index_contract
@@ -146,7 +163,7 @@ impl IndexFactory {
     ) -> Vec<Vec<i128>> {
         let result: Vec<Vec<i128>> = e.invoke_contract(
             &get_aggregator(&e),
-            &symbol_short!("swap_exact_tokens_for_tokens"),
+            &symbol_short!("swap_exct"),
             Vec::from_array(&e, [
                 e.current_contract_address().into_val(&e),
                 token_in.into_val(&e),

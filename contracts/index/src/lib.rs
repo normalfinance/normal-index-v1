@@ -5,6 +5,7 @@ pub mod errors;
 mod events;
 mod index;
 mod interface;
+mod stake;
 mod storage;
 // mod test;
 // mod test_math;

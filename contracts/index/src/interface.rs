@@ -45,4 +45,15 @@ pub trait AdminInterface {
     fn get_is_killed_mint(e: Env) -> bool;
     fn get_is_killed_redeem(e: Env) -> bool;
     fn get_is_killed_rebalance(e: Env) -> bool;
+
+    fn set_manager_address(e: Env, admin: Address, manager: Address);
+    fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address);
+    fn distribute_manager_fees(e: Env, admin: Address);
+    fn distribute_protocol_fees(e: Env, admin: Address);
+    
+    // Revenue Share Getters
+    fn get_accumulated_manager_fees(e: Env) -> u128;
+    fn get_accumulated_protocol_fees(e: Env) -> u128;
+    fn get_manager_address(e: Env) -> Address;
+    fn get_protocol_fee_recipient(e: Env) -> Address;
 }
