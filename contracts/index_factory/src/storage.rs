@@ -24,6 +24,7 @@ enum DataKey {
     Router, // DEX Router
     ProtocolFeeFraction,
     MaxManagerFeeFraction,
+    ProtocolFeeRecipient, // Address where protocol fees are sent
     IndexContractWASM,
     ContractSequence(Address),
 }
@@ -39,6 +40,11 @@ generate_instance_storage_getter_and_setter!(
     max_manager_fee_fraction,
     DataKey::MaxManagerFeeFraction,
     u32
+);
+generate_instance_storage_getter_and_setter!(
+    protocol_fee_recipient,
+    DataKey::ProtocolFeeRecipient,
+    Address
 );
 generate_instance_storage_getter_and_setter!(
     fee_contract_wasm,

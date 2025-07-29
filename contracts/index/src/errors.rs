@@ -11,4 +11,8 @@ pub enum IndexError {
     IndexMintKilled = 30,
     IndexRedeemKilled = 31,
     IndexRebalanceKilled = 32,
+    
+    // Revenue Share Errors
+    ManagerNotSet = 33,
+    ProtocolRecipientNotSet = 34,
 }

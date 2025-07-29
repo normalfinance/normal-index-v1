@@ -28,6 +28,13 @@ enum DataKey {
     Public, // Private indexes are mutable and can only be minted by the admin and whitelist. Pubilic indexes are immutabel and can be minted by anyone
 
     ManagerFeeFraction, // A custom annual fee set by the admin
+    
+    // Revenue Share
+    ManagerAddress, // Address of the index manager who receives fees
+    ProtocolFeeRecipient, // Address where protocol fees are sent
+    AccumulatedManagerFees, // Total manager fees accumulated but not yet distributed
+    AccumulatedProtocolFees, // Total protocol fees accumulated but not yet distributed
+    LastFeeCollection, // Timestamp of last fee collection
 
     Whitelist(Address), // List of accounts explicitly allowed to mint the index
     Blacklist(Address), // List of accounts blocked from minting the index
@@ -63,6 +70,39 @@ generate_instance_storage_getter_and_setter_with_default!(
     u32,
     0
 );
+
+// Revenue Share storage
+generate_instance_storage_getter_and_setter_with_default!(
+    manager_address,
+    DataKey::ManagerAddress,
+    Address,
+    Address::from_str(&Env::default(), "")
+);
+generate_instance_storage_getter_and_setter_with_default!(
+    protocol_fee_recipient,
+    DataKey::ProtocolFeeRecipient,
+    Address,
+    Address::from_str(&Env::default(), "")
+);
+generate_instance_storage_getter_and_setter_with_default!(
+    accumulated_manager_fees,
+    DataKey::AccumulatedManagerFees,
+    u128,
+    0
+);
+generate_instance_storage_getter_and_setter_with_default!(
+    accumulated_protocol_fees,
+    DataKey::AccumulatedProtocolFees,
+    u128,
+    0
+);
+generate_instance_storage_getter_and_setter_with_default!(
+    last_fee_collection,
+    DataKey::LastFeeCollection,
+    u64,
+    0
+);
+
 generate_instance_storage_getter_and_setter_with_default!(public, DataKey::Public, bool, false);
 generate_instance_storage_getter_and_setter_with_default!(
     rebalance_threshold,

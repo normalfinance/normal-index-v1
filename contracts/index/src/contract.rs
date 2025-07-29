@@ -21,6 +21,20 @@ use crate::storage::set_public;
 use crate::storage::set_total_mints;
 use crate::storage::set_factory;
 use crate::storage::{
+    get_manager_fee_fraction,
+    get_manager_address,
+    get_protocol_fee_recipient,
+    set_manager_address,
+    set_protocol_fee_recipient,
+    get_accumulated_manager_fees,
+    get_accumulated_protocol_fees,
+    set_accumulated_manager_fees,
+    set_accumulated_protocol_fees,
+    set_last_fee_collection,
+    get_total_fees,
+    set_total_fees,
+};
+use crate::storage::{
     get_insurance_vault_amount,
     get_is_killed_mint,
     get_is_killed_redeem,
@@ -113,7 +127,42 @@ impl Index {
 
         set_manager_fee_fraction(&e, &manager_fee_fraction);
         set_public(&e, &public);
+        
+        // Set the admin as the initial manager who will receive fees
+        set_manager_address(&e, &admin);
+        
+        set_last_fee_collection(&e, &e.ledger().timestamp());
 
+    }
+
+    // Helper function to calculate and collect manager fees
+    fn collect_manager_fees(e: &Env, amount: u128, user: &Address, token: &Address) -> u128 {
+        let manager_fee_fraction = get_manager_fee_fraction(e);
+        
+        if manager_fee_fraction == 0 {
+            return amount; // No fees to collect
+        }
+        
+        // Calculate manager fee (in basis points, so divide by 10000)
+        let manager_fee = (amount * manager_fee_fraction as u128) / 10000;
+     
+        let protocol_fee = manager_fee / 2; // 50% to protocol, 50% to manager
+        let total_fee = manager_fee + protocol_fee;
+        
+        // Accumulate fees
+        let current_manager_fees = get_accumulated_manager_fees(e);
+        let current_protocol_fees = get_accumulated_protocol_fees(e);
+        let current_total_fees = get_total_fees(e);
+        
+        set_accumulated_manager_fees(e, &(current_manager_fees + manager_fee));
+        set_accumulated_protocol_fees(e, &(current_protocol_fees + protocol_fee));
+        set_total_fees(e, &(current_total_fees + total_fee));
+        
+        set_last_fee_collection(e, &e.ledger().timestamp());
+        
+        Events::new(e).fee_collected(user.clone(), token.clone(), amount, manager_fee, protocol_fee);
+        
+        amount - total_fee
     }
 }
 
@@ -149,7 +198,10 @@ impl IndexTrait for Index {
             InsuranceFundError::InvalidIFForNewStakes
         );
 
-        let n_shares = vault_amount_to_shares(&e, amount, total_shares, vault_amount);
+        // Collect manager fees from the deposit amount
+        let amount_after_fees = Index::collect_manager_fees(&e, amount, &user, &token);
+        
+        let n_shares = vault_amount_to_shares(&e, amount_after_fees, total_shares, vault_amount);
 
         // Configure swaps
         let swaps_chain: Vec<(Vec<Address>, BytesN<32>, Address)> = Vec::new(&e);
@@ -408,6 +460,96 @@ impl AdminInterface for Index {
     // Get withdraw killswitch status.
     fn get_is_killed_rebalance(e: Env) -> bool {
         get_is_killed_rebalance(&e)
+    }
+
+ 
+    fn set_manager_address(e: Env, admin: Address, manager: Address) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        let old_manager = get_manager_address(&e);
+        set_manager_address(&e, &manager);
+        
+        
+        Events::new(&e).manager_address_updated(old_manager, manager);
+    }
+
+  
+    fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        let old_recipient = get_protocol_fee_recipient(&e);
+        set_protocol_fee_recipient(&e, &recipient);
+        
+
+        Events::new(&e).protocol_fee_recipient_updated(old_recipient, recipient);
+    }
+
+  
+    fn distribute_manager_fees(e: Env, admin: Address) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        let accumulated_fees = get_accumulated_manager_fees(&e);
+        if accumulated_fees == 0 {
+            return; 
+        }
+
+        let manager = get_manager_address(&e);
+        if manager == Address::from_str(&e, "") {
+            panic_with_error!(&e, IndexError::ManagerNotSet);
+        }
+
+        set_accumulated_manager_fees(&e, &0);
+        
+        Events::new(&e).manager_fees_distributed(manager.clone(), accumulated_fees);
+
+        //This is a placeholder for the manager to claim their fees
+    }
+
+  
+    fn distribute_protocol_fees(e: Env, admin: Address) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        let accumulated_fees = get_accumulated_protocol_fees(&e);
+        if accumulated_fees == 0 {
+            return; 
+        }
+
+        let protocol_recipient = get_protocol_fee_recipient(&e);
+        if protocol_recipient == Address::from_str(&e, "") {
+            panic_with_error!(&e, IndexError::ProtocolRecipientNotSet);
+        }
+
+        set_accumulated_protocol_fees(&e, &0);
+        
+        Events::new(&e).protocol_fees_distributed(protocol_recipient.clone(), accumulated_fees);
+
+        //This is a placeholder for the protocol to claim their fees
+    }
+
+    fn get_accumulated_manager_fees(e: Env) -> u128 {
+        get_accumulated_manager_fees(&e)
+    }
+
+  
+    fn get_accumulated_protocol_fees(e: Env) -> u128 {
+        get_accumulated_protocol_fees(&e)
+    }
+
+  
+    fn get_manager_address(e: Env) -> Address {
+        get_manager_address(&e)
+    }
+
+    fn get_protocol_fee_recipient(e: Env) -> Address {
+        get_protocol_fee_recipient(&e)
     }
 }
 
