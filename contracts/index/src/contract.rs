@@ -143,10 +143,10 @@ impl Index {
             return amount; // No fees to collect
         }
         
-        // Calculate manager fee (in basis points, so divide by 10000)
-        let manager_fee = (amount * manager_fee_fraction as u128) / 10000;
+        // Calculate manager fee (in basis points, so divide by 20000, since two halves)
+        let manager_fee = (amount * manager_fee_fraction as u128) / 20000;
      
-        let protocol_fee = manager_fee / 2; // 50% to protocol, 50% to manager
+        let protocol_fee = (amount * manager_fee_fraction as u128) / 20000;
         let total_fee = manager_fee + protocol_fee;
         
         // Accumulate fees
