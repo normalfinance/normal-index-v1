@@ -60,9 +60,9 @@ enum DataKey {
 
 generate_instance_storage_getter_and_setter_with_default!(factory, DataKey::Factory, Address, Address::from_str(&Env::default(), ""));
 
-// Add missing storage getters for base_nav and initial_price
-generate_instance_storage_getter_and_setter_with_default!(base_nav, DataKey::BaseNAV, u128, 0);
-generate_instance_storage_getter_and_setter_with_default!(initial_price, DataKey::InitialPrice, u128, 0);
+// Financial Configuration
+generate_instance_storage_getter_and_setter_with_default!(base_nav, DataKey::BaseNAV, i128, 0);
+generate_instance_storage_getter_and_setter_with_default!(initial_price, DataKey::InitialPrice, i128, 0);
 
 // State
 generate_instance_storage_getter_and_setter_with_default!(
@@ -117,6 +117,61 @@ generate_instance_storage_getter_and_setter_with_default!(
     u64,
     THIRTY_DAY
 );
+
+// Whitelist/Blacklist functions
+// Note: These use manual implementation (not macros) because they are keyed storage patterns
+// that require persistent storage, custom TTL management, and Address-based keys.
+// This follows the same pattern as Component(Address) and ComponentBalance(Address) storage.
+
+/// Checks if an address is whitelisted
+/// Returns true if whitelisted, false if not (missing entries are treated as not whitelisted)
+pub fn get_whitelist_status(e: &Env, address: &Address) -> bool {
+    let key = DataKey::Whitelist(address.clone());
+    match e.storage().persistent().get::<DataKey, Address>(&key) {
+        Some(_) => {
+            bump_persistent(e, &key);
+            true
+        }
+        None => false,
+    }
+}
+
+/// Sets whitelist status for an address
+/// If status is true, adds the address to whitelist; if false, removes it
+pub fn set_whitelist_status(e: &Env, address: &Address, status: bool) {
+    let key = DataKey::Whitelist(address.clone());
+    if status {
+        e.storage().persistent().set(&key, address);
+        e.storage().persistent().extend_ttl(&key, 100000, 100000);
+    } else {
+        e.storage().persistent().remove(&key);
+    }
+}
+
+/// Checks if an address is blacklisted
+/// Returns true if blacklisted, false if not (missing entries are treated as not blacklisted)
+pub fn get_blacklist_status(e: &Env, address: &Address) -> bool {
+    let key = DataKey::Blacklist(address.clone());
+    match e.storage().persistent().get::<DataKey, Address>(&key) {
+        Some(_) => {
+            bump_persistent(e, &key);
+            true
+        }
+        None => false,
+    }
+}
+
+/// Sets blacklist status for an address  
+/// If status is true, adds the address to blacklist; if false, removes it
+pub fn set_blacklist_status(e: &Env, address: &Address, status: bool) {
+    let key = DataKey::Blacklist(address.clone());
+    if status {
+        e.storage().persistent().set(&key, address);
+        e.storage().persistent().extend_ttl(&key, 100000, 100000);
+    } else {
+        e.storage().persistent().remove(&key);
+    }
+}
 
 // Timestamps
 generate_instance_storage_getter_and_setter_with_default!(

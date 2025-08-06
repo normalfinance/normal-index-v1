@@ -11,6 +11,27 @@ use crate::storage::set_public;
 use crate::storage::set_total_mints;
 use crate::storage::set_factory;
 use crate::storage::{
+    get_factory,
+    get_base_nav,
+    get_initial_price,
+    set_base_nav,
+    set_initial_price,
+    get_public,
+    get_rebalance_threshold,
+    set_rebalance_threshold,
+    get_last_rebalance_ts,
+    get_last_updated_ts,
+    get_total_mints,
+    get_total_redemptions,
+    get_component,
+    get_component_balance,
+    get_last_fee_collection,
+    get_whitelist_status,
+    get_blacklist_status,
+    set_whitelist_status,
+    set_blacklist_status,
+};
+use crate::storage::{
     get_manager_fee_fraction,
     get_manager_address,
     get_protocol_fee_recipient,
@@ -240,6 +261,99 @@ impl IndexTrait for Index {
         if get_is_killed_redeem(&e) {
             panic_with_error!(e, IndexError::IndexRedeemKilled);
         }
+    }
+
+    fn get_token(e: Env) -> Address {
+        crate::storage::get_token(&e)
+    }
+
+    fn get_factory(e: Env) -> Address {
+        crate::storage::get_factory(&e)
+    }
+
+    fn get_base_nav(e: Env) -> i128 {
+        crate::storage::get_base_nav(&e)
+    }
+
+    fn get_initial_price(e: Env) -> i128 {
+        crate::storage::get_initial_price(&e)
+    }
+
+    fn get_nav(e: Env) -> i128 {
+        let base_nav = crate::storage::get_base_nav(&e);
+        let total_shares = crate::storage::get_total_shares(&e);
+        if total_shares == 0 {
+            return base_nav;
+        }
+        
+        let token = crate::storage::get_token(&e);
+        let vault_amount = crate::storage::get_index_vault_amount(&e, &token) as i128;
+        vault_amount
+    }
+
+    fn get_price(e: Env) -> i128 {
+        let nav = Self::get_nav(e.clone());
+        let total_shares = crate::storage::get_total_shares(&e);
+        if total_shares == 0 {
+            return crate::storage::get_initial_price(&e);
+        }
+        nav / (total_shares as i128)
+    }
+
+    fn get_total_shares(e: Env) -> u128 {
+        crate::storage::get_total_shares(&e)
+    }
+
+    fn get_public_status(e: Env) -> bool {
+        crate::storage::get_public(&e)
+    }
+
+    fn get_whitelist_status(e: Env, address: Address) -> bool {
+        crate::storage::get_whitelist_status(&e, &address)
+    }
+
+    fn get_blacklist_status(e: Env, address: Address) -> bool {
+        crate::storage::get_blacklist_status(&e, &address)
+    }
+
+    fn get_manager_fee_fraction(e: Env) -> u32 {
+        crate::storage::get_manager_fee_fraction(&e)
+    }
+
+    fn get_rebalance_threshold(e: Env) -> u64 {
+        crate::storage::get_rebalance_threshold(&e)
+    }
+
+    fn get_last_rebalance_timestamp(e: Env) -> u64 {
+        crate::storage::get_last_rebalance_ts(&e)
+    }
+
+    fn get_last_updated_timestamp(e: Env) -> u64 {
+        crate::storage::get_last_updated_ts(&e)
+    }
+
+    fn get_total_mints(e: Env) -> u128 {
+        crate::storage::get_total_mints(&e)
+    }
+
+    fn get_total_redemptions(e: Env) -> u128 {
+        crate::storage::get_total_redemptions(&e)
+    }
+
+    fn get_total_fees(e: Env) -> u128 {
+        crate::storage::get_total_fees(&e)
+    }
+
+    fn get_component(e: Env, token: Address) -> crate::storage::Component {
+        crate::storage::get_component(&e, token)
+    }
+
+    fn get_component_balance(e: Env, token: Address) -> u128 {
+        crate::storage::get_component_balance(&e, token)
+    }
+
+    fn get_last_fee_collection(e: Env) -> u64 {
+        crate::storage::get_last_fee_collection(&e)
     }
 }
 
@@ -551,13 +665,68 @@ impl AdminInterface for Index {
         get_accumulated_protocol_fees(&e)
     }
 
-  
-    fn get_manager_address(e: Env) -> Address {
-        get_manager_address(&e)
+    fn set_factory(e: Env, admin: Address, factory: Address) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        crate::storage::set_factory(&e, &factory);
     }
 
-    fn get_protocol_fee_recipient(e: Env) -> Address {
-        get_protocol_fee_recipient(&e)
+    fn set_base_nav(e: Env, admin: Address, base_nav: i128) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        crate::storage::set_base_nav(&e, &base_nav);
+    }
+
+    fn set_initial_price(e: Env, admin: Address, initial_price: i128) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        crate::storage::set_initial_price(&e, &initial_price);
+    }
+
+    fn set_public_status(e: Env, admin: Address, public: bool) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        crate::storage::set_public(&e, &public);
+    }
+
+    fn set_whitelist_status(e: Env, admin: Address, address: Address, status: bool) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        crate::storage::set_whitelist_status(&e, &address, status);
+    }
+
+    fn set_blacklist_status(e: Env, admin: Address, address: Address, status: bool) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        crate::storage::set_blacklist_status(&e, &address, status);
+    }
+
+    fn set_manager_fee_fraction(e: Env, admin: Address, fee_fraction: u32) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        crate::storage::set_manager_fee_fraction(&e, &fee_fraction);
+    }
+
+    fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        crate::storage::set_rebalance_threshold(&e, &threshold);
     }
 }
 
