@@ -15,4 +15,8 @@ pub enum IndexError {
     // Revenue Share Errors
     ManagerNotSet = 33,
     ProtocolRecipientNotSet = 34,
+    
+    // Insurance Fund Errors
+    InvalidIFForNewStakes = 35,
+    InvalidIFSharesDetected = 36,
 }

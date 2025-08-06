@@ -3,18 +3,8 @@ use crate::events::Events;
 use crate::events::IndexEvents;
 
 use crate::index::vault_amount_to_shares;
-use crate::interface::{ AdminInterface, IndexTrait };
+use crate::interface::{ AdminInterface, IndexTrait, QueryInterface, IndexInfo, IndexMetrics, IndexStatus };
 use crate::stake::Stake;
-use crate::stake::{
-    apply_rebase_to_insurance_fund,
-    apply_rebase_to_stake,
-    calculate_if_shares_lost,
-    get_stake,
-    if_shares_to_vault_amount,
-    save_stake,
-    vault_amount_to_if_shares,
-    StakeAction,
-};
 use crate::storage::get_index_vault_amount;
 use crate::storage::set_manager_fee_fraction;
 use crate::storage::set_public;
@@ -72,6 +62,23 @@ use crate::storage::{
     set_max_shares,
     set_total_shares,
     set_unstaking_period,
+    get_base_nav,
+    get_initial_price,
+    get_public,
+    get_last_rebalance_ts,
+    get_last_updated_ts,
+    get_total_mints,
+    get_total_redemptions,
+    get_rebalance_threshold,
+    get_all_components,
+    get_component,
+    get_all_component_balances,
+    get_component_balance,
+    get_component_registry,
+    get_component_balance_safe,
+    get_factory,
+    get_factory_safe,
+    Component,
 };
 use access_control::access::{ AccessControl, AccessControlTrait };
 use access_control::emergency::{ get_emergency_mode, set_emergency_mode };
@@ -99,6 +106,7 @@ use soroban_sdk::{
     IntoVal,
     Symbol,
     Vec,
+    Map,
 };
 use token_share::mint_shares;
 use token_share::put_token_share;
@@ -216,7 +224,7 @@ impl IndexTrait for Index {
         validate!(
             &e,
             !(insurance_vault_amount == 0 && total_shares != 0),
-            IndexError::MaxIFWithdrawReached
+            IndexError::InvalidIFForNewStakes
         );
 
         // Collect manager fees from the deposit amount
@@ -800,6 +808,229 @@ impl TransferableContract for Index {
                     None => panic_with_error!(&e, AccessControlError::RoleNotFound),
                 }
             _ => access_control.get_future_address(&role),
+        }
+    }
+}
+
+// Implementation of QueryInterface trait for Index contract
+#[contractimpl]
+impl QueryInterface for Index {
+    // Comprehensive index information
+    fn get_index_info(e: Env) -> IndexInfo {
+        IndexInfo {
+            address: e.current_contract_address(),
+            token_address: get_token(&e),
+            total_shares: get_total_shares(&e),
+            base_nav: get_base_nav(&e),
+            initial_price: get_initial_price(&e),
+            is_public: get_public(&e),
+            manager_fee_fraction: get_manager_fee_fraction(&e),
+            manager_address: get_manager_address(&e),
+            protocol_fee_recipient: get_protocol_fee_recipient(&e),
+            accumulated_manager_fees: get_accumulated_manager_fees(&e),
+            accumulated_protocol_fees: get_accumulated_protocol_fees(&e),
+            last_rebalance_ts: get_last_rebalance_ts(&e),
+            last_updated_ts: get_last_updated_ts(&e),
+            total_mints: get_total_mints(&e),
+            total_redemptions: get_total_redemptions(&e),
+            total_fees: get_total_fees(&e),
+            is_killed_mint: get_is_killed_mint(&e),
+            is_killed_redeem: get_is_killed_redeem(&e),
+            is_killed_rebalance: get_is_killed_rebalance(&e),
+        }
+    }
+    
+    // Component and balance queries
+    fn get_all_components(e: Env) -> Map<Address, Component> {
+        get_all_components(&e)
+    }
+    
+    fn get_component_info(e: Env, token: Address) -> Component {
+        get_component(&e, token)
+    }
+    
+    fn get_all_component_balances(e: Env) -> Map<Address, u128> {
+        get_all_component_balances(&e)
+    }
+    
+    fn get_component_balance(e: Env, token: Address) -> u128 {
+        get_component_balance(&e, token)
+    }
+    
+    fn get_total_index_value(e: Env) -> u128 {
+        let mut total_value: u128 = 0;
+        
+        // Get all component addresses from registry
+        let component_addresses = get_component_registry(&e);
+        
+        // Iterate through each component to calculate total portfolio value
+        for component_address in component_addresses.iter() {
+            // Get the component balance (how much of this token the index holds)
+            let balance = match get_component_balance_safe(&e, component_address.clone()) {
+                Some(bal) => bal,
+                None => 0u128, // If no balance stored, treat as 0
+            };
+            
+            if balance > 0 {
+                // Get the token price - for now we'll use a placeholder approach
+                let token_price = Index::get_token_price_in_base_currency(&e, component_address.clone());
+                
+                // Calculate value: balance * price
+                let component_value = balance.saturating_mul(token_price);
+                total_value = total_value.saturating_add(component_value);
+            }
+        }
+        
+        total_value
+    }
+    // Financial metrics
+    fn get_index_metrics(e: Env) -> IndexMetrics {
+        let current_nav = Index::get_current_nav(e.clone());
+        let share_price = Index::get_share_price(e.clone());
+        
+        IndexMetrics {
+            total_shares: get_total_shares(&e),
+            total_mints: get_total_mints(&e),
+            total_redemptions: get_total_redemptions(&e),
+            total_fees: get_total_fees(&e),
+            accumulated_manager_fees: get_accumulated_manager_fees(&e),
+            accumulated_protocol_fees: get_accumulated_protocol_fees(&e),
+            current_nav,
+            share_price,
+        }
+    }
+    
+    fn get_share_price(e: Env) -> u128 {
+        let total_shares = get_total_shares(&e);
+        if total_shares == 0 {
+            return get_initial_price(&e);
+        }
+        
+        let total_value = Index::get_total_index_value(e.clone());
+        if total_value == 0 {
+            return get_initial_price(&e);
+        }
+        
+        // Share price = Total Portfolio Value / Total Shares
+        total_value / total_shares
+    }
+    
+    fn get_current_nav(e: Env) -> u128 {
+        // NAV (Net Asset Value) is the total value of all holdings
+        Index::get_total_index_value(e)
+    }
+    //  get_is_killed_rebalance
+    
+    // Operational status
+    fn get_index_status(e: Env) -> IndexStatus {
+        let current_time = e.ledger().timestamp();
+        let last_rebalance = get_last_rebalance_ts(&e);
+        let threshold = get_rebalance_threshold(&e);
+        let can_rebalance = (current_time >= last_rebalance + threshold) && !get_is_killed_rebalance(&e);
+        
+        IndexStatus {
+            is_killed_mint: get_is_killed_mint(&e),
+            is_killed_redeem: get_is_killed_redeem(&e),
+            is_killed_rebalance: get_is_killed_rebalance(&e),
+            is_public: get_public(&e),
+            can_rebalance,
+            last_rebalance_ts: get_last_rebalance_ts(&e),
+            rebalance_threshold: get_rebalance_threshold(&e),
+        }
+    }
+    
+    fn can_rebalance(e: Env) -> bool {
+        if get_is_killed_rebalance(&e) {
+            return false;
+        }
+        
+        let current_time = e.ledger().timestamp();
+        let last_rebalance = get_last_rebalance_ts(&e);
+        let threshold = get_rebalance_threshold(&e);
+        
+        current_time >= last_rebalance + threshold
+    }
+}
+
+// Additional helper functions for Index
+impl Index {
+    // Helper function to get token price in base currency
+    // This is where oracle integration would happen
+    pub fn get_token_price_in_base_currency(e: &Env, token: Address) -> u128 {
+        // IMPLEMENTATION STRATEGY:
+        // 1. Try to get price from factory's swap aggregator
+        // 2. Fall back to stored price ratios
+        // 3. Default to 1:1 ratio if no price available
+        
+        // Attempt to get factory address for price discovery
+        match get_factory_safe(&e) {
+            Some(factory_address) => {
+                // Try to get a realistic price using the factory's aggregator
+                match Index::get_price_via_factory_aggregator(&e, &factory_address, &token) {
+                    Some(price) => price,
+                    None => {
+                        // Fall back to component weight-based pricing
+                        Index::get_price_from_component_weight(&e, &token)
+                    }
+                }
+            },
+            None => {
+                // No factory connection, use component weight-based pricing
+                Index::get_price_from_component_weight(&e, &token)
+            }
+        }
+    }
+    
+    // Helper function to get price via factory aggregator (simulation)
+    fn get_price_via_factory_aggregator(e: &Env, _factory_address: &Address, token: &Address) -> Option<u128> {
+        // FUTURE IMPLEMENTATION:
+        // This would make an actual call to the factory's aggregator to get current market prices
+        // For example:
+        // let factory_client = FactoryClient::new(e, factory_address);
+        // let base_currency = Address::from_str(e, "USDC_CONTRACT_ADDRESS");
+        // let price_result = factory_client.get_spot_price(token, &base_currency, &1_000_000u128);
+        
+        // For now, simulate different prices for demonstration
+        let token_str = token.to_string();
+        
+        // Mock prices based on token address patterns (for demonstration)
+        if token_str.contains("usdc") || token_str.contains("USDC") {
+            Some(1_000_000u128) // 1 USDC = 1.000000 (6 decimals)
+        } else if token_str.contains("xlm") || token_str.contains("XLM") {
+            Some(120_000u128)   // 1 XLM = 0.12 USDC (simulated price)
+        } else if token_str.contains("btc") || token_str.contains("BTC") {
+            Some(45_000_000_000u128) // 1 BTC = 45,000 USDC (simulated price)
+        } else if token_str.contains("eth") || token_str.contains("ETH") {
+            Some(2_500_000_000u128)  // 1 ETH = 2,500 USDC (simulated price)
+        } else {
+            None // Unknown token, fall back to weight-based pricing
+        }
+    }
+    
+    // Helper function to get price based on component weight
+    fn get_price_from_component_weight(e: &Env, token: &Address) -> u128 {
+        // Get component information to use weight as a price indicator
+        match get_component_safe(e, token.clone()) {
+            Some(component) => {
+                // Use component weight as a price multiplier
+                // Higher weight = more valuable component
+                // Weight is typically in basis points (e.g., 5000 = 50%)
+                let base_price = 1_000_000u128; // Base price of 1.0 (6 decimals)
+                let weight_multiplier = if component.weight > 0 {
+                    // Scale weight (basis points) to a reasonable price multiplier
+                    // Weight 10000 (100%) = 1.0x, Weight 5000 (50%) = 0.5x, etc.
+                    component.weight.max(1000) // Minimum 10% weight
+                } else {
+                    1000u128 // Default 10% weight
+                };
+                
+                // Calculate price: base_price * (weight / 10000)
+                base_price.saturating_mul(weight_multiplier) / 10000
+            },
+            None => {
+                // Token not found in components, use default price
+                1_000_000u128 // 1.0 with 6 decimals
+            }
         }
     }
 }

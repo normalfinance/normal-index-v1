@@ -27,6 +27,9 @@ enum DataKey {
     ProtocolFeeRecipient, // Address where protocol fees are sent
     IndexContractWASM,
     ContractSequence(Address),
+    // Index registry storage
+    DeployedIndexes(Address), // operator -> Vec<Address>
+    AllDeployedIndexes,       // global registry -> Vec<Address>
 }
 
 generate_instance_storage_getter_and_setter!(aggregator, DataKey::Aggregator, Address);
@@ -67,4 +70,49 @@ pub(crate) fn set_contract_sequence(env: &Env, operator: Address, sequence: u32)
     let key = DataKey::ContractSequence(operator);
     env.storage().persistent().set(&key, &sequence);
     bump_persistent(env, &key);
+}
+
+// Index registry functions
+pub fn add_deployed_index(env: &Env, operator: &Address, index_address: &Address) {
+    // Add to operator's list
+    let operator_key = DataKey::DeployedIndexes(operator.clone());
+    let mut operator_indexes: Vec<Address> = match env.storage().persistent().get(&operator_key) {
+        Some(indexes) => indexes,
+        None => Vec::new(env),
+    };
+    operator_indexes.push_back(index_address.clone());
+    env.storage().persistent().set(&operator_key, &operator_indexes);
+    bump_persistent(env, &operator_key);
+
+    // Add to global list
+    let global_key = DataKey::AllDeployedIndexes;
+    let mut all_indexes: Vec<Address> = match env.storage().persistent().get(&global_key) {
+        Some(indexes) => indexes,
+        None => Vec::new(env),
+    };
+    all_indexes.push_back(index_address.clone());
+    env.storage().persistent().set(&global_key, &all_indexes);
+    bump_persistent(env, &global_key);
+}
+
+pub fn get_deployed_indexes(env: &Env, operator: &Address) -> Vec<Address> {
+    let key = DataKey::DeployedIndexes(operator.clone());
+    match env.storage().persistent().get(&key) {
+        Some(indexes) => {
+            bump_persistent(env, &key);
+            indexes
+        }
+        None => Vec::new(env),
+    }
+}
+
+pub fn get_all_deployed_indexes(env: &Env) -> Vec<Address> {
+    let key = DataKey::AllDeployedIndexes;
+    match env.storage().persistent().get(&key) {
+        Some(indexes) => {
+            bump_persistent(env, &key);
+            indexes
+        }
+        None => Vec::new(env),
+    }
 }

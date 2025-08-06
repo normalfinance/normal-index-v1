@@ -119,7 +119,7 @@ pub fn vault_amount_to_shares(
         validate!(
             e,
             total_shares == 0,
-            IndexError::MaxIFWithdrawReached
+            IndexError::InvalidIFSharesDetected
         );
 
         amount

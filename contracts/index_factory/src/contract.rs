@@ -1,6 +1,6 @@
 use crate::events::{ Events, FactoryConfigEvents, FactoryEvents };
 use crate::storage::{
-    get_aggregator, get_contract_sequence, get_fee_contract_wasm, set_aggregator, set_contract_sequence, set_fee_contract_wasm, set_max_manager_fee_fraction, set_protocol_fee_fraction, get_router, set_router, DexDistribution, get_protocol_fee_recipient, set_protocol_fee_recipient
+    get_aggregator, get_contract_sequence, get_fee_contract_wasm, set_aggregator, set_contract_sequence, set_fee_contract_wasm, set_max_manager_fee_fraction, set_protocol_fee_fraction, get_router, set_router, DexDistribution, get_protocol_fee_recipient, set_protocol_fee_recipient, get_max_manager_fee_fraction, add_deployed_index, get_deployed_indexes, get_all_deployed_indexes, get_protocol_fee_fraction
 };
 use access_control::access::{ AccessControl, AccessControlTrait };
 use access_control::emergency::{ get_emergency_mode, set_emergency_mode };
@@ -12,7 +12,7 @@ use access_control::role::{ Role, SymbolRepresentation };
 use access_control::transfer::TransferOwnershipTrait;
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
-    contract, contractimpl, panic_with_error, symbol_short, Address, Bytes, BytesN, Env, IntoVal, Symbol, Vec
+    contract, contractimpl, panic_with_error, symbol_short, Address, Bytes, BytesN, Env, IntoVal, Symbol, Vec, contracttype
 };
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
@@ -20,6 +20,18 @@ use upgrade::{ apply_upgrade, commit_upgrade, revert_upgrade };
 
 #[contract]
 pub struct IndexFactory;
+
+// Factory configuration struct for query methods
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FactoryConfig {
+    pub aggregator: Address,
+    pub router: Address,
+    pub protocol_fee_fraction: u32,
+    pub max_manager_fee_fraction: u32,
+    pub protocol_fee_recipient: Address,
+    pub index_contract_wasm: BytesN<32>,
+}
 
 #[contractimpl]
 impl IndexFactory {
@@ -142,6 +154,9 @@ impl IndexFactory {
                 fee_destination.clone(),
                 max_max_swap_fee_fraction,
             ));
+        // Add to index registry
+        add_deployed_index(&e, &operator, &address);
+        
         Events::new(&e).deploy(
             operator,
             fee_destination,
@@ -178,6 +193,76 @@ impl IndexFactory {
 
         result
     }
+
+    // Query Methods - Factory Configuration
+    pub fn get_factory_config(e: Env) -> FactoryConfig {
+        FactoryConfig {
+            aggregator: get_aggregator(&e),
+            router: get_router(&e),
+            protocol_fee_fraction: get_protocol_fee_fraction(&e),
+            max_manager_fee_fraction: get_max_manager_fee_fraction(&e),
+            protocol_fee_recipient: get_protocol_fee_recipient(&e),
+            index_contract_wasm: get_fee_contract_wasm(&e),
+        }
+    }
+
+    // Individual getters for factory configuration
+    pub fn get_aggregator(e: Env) -> Address {
+        get_aggregator(&e)
+    }
+
+    pub fn get_router(e: Env) -> Address {
+        get_router(&e)
+    }
+
+    pub fn get_protocol_fee_fraction(e: Env) -> u32 {
+        get_protocol_fee_fraction(&e)
+    }
+
+    pub fn get_max_manager_fee_fraction(e: Env) -> u32 {
+        get_max_manager_fee_fraction(&e)
+    }
+
+    pub fn get_index_contract_wasm(e: Env) -> BytesN<32> {
+        get_fee_contract_wasm(&e)
+    }
+
+    // Index Registry Query Methods
+    pub fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address> {
+        get_deployed_indexes(&e, &operator)
+    }
+
+    pub fn get_all_deployed_indexes(e: Env) -> Vec<Address> {
+        get_all_deployed_indexes(&e)
+    }
+
+    pub fn get_index_count(e: Env, operator: Address) -> u32 {
+        let indexes = get_deployed_indexes(&e, &operator);
+        indexes.len()
+    }
+
+    pub fn get_total_index_count(e: Env) -> u32 {
+        let all_indexes = get_all_deployed_indexes(&e);
+        all_indexes.len()
+    }
+
+    // Note: Bulk index information queries would require importing the Index contract's types
+    // These would need to be implemented if cross-contract calls are needed:
+    //
+    // pub fn query_multiple_indexes_info(e: Env, addresses: Vec<Address>) -> Vec<IndexInfo> {
+    //     let mut results = Vec::new(&e);
+    //     for address in addresses.iter() {
+    //         // Call index.get_index_info() for each address
+    //         let info: IndexInfo = e.invoke_contract(&address, &symbol_short!("get_index_info"), Vec::new(&e));
+    //         results.push_back(info);
+    //     }
+    //     results
+    // }
+    //
+    // pub fn query_operator_indexes_info(e: Env, operator: Address) -> Vec<IndexInfo> {
+    //     let addresses = get_deployed_indexes(&e, &operator);
+    //     IndexFactory::query_multiple_indexes_info(e, addresses)
+    // }
 }
 
 #[contractimpl]
