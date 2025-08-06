@@ -48,4 +48,4 @@ pub fn vault_amount_to_if_shares(e: &Env, amount: u128) -> u128 {
 pub enum InsuranceFundError {
     InvalidIFForNewStakes,
     InvalidIFSharesDetected,
-} 
+}

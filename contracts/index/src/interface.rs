@@ -1,4 +1,4 @@
-use soroban_sdk::{ contracttype, Address, Env, Map };
+use soroban_sdk::{contracttype, Address, Env, Map};
 
 use crate::stake::Stake;
 use crate::storage::Component;
@@ -10,11 +10,10 @@ pub trait IndexTrait {
         token: Address,
         amount: u128,
         destination: Option<Address>,
-        max_slippage: Option<u64>
+        max_slippage: Option<u64>,
     );
 
     fn redeem(e: Env, user: Address, share_amount: u128);
-
 
     fn get_token(e: Env) -> Address;
 
@@ -63,7 +62,7 @@ pub trait AdminInterface {
     fn rebalance(e: Env, admin: Address);
 
     fn distribute_manager_fees(e: Env, admin: Address);
-    
+
     fn distribute_protocol_fees(e: Env, admin: Address);
 
     fn set_factory(e: Env, admin: Address, factory: Address);
@@ -168,19 +167,19 @@ pub struct IndexStatus {
 pub trait QueryInterface {
     // Comprehensive index information
     fn get_index_info(e: Env) -> IndexInfo;
-    
+
     // Component and balance queries
     fn get_all_components(e: Env) -> Map<Address, Component>;
     fn get_component_info(e: Env, token: Address) -> Component;
     fn get_all_component_balances(e: Env) -> Map<Address, u128>;
     fn get_component_balance(e: Env, token: Address) -> u128;
     fn get_total_index_value(e: Env) -> u128;
-    
+
     // Financial metrics
     fn get_index_metrics(e: Env) -> IndexMetrics;
     fn get_share_price(e: Env) -> u128;
     fn get_current_nav(e: Env) -> u128;
-    
+
     // Operational status
     fn get_index_status(e: Env) -> IndexStatus;
     fn can_rebalance(e: Env) -> bool;

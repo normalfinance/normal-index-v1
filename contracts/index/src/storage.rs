@@ -1,14 +1,13 @@
 use paste::paste;
 use soroban_sdk::token::TokenClient as SorobanTokenClient;
-use soroban_sdk::{ contracttype, panic_with_error, Address, Env, Map, Symbol, Vec };
-use utils::bump::{ bump_instance, bump_persistent };
+use soroban_sdk::{contracttype, panic_with_error, Address, Env, Map, Symbol, Vec};
+use utils::bump::{bump_instance, bump_persistent};
 use utils::constant::THIRTY_DAY;
 use utils::errors::storage_errors::StorageError;
 use utils::{
     generate_instance_storage_getter_and_setter,
     generate_instance_storage_getter_and_setter_with_default,
-    generate_instance_storage_getter_with_default,
-    generate_instance_storage_setter,
+    generate_instance_storage_getter_with_default, generate_instance_storage_setter,
 };
 
 #[derive(Clone)]
@@ -28,13 +27,13 @@ enum DataKey {
     Public, // Private indexes are mutable and can only be minted by the admin and whitelist. Pubilic indexes are immutabel and can be minted by anyone
 
     ManagerFeeFraction, // A custom annual fee set by the admin
-    
+
     // Revenue Share
-    ManagerAddress, // Address of the index manager who receives fees
-    ProtocolFeeRecipient, // Address where protocol fees are sent
-    AccumulatedManagerFees, // Total manager fees accumulated but not yet distributed
+    ManagerAddress,          // Address of the index manager who receives fees
+    ProtocolFeeRecipient,    // Address where protocol fees are sent
+    AccumulatedManagerFees,  // Total manager fees accumulated but not yet distributed
     AccumulatedProtocolFees, // Total protocol fees accumulated but not yet distributed
-    LastFeeCollection, // Timestamp of last fee collection
+    LastFeeCollection,       // Timestamp of last fee collection
 
     Whitelist(Address), // List of accounts explicitly allowed to mint the index
     Blacklist(Address), // List of accounts blocked from minting the index
@@ -42,7 +41,7 @@ enum DataKey {
     RebalanceThreshold, // Minimum amount of time that must pass before the index can be rebalanced again
 
     LastRebalanceTs, // The ts when the index was last rebalanced
-    LastUpdatedTs, // The ts when the index was last updated (any property)
+    LastUpdatedTs,   // The ts when the index was last updated (any property)
 
     // Metrics
     TotalMints,
@@ -53,16 +52,26 @@ enum DataKey {
     IsKilledMint,
     IsKilledRedeem,
     IsKilledRebalance,
-    
+
     // Component registry
     ComponentRegistry, // Vec<Address> - list of all component addresses
 }
 
-generate_instance_storage_getter_and_setter_with_default!(factory, DataKey::Factory, Address, Address::from_str(&Env::default(), ""));
+generate_instance_storage_getter_and_setter_with_default!(
+    factory,
+    DataKey::Factory,
+    Address,
+    Address::from_str(&Env::default(), "")
+);
 
 // Financial Configuration
 generate_instance_storage_getter_and_setter_with_default!(base_nav, DataKey::BaseNAV, i128, 0);
-generate_instance_storage_getter_and_setter_with_default!(initial_price, DataKey::InitialPrice, i128, 0);
+generate_instance_storage_getter_and_setter_with_default!(
+    initial_price,
+    DataKey::InitialPrice,
+    i128,
+    0
+);
 
 // State
 generate_instance_storage_getter_and_setter_with_default!(
@@ -211,10 +220,10 @@ pub struct Component {
 
 pub fn get_all_components(e: &Env) -> Map<Address, Component> {
     let mut components_map = Map::new(e);
-    
+
     // Get the list of component addresses from registry
     let component_addresses = get_component_registry(e);
-    
+
     // Iterate through each component address and get its data
     for address in component_addresses.iter() {
         match get_component_safe(e, address.clone()) {
@@ -227,7 +236,7 @@ pub fn get_all_components(e: &Env) -> Map<Address, Component> {
             }
         }
     }
-    
+
     components_map
 }
 
@@ -275,10 +284,10 @@ fn set_component(env: &Env, token: Address, component: Component) {
 // Proper implementation of get_all_component_balances
 pub fn get_all_component_balances(e: &Env) -> Map<Address, u128> {
     let mut balances_map = Map::new(e);
-    
+
     // Get the list of component addresses from registry
     let component_addresses = get_component_registry(e);
-    
+
     // Iterate through each component address and get its balance
     for address in component_addresses.iter() {
         match get_component_balance_safe(e, address.clone()) {
@@ -291,7 +300,7 @@ pub fn get_all_component_balances(e: &Env) -> Map<Address, u128> {
             }
         }
     }
-    
+
     balances_map
 }
 
@@ -320,14 +329,14 @@ pub fn add_component_to_registry(env: &Env, token: Address) {
         Some(reg) => reg,
         None => Vec::new(env),
     };
-    
+
     // Check if component is already in registry
     for existing_token in registry.iter() {
         if existing_token == token {
             return; // Already exists, don't add duplicate
         }
     }
-    
+
     // Add new component to registry
     registry.push_back(token);
     env.storage().persistent().set(&key, &registry);
@@ -340,7 +349,7 @@ pub fn remove_component_from_registry(env: &Env, token: Address) {
         Some(reg) => reg,
         None => return, // No registry exists
     };
-    
+
     // Find and remove the component
     let mut new_registry = Vec::new(env);
     for existing_token in registry.iter() {
@@ -348,7 +357,7 @@ pub fn remove_component_from_registry(env: &Env, token: Address) {
             new_registry.push_back(existing_token);
         }
     }
-    
+
     env.storage().persistent().set(&key, &new_registry);
     bump_persistent(env, &key);
 }
@@ -415,8 +424,6 @@ pub fn get_insurance_vault_amount(e: &Env) -> u128 {
     0
 }
 
-
-
 pub fn get_token(e: &Env) -> Address {
     bump_instance(e);
     match e.storage().instance().get(&DataKey::TokenIndex) {
@@ -435,27 +442,38 @@ pub fn put_token(e: &Env, token: &Address) {
 
 pub fn get_max_shares(e: &Env) -> u128 {
     bump_instance(e);
-    e.storage().instance().get(&DataKey::TotalShares).unwrap_or(0)
+    e.storage()
+        .instance()
+        .get(&DataKey::TotalShares)
+        .unwrap_or(0)
 }
 
 pub fn set_max_shares(e: &Env, max_shares: &u128) {
     bump_instance(e);
-    e.storage().instance().set(&DataKey::TotalShares, max_shares);
+    e.storage()
+        .instance()
+        .set(&DataKey::TotalShares, max_shares);
 }
 
 pub fn get_unstaking_period(e: &Env) -> u64 {
     bump_instance(e);
-    e.storage().instance().get(&DataKey::LastRebalanceTs).unwrap_or(0)
+    e.storage()
+        .instance()
+        .get(&DataKey::LastRebalanceTs)
+        .unwrap_or(0)
 }
 
 pub fn set_unstaking_period(e: &Env, period: &u64) {
     bump_instance(e);
-    e.storage().instance().set(&DataKey::LastRebalanceTs, period);
+    e.storage()
+        .instance()
+        .set(&DataKey::LastRebalanceTs, period);
 }
 
 pub fn get_shares_base(e: &Env) -> u128 {
     bump_instance(e);
-    e.storage().instance().get(&DataKey::TotalShares).unwrap_or(0)
+    e.storage()
+        .instance()
+        .get(&DataKey::TotalShares)
+        .unwrap_or(0)
 }
-
-

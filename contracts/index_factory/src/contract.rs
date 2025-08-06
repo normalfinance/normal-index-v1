@@ -1,22 +1,27 @@
-use crate::events::{ Events, FactoryConfigEvents, FactoryEvents };
+use crate::events::{Events, FactoryConfigEvents, FactoryEvents};
 use crate::storage::{
-    get_aggregator, get_contract_sequence, get_fee_contract_wasm, set_aggregator, set_contract_sequence, set_fee_contract_wasm, set_max_manager_fee_fraction, set_protocol_fee_fraction, get_router, set_router, DexDistribution, get_protocol_fee_recipient, set_protocol_fee_recipient, get_max_manager_fee_fraction, add_deployed_index, get_deployed_indexes, get_all_deployed_indexes, get_protocol_fee_fraction
+    add_deployed_index, get_aggregator, get_all_deployed_indexes, get_contract_sequence,
+    get_deployed_indexes, get_fee_contract_wasm, get_max_manager_fee_fraction,
+    get_protocol_fee_fraction, get_protocol_fee_recipient, get_router, set_aggregator,
+    set_contract_sequence, set_fee_contract_wasm, set_max_manager_fee_fraction,
+    set_protocol_fee_fraction, set_protocol_fee_recipient, set_router, DexDistribution,
 };
-use access_control::access::{ AccessControl, AccessControlTrait };
-use access_control::emergency::{ get_emergency_mode, set_emergency_mode };
+use access_control::access::{AccessControl, AccessControlTrait};
+use access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use access_control::errors::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
 use access_control::interface::TransferableContract;
 use access_control::management::SingleAddressManagementTrait;
-use access_control::role::{ Role, SymbolRepresentation };
+use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
-    contract, contractimpl, panic_with_error, symbol_short, Address, Bytes, BytesN, Env, IntoVal, Symbol, Vec, contracttype
+    contract, contractimpl, contracttype, panic_with_error, symbol_short, Address, Bytes, BytesN,
+    Env, IntoVal, Symbol, Vec,
 };
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
-use upgrade::{ apply_upgrade, commit_upgrade, revert_upgrade };
+use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
 
 #[contract]
 pub struct IndexFactory;
@@ -54,7 +59,7 @@ impl IndexFactory {
         index_contract_wasm: BytesN<32>,
         max_manager_fee_fraction: u32,
         protocol_fee_fraction: u32,
-        protocol_fee_recipient: Address
+        protocol_fee_recipient: Address,
     ) {
         let access_control = AccessControl::new(&e);
         access_control.set_role_address(&Role::Admin, &admin);
@@ -136,7 +141,7 @@ impl IndexFactory {
         e: Env,
         operator: Address,
         fee_destination: Address,
-        max_max_swap_fee_fraction: u32
+        max_max_swap_fee_fraction: u32,
     ) -> Address {
         operator.require_auth();
 
@@ -148,20 +153,23 @@ impl IndexFactory {
         let address = e
             .deployer()
             .with_current_contract(e.crypto().sha256(&salt))
-            .deploy_v2(get_fee_contract_wasm(&e), (
-                get_router(&e),
-                operator.clone(),
-                fee_destination.clone(),
-                max_max_swap_fee_fraction,
-            ));
+            .deploy_v2(
+                get_fee_contract_wasm(&e),
+                (
+                    get_router(&e),
+                    operator.clone(),
+                    fee_destination.clone(),
+                    max_max_swap_fee_fraction,
+                ),
+            );
         // Add to index registry
         add_deployed_index(&e, &operator, &address);
-        
+
         Events::new(&e).deploy(
             operator,
             fee_destination,
             max_max_swap_fee_fraction,
-            address.clone()
+            address.clone(),
         );
         address
     }
@@ -174,21 +182,24 @@ impl IndexFactory {
         amount_out_min: i128,
         distribution: Vec<DexDistribution>,
         to: Address,
-        deadline: u64
+        deadline: u64,
     ) -> Vec<Vec<i128>> {
         let result: Vec<Vec<i128>> = e.invoke_contract(
             &get_aggregator(&e),
             &symbol_short!("swap_exct"),
-            Vec::from_array(&e, [
-                e.current_contract_address().into_val(&e),
-                token_in.into_val(&e),
-                token_out.into_val(&e),
-                amount_in.into_val(&e),
-                amount_out_min.into_val(&e),
-                distribution.into_val(&e),
-                to.into_val(&e),
-                deadline.into_val(&e),
-            ])
+            Vec::from_array(
+                &e,
+                [
+                    e.current_contract_address().into_val(&e),
+                    token_in.into_val(&e),
+                    token_out.into_val(&e),
+                    amount_in.into_val(&e),
+                    amount_out_min.into_val(&e),
+                    distribution.into_val(&e),
+                    to.into_val(&e),
+                    deadline.into_val(&e),
+                ],
+            ),
         );
 
         result
@@ -415,11 +426,10 @@ impl TransferableContract for IndexFactory {
         let access_control = AccessControl::new(&e);
         let role = Role::from_symbol(&e, role_name);
         match access_control.get_transfer_ownership_deadline(&role) {
-            0 =>
-                match access_control.get_role_safe(&role) {
-                    Some(address) => address,
-                    None => panic_with_error!(&e, AccessControlError::RoleNotFound),
-                }
+            0 => match access_control.get_role_safe(&role) {
+                Some(address) => address,
+                None => panic_with_error!(&e, AccessControlError::RoleNotFound),
+            },
             _ => access_control.get_future_address(&role),
         }
     }

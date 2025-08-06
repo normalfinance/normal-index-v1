@@ -3,123 +3,67 @@ use crate::events::Events;
 use crate::events::IndexEvents;
 
 use crate::index::vault_amount_to_shares;
-use crate::interface::{ AdminInterface, IndexTrait, QueryInterface, IndexInfo, IndexMetrics, IndexStatus };
+use crate::interface::{
+    AdminInterface, IndexInfo, IndexMetrics, IndexStatus, IndexTrait, QueryInterface,
+};
 use crate::stake::Stake;
 use crate::storage::get_index_vault_amount;
+use crate::storage::set_factory;
 use crate::storage::set_manager_fee_fraction;
 use crate::storage::set_public;
 use crate::storage::set_total_mints;
-use crate::storage::set_factory;
 use crate::storage::{
-    get_factory,
-    get_base_nav,
-    get_initial_price,
-    set_base_nav,
-    set_initial_price,
-    get_public,
-    get_rebalance_threshold,
-    set_rebalance_threshold,
-    get_last_rebalance_ts,
-    get_last_updated_ts,
-    get_total_mints,
-    get_total_redemptions,
-    get_component,
-    get_component_balance,
-    get_last_fee_collection,
-    get_whitelist_status,
-    get_blacklist_status,
-    set_whitelist_status,
-    set_blacklist_status,
+    get_accumulated_manager_fees, get_accumulated_protocol_fees, get_manager_address,
+    get_manager_fee_fraction, get_protocol_fee_recipient, get_total_fees,
+    set_accumulated_manager_fees, set_accumulated_protocol_fees, set_last_fee_collection,
+    set_manager_address, set_protocol_fee_recipient, set_total_fees,
 };
 use crate::storage::{
-    get_manager_fee_fraction,
-    get_manager_address,
-    get_protocol_fee_recipient,
-    set_manager_address,
-    set_protocol_fee_recipient,
-    get_accumulated_manager_fees,
-    get_accumulated_protocol_fees,
-    set_accumulated_manager_fees,
-    set_accumulated_protocol_fees,
-    set_last_fee_collection,
-    get_total_fees,
-    set_total_fees,
+    get_all_component_balances, get_all_components, get_base_nav, get_component,
+    get_component_balance, get_component_balance_safe, get_component_registry, get_factory,
+    get_factory_safe, get_initial_price, get_insurance_vault_amount, get_is_killed_mint,
+    get_is_killed_rebalance, get_is_killed_redeem, get_last_rebalance_ts, get_last_updated_ts,
+    get_max_shares, get_public, get_rebalance_threshold, get_shares_base, get_token,
+    get_total_mints, get_total_redemptions, get_total_shares, get_unstaking_period, put_token,
+    set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem, set_max_shares,
+    set_total_shares, set_unstaking_period, Component,
 };
 use crate::storage::{
-    get_insurance_vault_amount,
-    get_is_killed_mint,
-    get_is_killed_redeem,
-    get_is_killed_rebalance,
-    get_max_shares,
-    get_shares_base,
-    get_token,
-    get_total_shares,
-    get_unstaking_period,
-    put_token,
-    set_is_killed_mint,
-    set_is_killed_redeem,
-    set_is_killed_rebalance,
-    set_max_shares,
-    set_total_shares,
-    set_unstaking_period,
-    get_base_nav,
-    get_initial_price,
-    get_public,
-    get_last_rebalance_ts,
-    get_last_updated_ts,
-    get_total_mints,
-    get_total_redemptions,
-    get_rebalance_threshold,
-    get_all_components,
-    get_component,
-    get_all_component_balances,
-    get_component_balance,
-    get_component_registry,
-    get_component_balance_safe,
-    get_factory,
-    get_factory_safe,
-    Component,
+    get_base_nav, get_blacklist_status, get_component, get_component_balance, get_factory,
+    get_initial_price, get_last_fee_collection, get_last_rebalance_ts, get_last_updated_ts,
+    get_public, get_rebalance_threshold, get_total_mints, get_total_redemptions,
+    get_whitelist_status, set_base_nav, set_blacklist_status, set_initial_price,
+    set_rebalance_threshold, set_whitelist_status,
 };
-use access_control::access::{ AccessControl, AccessControlTrait };
-use access_control::emergency::{ get_emergency_mode, set_emergency_mode };
+use access_control::access::{AccessControl, AccessControlTrait};
+use access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use access_control::errors::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
 use access_control::interface::TransferableContract;
-use access_control::management::{ MultipleAddressesManagementTrait, SingleAddressManagementTrait };
+use access_control::management::{MultipleAddressesManagementTrait, SingleAddressManagementTrait};
 use access_control::role::Role;
 use access_control::role::SymbolRepresentation;
 use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::{
-    require_pause_admin_or_owner,
-    require_pause_or_emergency_pause_admin_or_owner,
+    require_pause_admin_or_owner, require_pause_or_emergency_pause_admin_or_owner,
 };
-use soroban_sdk::auth::{ ContractContext, InvokerContractAuthEntry, SubContractInvocation };
+use soroban_fixed_point_math::FixedPoint;
+use soroban_sdk::auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation};
+use soroban_sdk::String;
 use soroban_sdk::{
-    contract,
-    contractimpl,
-    log,
-    panic_with_error,
-    vec,
-    Address,
-    BytesN,
-    Env,
-    IntoVal,
-    Symbol,
+    contract, contractimpl, log, panic_with_error, vec, Address, BytesN, Env, IntoVal, Map, Symbol,
     Vec,
-    Map,
 };
 use token_share::mint_shares;
 use token_share::put_token_share;
 use token_share::Client as LPTokenClient;
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
-use upgrade::{ apply_upgrade, commit_upgrade, revert_upgrade };
+use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
 use utils::math::safe_math::SafeMath;
 use utils::token::transfer_token;
 use utils::token::validate_token_contracts;
 use utils::validate;
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::String;
 
 #[contract]
 pub struct Index;
@@ -145,7 +89,7 @@ impl Index {
         manager_fee_fraction: u32,
         initial_price: i128,
         initial_deposit: i128,
-        components: Vec<Address>
+        components: Vec<Address>,
     ) {
         // set admin
         set_factory(&e, &factory);
@@ -156,41 +100,46 @@ impl Index {
 
         set_manager_fee_fraction(&e, &manager_fee_fraction);
         set_public(&e, &public);
-        
+
         // Set the admin as the initial manager who will receive fees
         set_manager_address(&e, &admin);
-        
-        set_last_fee_collection(&e, &e.ledger().timestamp());
 
+        set_last_fee_collection(&e, &e.ledger().timestamp());
     }
 
     // Helper function to calculate and collect manager fees
     fn collect_manager_fees(e: &Env, amount: u128, user: &Address, token: &Address) -> u128 {
         let manager_fee_fraction = get_manager_fee_fraction(e);
-        
+
         if manager_fee_fraction == 0 {
             return amount; // No fees to collect
         }
-        
+
         // Calculate manager fee (in basis points, so divide by 20000, since two halves)
         let manager_fee = (amount * manager_fee_fraction as u128) / 20000;
-     
+
         let protocol_fee = (amount * manager_fee_fraction as u128) / 20000;
         let total_fee = manager_fee + protocol_fee;
-        
+
         // Accumulate fees
         let current_manager_fees = get_accumulated_manager_fees(e);
         let current_protocol_fees = get_accumulated_protocol_fees(e);
         let current_total_fees = get_total_fees(e);
-        
+
         set_accumulated_manager_fees(e, &(current_manager_fees + manager_fee));
         set_accumulated_protocol_fees(e, &(current_protocol_fees + protocol_fee));
         set_total_fees(e, &(current_total_fees + total_fee));
-        
+
         set_last_fee_collection(e, &e.ledger().timestamp());
-        
-        Events::new(e).fee_collected(user.clone(), token.clone(), amount, manager_fee, protocol_fee);
-        
+
+        Events::new(e).fee_collected(
+            user.clone(),
+            token.clone(),
+            amount,
+            manager_fee,
+            protocol_fee,
+        );
+
         amount - total_fee
     }
 }
@@ -204,7 +153,7 @@ impl IndexTrait for Index {
         token: Address,
         amount: u128,
         destination: Option<Address>,
-        max_slippage: Option<u64>
+        max_slippage: Option<u64>,
     ) {
         user.require_auth();
 
@@ -229,7 +178,7 @@ impl IndexTrait for Index {
 
         // Collect manager fees from the deposit amount
         let amount_after_fees = Index::collect_manager_fees(&e, amount, &user, &token);
-        
+
         let n_shares = vault_amount_to_shares(&e, amount_after_fees, total_shares, vault_amount);
 
         // Configure swaps
@@ -237,7 +186,13 @@ impl IndexTrait for Index {
 
         // Execute swaps
         // Deposit the token
-        transfer_token(&e, &token, &user, &e.current_contract_address(), &(amount as i128));
+        transfer_token(
+            &e,
+            &token,
+            &user,
+            &e.current_contract_address(),
+            &(amount as i128),
+        );
         if swaps_chain.len() == 0 {
             panic_with_error!(&e, IndexError::PathIsEmpty);
         }
@@ -285,7 +240,7 @@ impl IndexTrait for Index {
         if total_shares == 0 {
             return base_nav;
         }
-        
+
         let token = crate::storage::get_token(&e);
         let vault_amount = crate::storage::get_index_vault_amount(&e, &token) as i128;
         vault_amount
@@ -584,7 +539,6 @@ impl AdminInterface for Index {
         get_is_killed_rebalance(&e)
     }
 
- 
     fn set_manager_address(e: Env, admin: Address, manager: Address) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -592,12 +546,10 @@ impl AdminInterface for Index {
 
         let old_manager = get_manager_address(&e);
         set_manager_address(&e, &manager);
-        
-        
+
         Events::new(&e).manager_address_updated(old_manager, manager);
     }
 
-  
     fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -605,12 +557,10 @@ impl AdminInterface for Index {
 
         let old_recipient = get_protocol_fee_recipient(&e);
         set_protocol_fee_recipient(&e, &recipient);
-        
 
         Events::new(&e).protocol_fee_recipient_updated(old_recipient, recipient);
     }
 
-  
     fn distribute_manager_fees(e: Env, admin: Address) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -618,7 +568,7 @@ impl AdminInterface for Index {
 
         let accumulated_fees = get_accumulated_manager_fees(&e);
         if accumulated_fees == 0 {
-            return; 
+            return;
         }
 
         let manager = get_manager_address(&e);
@@ -627,13 +577,12 @@ impl AdminInterface for Index {
         }
 
         set_accumulated_manager_fees(&e, &0);
-        
+
         Events::new(&e).manager_fees_distributed(manager.clone(), accumulated_fees);
 
         //This is a placeholder for the manager to claim their fees
     }
 
-  
     fn distribute_protocol_fees(e: Env, admin: Address) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -641,7 +590,7 @@ impl AdminInterface for Index {
 
         let accumulated_fees = get_accumulated_protocol_fees(&e);
         if accumulated_fees == 0 {
-            return; 
+            return;
         }
 
         let protocol_recipient = get_protocol_fee_recipient(&e);
@@ -650,7 +599,7 @@ impl AdminInterface for Index {
         }
 
         set_accumulated_protocol_fees(&e, &0);
-        
+
         Events::new(&e).protocol_fees_distributed(protocol_recipient.clone(), accumulated_fees);
 
         //This is a placeholder for the protocol to claim their fees
@@ -660,7 +609,6 @@ impl AdminInterface for Index {
         get_accumulated_manager_fees(&e)
     }
 
-  
     fn get_accumulated_protocol_fees(e: Env) -> u128 {
         get_accumulated_protocol_fees(&e)
     }
@@ -802,11 +750,10 @@ impl TransferableContract for Index {
         let access_control = AccessControl::new(&e);
         let role = Role::from_symbol(&e, role_name);
         match access_control.get_transfer_ownership_deadline(&role) {
-            0 =>
-                match access_control.get_role_safe(&role) {
-                    Some(address) => address,
-                    None => panic_with_error!(&e, AccessControlError::RoleNotFound),
-                }
+            0 => match access_control.get_role_safe(&role) {
+                Some(address) => address,
+                None => panic_with_error!(&e, AccessControlError::RoleNotFound),
+            },
             _ => access_control.get_future_address(&role),
         }
     }
@@ -839,30 +786,30 @@ impl QueryInterface for Index {
             is_killed_rebalance: get_is_killed_rebalance(&e),
         }
     }
-    
+
     // Component and balance queries
     fn get_all_components(e: Env) -> Map<Address, Component> {
         get_all_components(&e)
     }
-    
+
     fn get_component_info(e: Env, token: Address) -> Component {
         get_component(&e, token)
     }
-    
+
     fn get_all_component_balances(e: Env) -> Map<Address, u128> {
         get_all_component_balances(&e)
     }
-    
+
     fn get_component_balance(e: Env, token: Address) -> u128 {
         get_component_balance(&e, token)
     }
-    
+
     fn get_total_index_value(e: Env) -> u128 {
         let mut total_value: u128 = 0;
-        
+
         // Get all component addresses from registry
         let component_addresses = get_component_registry(&e);
-        
+
         // Iterate through each component to calculate total portfolio value
         for component_address in component_addresses.iter() {
             // Get the component balance (how much of this token the index holds)
@@ -870,24 +817,25 @@ impl QueryInterface for Index {
                 Some(bal) => bal,
                 None => 0u128, // If no balance stored, treat as 0
             };
-            
+
             if balance > 0 {
                 // Get the token price - for now we'll use a placeholder approach
-                let token_price = Index::get_token_price_in_base_currency(&e, component_address.clone());
-                
+                let token_price =
+                    Index::get_token_price_in_base_currency(&e, component_address.clone());
+
                 // Calculate value: balance * price
                 let component_value = balance.saturating_mul(token_price);
                 total_value = total_value.saturating_add(component_value);
             }
         }
-        
+
         total_value
     }
     // Financial metrics
     fn get_index_metrics(e: Env) -> IndexMetrics {
         let current_nav = Index::get_current_nav(e.clone());
         let share_price = Index::get_share_price(e.clone());
-        
+
         IndexMetrics {
             total_shares: get_total_shares(&e),
             total_mints: get_total_mints(&e),
@@ -899,35 +847,36 @@ impl QueryInterface for Index {
             share_price,
         }
     }
-    
+
     fn get_share_price(e: Env) -> u128 {
         let total_shares = get_total_shares(&e);
         if total_shares == 0 {
             return get_initial_price(&e);
         }
-        
+
         let total_value = Index::get_total_index_value(e.clone());
         if total_value == 0 {
             return get_initial_price(&e);
         }
-        
+
         // Share price = Total Portfolio Value / Total Shares
         total_value / total_shares
     }
-    
+
     fn get_current_nav(e: Env) -> u128 {
         // NAV (Net Asset Value) is the total value of all holdings
         Index::get_total_index_value(e)
     }
     //  get_is_killed_rebalance
-    
+
     // Operational status
     fn get_index_status(e: Env) -> IndexStatus {
         let current_time = e.ledger().timestamp();
         let last_rebalance = get_last_rebalance_ts(&e);
         let threshold = get_rebalance_threshold(&e);
-        let can_rebalance = (current_time >= last_rebalance + threshold) && !get_is_killed_rebalance(&e);
-        
+        let can_rebalance =
+            (current_time >= last_rebalance + threshold) && !get_is_killed_rebalance(&e);
+
         IndexStatus {
             is_killed_mint: get_is_killed_mint(&e),
             is_killed_redeem: get_is_killed_redeem(&e),
@@ -938,16 +887,16 @@ impl QueryInterface for Index {
             rebalance_threshold: get_rebalance_threshold(&e),
         }
     }
-    
+
     fn can_rebalance(e: Env) -> bool {
         if get_is_killed_rebalance(&e) {
             return false;
         }
-        
+
         let current_time = e.ledger().timestamp();
         let last_rebalance = get_last_rebalance_ts(&e);
         let threshold = get_rebalance_threshold(&e);
-        
+
         current_time >= last_rebalance + threshold
     }
 }
@@ -961,7 +910,7 @@ impl Index {
         // 1. Try to get price from factory's swap aggregator
         // 2. Fall back to stored price ratios
         // 3. Default to 1:1 ratio if no price available
-        
+
         // Attempt to get factory address for price discovery
         match get_factory_safe(&e) {
             Some(factory_address) => {
@@ -973,40 +922,44 @@ impl Index {
                         Index::get_price_from_component_weight(&e, &token)
                     }
                 }
-            },
+            }
             None => {
                 // No factory connection, use component weight-based pricing
                 Index::get_price_from_component_weight(&e, &token)
             }
         }
     }
-    
+
     // Helper function to get price via factory aggregator (simulation)
-    fn get_price_via_factory_aggregator(e: &Env, _factory_address: &Address, token: &Address) -> Option<u128> {
+    fn get_price_via_factory_aggregator(
+        e: &Env,
+        _factory_address: &Address,
+        token: &Address,
+    ) -> Option<u128> {
         // FUTURE IMPLEMENTATION:
         // This would make an actual call to the factory's aggregator to get current market prices
         // For example:
         // let factory_client = FactoryClient::new(e, factory_address);
         // let base_currency = Address::from_str(e, "USDC_CONTRACT_ADDRESS");
         // let price_result = factory_client.get_spot_price(token, &base_currency, &1_000_000u128);
-        
+
         // For now, simulate different prices for demonstration
         let token_str = token.to_string();
-        
+
         // Mock prices based on token address patterns (for demonstration)
         if token_str.contains("usdc") || token_str.contains("USDC") {
             Some(1_000_000u128) // 1 USDC = 1.000000 (6 decimals)
         } else if token_str.contains("xlm") || token_str.contains("XLM") {
-            Some(120_000u128)   // 1 XLM = 0.12 USDC (simulated price)
+            Some(120_000u128) // 1 XLM = 0.12 USDC (simulated price)
         } else if token_str.contains("btc") || token_str.contains("BTC") {
             Some(45_000_000_000u128) // 1 BTC = 45,000 USDC (simulated price)
         } else if token_str.contains("eth") || token_str.contains("ETH") {
-            Some(2_500_000_000u128)  // 1 ETH = 2,500 USDC (simulated price)
+            Some(2_500_000_000u128) // 1 ETH = 2,500 USDC (simulated price)
         } else {
             None // Unknown token, fall back to weight-based pricing
         }
     }
-    
+
     // Helper function to get price based on component weight
     fn get_price_from_component_weight(e: &Env, token: &Address) -> u128 {
         // Get component information to use weight as a price indicator
@@ -1023,10 +976,10 @@ impl Index {
                 } else {
                     1000u128 // Default 10% weight
                 };
-                
+
                 // Calculate price: base_price * (weight / 10000)
                 base_price.saturating_mul(weight_multiplier) / 10000
-            },
+            }
             None => {
                 // Token not found in components, use default price
                 1_000_000u128 // 1.0 with 6 decimals

@@ -2,11 +2,11 @@
 
 pub mod bump;
 pub mod constant;
+pub mod errors;
 pub mod helpers;
 pub mod macros;
 pub mod storage;
 pub mod token;
-pub mod errors;
 pub use errors::*;
 pub mod math;
 

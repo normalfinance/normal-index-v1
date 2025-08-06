@@ -1,10 +1,9 @@
 use paste::paste;
-use soroban_sdk::{ contracttype, panic_with_error, Address, BytesN, Env, String, Vec };
-use utils::bump::{ bump_instance, bump_persistent };
+use soroban_sdk::{contracttype, panic_with_error, Address, BytesN, Env, String, Vec};
+use utils::bump::{bump_instance, bump_persistent};
 use utils::storage_errors::StorageError;
 use utils::{
-    generate_instance_storage_getter,
-    generate_instance_storage_getter_and_setter,
+    generate_instance_storage_getter, generate_instance_storage_getter_and_setter,
     generate_instance_storage_setter,
 };
 
@@ -19,9 +18,9 @@ pub struct DexDistribution {
 
 #[derive(Clone)]
 #[contracttype]
-enum DataKey { 
-    Aggregator, // DEX Aggregator 
-    Router, // DEX Router
+enum DataKey {
+    Aggregator, // DEX Aggregator
+    Router,     // DEX Router
     ProtocolFeeFraction,
     MaxManagerFeeFraction,
     ProtocolFeeRecipient, // Address where protocol fees are sent
@@ -81,7 +80,9 @@ pub fn add_deployed_index(env: &Env, operator: &Address, index_address: &Address
         None => Vec::new(env),
     };
     operator_indexes.push_back(index_address.clone());
-    env.storage().persistent().set(&operator_key, &operator_indexes);
+    env.storage()
+        .persistent()
+        .set(&operator_key, &operator_indexes);
     bump_persistent(env, &operator_key);
 
     // Add to global list

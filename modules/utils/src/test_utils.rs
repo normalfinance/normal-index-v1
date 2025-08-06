@@ -1,11 +1,10 @@
 #![cfg(any(test, feature = "testutils"))]
 
-use soroban_sdk::testutils::{ Ledger, LedgerInfo };
-use soroban_sdk::{ Address, BytesN, Env, String, Symbol, Vec, U256 };
+use soroban_sdk::testutils::{Ledger, LedgerInfo};
 use soroban_sdk::token::{
-    StellarAssetClient as SorobanTokenAdminClient,
-    TokenClient as SorobanTokenClient,
+    StellarAssetClient as SorobanTokenAdminClient, TokenClient as SorobanTokenClient,
 };
+use soroban_sdk::{Address, BytesN, Env, String, Symbol, Vec, U256};
 
 pub fn assert_approx_eq_abs(a: u128, b: u128, delta: u128) {
     assert!(
@@ -83,7 +82,11 @@ pub fn get_token_admin_client<'a>(e: &Env, address: &Address) -> SorobanTokenAdm
 
 // was pub(crate)
 pub fn create_token_contract<'a>(e: &Env, admin: &Address) -> SorobanTokenClient<'a> {
-    SorobanTokenClient::new(e, &e.register_stellar_asset_contract_v2(admin.clone()).address())
+    SorobanTokenClient::new(
+        e,
+        &e.register_stellar_asset_contract_v2(admin.clone())
+            .address(),
+    )
 }
 
 //   __    __       __        ________  __    __    _______   ________

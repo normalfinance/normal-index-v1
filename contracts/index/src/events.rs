@@ -1,4 +1,4 @@
-use soroban_sdk::{ Address, Env, Symbol, Vec };
+use soroban_sdk::{Address, Env, Symbol, Vec};
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -22,7 +22,16 @@ pub(crate) trait IndexEvents {
 
     fn rebalance(&self, ts: u64, user: Address);
 
-    fn swap(&self, tokens: Vec<Address>, user: Address, pool_id: Symbol, token_in: Address, token_out: Address, amount_in: i128, amount_out: i128);
+    fn swap(
+        &self,
+        tokens: Vec<Address>,
+        user: Address,
+        pool_id: Symbol,
+        token_in: Address,
+        token_out: Address,
+        amount_in: i128,
+        amount_out: i128,
+    );
 
     fn kill_deposit(&self);
 
@@ -37,7 +46,14 @@ pub(crate) trait IndexEvents {
     fn unkill_withdraw(&self);
 
     // Revenue Share Events
-    fn fee_collected(&self, user: Address, token: Address, amount: u128, manager_fee: u128, protocol_fee: u128);
+    fn fee_collected(
+        &self,
+        user: Address,
+        token: Address,
+        amount: u128,
+        manager_fee: u128,
+        protocol_fee: u128,
+    );
 
     fn manager_fees_distributed(&self, manager: Address, amount: u128);
 
@@ -67,10 +83,29 @@ impl IndexEvents for Events {
             .publish((Symbol::new(self.env(), "rebalance"), ts, user), ());
     }
 
-    fn swap(&self, tokens: Vec<Address>, user: Address, pool_id: Symbol, token_in: Address, token_out: Address, amount_in: i128, amount_out: i128) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "swap"), tokens, user, pool_id, token_in, token_out, amount_in, amount_out), ());
+    fn swap(
+        &self,
+        tokens: Vec<Address>,
+        user: Address,
+        pool_id: Symbol,
+        token_in: Address,
+        token_out: Address,
+        amount_in: i128,
+        amount_out: i128,
+    ) {
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "swap"),
+                tokens,
+                user,
+                pool_id,
+                token_in,
+                token_out,
+                amount_in,
+                amount_out,
+            ),
+            (),
+        );
     }
 
     fn kill_deposit(&self) {
@@ -110,33 +145,68 @@ impl IndexEvents for Events {
     }
 
     // Revenue Share Event Implementations
-    fn fee_collected(&self, user: Address, token: Address, amount: u128, manager_fee: u128, protocol_fee: u128) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "fee_collected"), user, token, amount, manager_fee, protocol_fee), ())
+    fn fee_collected(
+        &self,
+        user: Address,
+        token: Address,
+        amount: u128,
+        manager_fee: u128,
+        protocol_fee: u128,
+    ) {
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "fee_collected"),
+                user,
+                token,
+                amount,
+                manager_fee,
+                protocol_fee,
+            ),
+            (),
+        )
     }
 
     fn manager_fees_distributed(&self, manager: Address, amount: u128) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "manager_fees_distributed"), manager, amount), ())
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "manager_fees_distributed"),
+                manager,
+                amount,
+            ),
+            (),
+        )
     }
 
     fn protocol_fees_distributed(&self, recipient: Address, amount: u128) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "protocol_fees_distributed"), recipient, amount), ())
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "protocol_fees_distributed"),
+                recipient,
+                amount,
+            ),
+            (),
+        )
     }
 
     fn manager_address_updated(&self, old_manager: Address, new_manager: Address) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "manager_address_updated"), old_manager, new_manager), ())
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "manager_address_updated"),
+                old_manager,
+                new_manager,
+            ),
+            (),
+        )
     }
 
     fn protocol_fee_recipient_updated(&self, old_recipient: Address, new_recipient: Address) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "protocol_fee_recipient_updated"), old_recipient, new_recipient), ())
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "protocol_fee_recipient_updated"),
+                old_recipient,
+                new_recipient,
+            ),
+            (),
+        )
     }
 }
