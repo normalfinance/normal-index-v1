@@ -1,9 +1,10 @@
-use soroban_sdk::{ Env, Vec, Address, IntoVal, Symbol, String, contracttype };
+use soroban_sdk::{ Env, Vec, Address, IntoVal, Symbol, String, contracttype, panic_with_error };
 use utils::{ constant::FIVE_MINUTE, math::safe_math::SafeMath, validate };
 use soroban_fixed_point_math::FixedPoint;
 
 use crate::storage::{ get_all_components, get_component_balance, get_index_vault_amount, get_factory };
 use crate::events::{Events, IndexEvents};
+use crate::errors::IndexError;
 
 #[derive(Clone)]
 #[contracttype]
@@ -118,7 +119,7 @@ pub fn vault_amount_to_shares(
         validate!(
             e,
             total_shares == 0,
-            InsuranceFundError::InvalidIFSharesDetected
+            IndexError::InvalidIFSharesDetected
         );
 
         amount

@@ -1,6 +1,6 @@
 use paste::paste;
 use soroban_sdk::token::TokenClient as SorobanTokenClient;
-use soroban_sdk::{ contracttype, panic_with_error, Address, Env, Map, Symbol };
+use soroban_sdk::{ contracttype, panic_with_error, Address, Env, Map, Symbol, Vec };
 use utils::bump::{ bump_instance, bump_persistent };
 use utils::constant::THIRTY_DAY;
 use utils::errors::storage_errors::StorageError;
@@ -53,9 +53,16 @@ enum DataKey {
     IsKilledMint,
     IsKilledRedeem,
     IsKilledRebalance,
+    
+    // Component registry
+    ComponentRegistry, // Vec<Address> - list of all component addresses
 }
 
 generate_instance_storage_getter_and_setter_with_default!(factory, DataKey::Factory, Address, Address::from_str(&Env::default(), ""));
+
+// Add missing storage getters for base_nav and initial_price
+generate_instance_storage_getter_and_setter_with_default!(base_nav, DataKey::BaseNAV, u128, 0);
+generate_instance_storage_getter_and_setter_with_default!(initial_price, DataKey::InitialPrice, u128, 0);
 
 // State
 generate_instance_storage_getter_and_setter_with_default!(
@@ -148,9 +155,49 @@ pub struct Component {
 }
 
 pub fn get_all_components(e: &Env) -> Map<Address, Component> {
-    // This function needs to be implemented properly to iterate through all components
-    // For now, return an empty map as placeholder
-    Map::new(e)
+    let mut components_map = Map::new(e);
+    
+    // Get the list of component addresses from registry
+    let component_addresses = get_component_registry(e);
+    
+    // Iterate through each component address and get its data
+    for address in component_addresses.iter() {
+        match get_component_safe(e, address.clone()) {
+            Some(component) => {
+                components_map.set(address, component);
+            }
+            None => {
+                // Skip components that no longer exist
+                continue;
+            }
+        }
+    }
+    
+    components_map
+}
+
+// Helper function to get component registry
+pub fn get_component_registry(e: &Env) -> Vec<Address> {
+    let key = DataKey::ComponentRegistry;
+    match e.storage().persistent().get(&key) {
+        Some(registry) => {
+            bump_persistent(e, &key);
+            registry
+        }
+        None => Vec::new(e),
+    }
+}
+
+// Helper function to get component without panicking
+pub fn get_component_safe(e: &Env, token: Address) -> Option<Component> {
+    let key = DataKey::Component(token);
+    match e.storage().persistent().get::<DataKey, Component>(&key) {
+        Some(component) => {
+            bump_persistent(e, &key);
+            Some(component)
+        }
+        None => None,
+    }
 }
 
 pub fn get_component(e: &Env, token: Address) -> Component {
@@ -168,6 +215,105 @@ fn set_component(env: &Env, token: Address, component: Component) {
     let key = DataKey::Component(token.clone());
     env.storage().persistent().set(&key, &component);
     env.storage().persistent().extend_ttl(&key, 100000, 100000);
+}
+
+// Proper implementation of get_all_component_balances
+pub fn get_all_component_balances(e: &Env) -> Map<Address, u128> {
+    let mut balances_map = Map::new(e);
+    
+    // Get the list of component addresses from registry
+    let component_addresses = get_component_registry(e);
+    
+    // Iterate through each component address and get its balance
+    for address in component_addresses.iter() {
+        match get_component_balance_safe(e, address.clone()) {
+            Some(balance) => {
+                balances_map.set(address, balance);
+            }
+            None => {
+                // If no balance stored, default to 0
+                balances_map.set(address, 0u128);
+            }
+        }
+    }
+    
+    balances_map
+}
+
+// Helper function to get component balance without panicking
+pub fn get_component_balance_safe(e: &Env, token: Address) -> Option<u128> {
+    let key = DataKey::ComponentBalance(token);
+    match e.storage().persistent().get::<DataKey, u128>(&key) {
+        Some(balance) => {
+            bump_persistent(e, &key);
+            Some(balance)
+        }
+        None => None,
+    }
+}
+
+pub fn set_component_balance(env: &Env, token: Address, balance: u128) {
+    let key = DataKey::ComponentBalance(token);
+    env.storage().persistent().set(&key, &balance);
+    env.storage().persistent().extend_ttl(&key, 100000, 100000);
+}
+
+// Component registry management functions
+pub fn add_component_to_registry(env: &Env, token: Address) {
+    let key = DataKey::ComponentRegistry;
+    let mut registry: Vec<Address> = match env.storage().persistent().get(&key) {
+        Some(reg) => reg,
+        None => Vec::new(env),
+    };
+    
+    // Check if component is already in registry
+    for existing_token in registry.iter() {
+        if existing_token == token {
+            return; // Already exists, don't add duplicate
+        }
+    }
+    
+    // Add new component to registry
+    registry.push_back(token);
+    env.storage().persistent().set(&key, &registry);
+    bump_persistent(env, &key);
+}
+
+pub fn remove_component_from_registry(env: &Env, token: Address) {
+    let key = DataKey::ComponentRegistry;
+    let mut registry: Vec<Address> = match env.storage().persistent().get(&key) {
+        Some(reg) => reg,
+        None => return, // No registry exists
+    };
+    
+    // Find and remove the component
+    let mut new_registry = Vec::new(env);
+    for existing_token in registry.iter() {
+        if existing_token != token {
+            new_registry.push_back(existing_token);
+        }
+    }
+    
+    env.storage().persistent().set(&key, &new_registry);
+    bump_persistent(env, &key);
+}
+
+// Helper function to get factory address safely
+pub fn get_factory_safe(e: &Env) -> Option<Address> {
+    let key = DataKey::Factory;
+    match e.storage().instance().get(&key) {
+        Some(factory) => {
+            bump_instance(e);
+            // Check if it's a valid address (not empty string)
+            let empty_address = Address::from_str(e, "");
+            if factory == empty_address {
+                None
+            } else {
+                Some(factory)
+            }
+        }
+        None => None,
+    }
 }
 
 // Metrics
