@@ -1,27 +1,55 @@
-use crate::events::{Events, FactoryConfigEvents, FactoryEvents};
+use crate::events::Events;
+use crate::events::FactoryEvents;
+use crate::events::FactoryConfigEvents;
+use crate::interface::{ AdminInterface, IndexFactoryTrait };
 use crate::storage::{
-    add_deployed_index, get_aggregator, get_all_deployed_indexes, get_contract_sequence,
-    get_deployed_indexes, get_fee_contract_wasm, get_max_manager_fee_fraction,
-    get_protocol_fee_fraction, get_protocol_fee_recipient, get_router, set_aggregator,
-    set_contract_sequence, set_fee_contract_wasm, set_max_manager_fee_fraction,
-    set_protocol_fee_fraction, set_protocol_fee_recipient, set_router, DexDistribution,
+    add_deployed_index,
+    get_aggregator,
+    get_all_deployed_indexes,
+    get_contract_sequence,
+    get_deployed_indexes,
+    get_fee_contract_wasm,
+    get_max_manager_fee_fraction,
+    get_protocol_fee_fraction,
+    get_protocol_fee_recipient,
+    get_router,
+    set_aggregator,
+    set_contract_sequence,
+    set_fee_contract_wasm,
+    set_is_killed_create,
+    set_max_manager_fee_fraction,
+    set_protocol_fee_fraction,
+    set_protocol_fee_recipient,
+    set_router,
+    DexDistribution,
 };
-use access_control::access::{AccessControl, AccessControlTrait};
-use access_control::emergency::{get_emergency_mode, set_emergency_mode};
+use access_control::access::{ AccessControl, AccessControlTrait };
+use access_control::emergency::{ get_emergency_mode, set_emergency_mode };
 use access_control::errors::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
 use access_control::interface::TransferableContract;
 use access_control::management::SingleAddressManagementTrait;
-use access_control::role::{Role, SymbolRepresentation};
+use access_control::role::{ Role, SymbolRepresentation };
 use access_control::transfer::TransferOwnershipTrait;
+use access_control::utils::require_admin;
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
-    contract, contractimpl, contracttype, panic_with_error, symbol_short, Address, Bytes, BytesN,
-    Env, IntoVal, Symbol, Vec,
+    contract,
+    contractimpl,
+    contracttype,
+    panic_with_error,
+    symbol_short,
+    Address,
+    Bytes,
+    BytesN,
+    Env,
+    IntoVal,
+    Symbol,
+    Vec,
 };
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
-use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
+use upgrade::{ apply_upgrade, commit_upgrade, revert_upgrade };
 
 #[contract]
 pub struct IndexFactory;
@@ -59,7 +87,7 @@ impl IndexFactory {
         index_contract_wasm: BytesN<32>,
         max_manager_fee_fraction: u32,
         protocol_fee_fraction: u32,
-        protocol_fee_recipient: Address,
+        protocol_fee_recipient: Address
     ) {
         let access_control = AccessControl::new(&e);
         access_control.set_role_address(&Role::Admin, &admin);
@@ -75,58 +103,7 @@ impl IndexFactory {
     }
 }
 
-    // set_index_contract_wasm
-    // Updates the WASM hash for the swap fee contract.
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - admin: The admin address (must be authorized).
-    //   - index_contract_wasm: The new WASM hash (BytesN<32>) for the swap fee contract.
-    pub fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_fee_contract_wasm(&e, &index_contract_wasm);
-        Events::new(&e).set_wasm(index_contract_wasm);
-    }
-
-    // set_index_contract_wasm
-    // Updates the WASM hash for the swap fee contract.
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - admin: The admin address (must be authorized).
-    //   - fraction: The new WASM hash (BytesN<32>) for the swap fee contract.
-    pub fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_protocol_fee_fraction(&e, &fraction);
-    }
-
-    // set_index_contract_wasm
-    // Updates the WASM hash for the swap fee contract.
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - admin: The admin address (must be authorized).
-    //   - fraction: The new WASM hash (u32) for the swap fee contract.
-    pub fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_max_manager_fee_fraction(&e, &fraction);
-    }
-
-    // Sets the protocol fee recipient address.
-    pub fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_protocol_fee_recipient(&e, &recipient);
-    }
-
-    // Gets the protocol fee recipient address.
-    pub fn get_protocol_fee_recipient(e: Env) -> Address {
-        get_protocol_fee_recipient(&e)
-    }
-
+impl IndexFactoryTrait for IndexFactory {
     // deploy_index_contract
     // Deploys a new swap fee contract instance.
     //
@@ -142,7 +119,7 @@ impl IndexFactory {
         e: Env,
         operator: Address,
         fee_destination: Address,
-        max_max_swap_fee_fraction: u32,
+        max_max_swap_fee_fraction: u32
     ) -> Address {
         operator.require_auth();
 
@@ -154,15 +131,12 @@ impl IndexFactory {
         let address = e
             .deployer()
             .with_current_contract(e.crypto().sha256(&salt))
-            .deploy_v2(
-                get_fee_contract_wasm(&e),
-                (
-                    get_router(&e),
-                    operator.clone(),
-                    fee_destination.clone(),
-                    max_max_swap_fee_fraction,
-                ),
-            );
+            .deploy_v2(get_fee_contract_wasm(&e), (
+                get_router(&e),
+                operator.clone(),
+                fee_destination.clone(),
+                max_max_swap_fee_fraction,
+            ));
         // Add to index registry
         add_deployed_index(&e, &operator, &address);
 
@@ -170,7 +144,7 @@ impl IndexFactory {
             operator,
             fee_destination,
             max_max_swap_fee_fraction,
-            address.clone(),
+            address.clone()
         );
         address
     }
@@ -183,31 +157,35 @@ impl IndexFactory {
         amount_out_min: i128,
         distribution: Vec<DexDistribution>,
         to: Address,
-        deadline: u64,
+        deadline: u64
     ) -> Vec<Vec<i128>> {
         let result: Vec<Vec<i128>> = e.invoke_contract(
             &get_aggregator(&e),
             &symbol_short!("swap_exct"),
-            Vec::from_array(
-                &e,
-                [
-                    e.current_contract_address().into_val(&e),
-                    token_in.into_val(&e),
-                    token_out.into_val(&e),
-                    amount_in.into_val(&e),
-                    amount_out_min.into_val(&e),
-                    distribution.into_val(&e),
-                    to.into_val(&e),
-                    deadline.into_val(&e),
-                ],
-            ),
+            Vec::from_array(&e, [
+                e.current_contract_address().into_val(&e),
+                token_in.into_val(&e),
+                token_out.into_val(&e),
+                amount_in.into_val(&e),
+                amount_out_min.into_val(&e),
+                distribution.into_val(&e),
+                to.into_val(&e),
+                deadline.into_val(&e),
+            ])
         );
 
         result
     }
+}
+
+impl AdminInterface for IndexFactory {
+    // Gets the protocol fee recipient address.
+    fn get_protocol_fee_recipient(e: Env) -> Address {
+        get_protocol_fee_recipient(&e)
+    }
 
     // Query Methods - Factory Configuration
-    pub fn get_factory_config(e: Env) -> FactoryConfig {
+    fn get_factory_config(e: Env) -> FactoryConfig {
         FactoryConfig {
             aggregator: get_aggregator(&e),
             router: get_router(&e),
@@ -219,65 +197,45 @@ impl IndexFactory {
     }
 
     // Individual getters for factory configuration
-    pub fn get_aggregator(e: Env) -> Address {
+    fn get_aggregator(e: Env) -> Address {
         get_aggregator(&e)
     }
 
-    pub fn get_router(e: Env) -> Address {
+    fn get_router(e: Env) -> Address {
         get_router(&e)
     }
 
-    pub fn get_protocol_fee_fraction(e: Env) -> u32 {
+    fn get_protocol_fee_fraction(e: Env) -> u32 {
         get_protocol_fee_fraction(&e)
     }
 
-    pub fn get_max_manager_fee_fraction(e: Env) -> u32 {
+    fn get_max_manager_fee_fraction(e: Env) -> u32 {
         get_max_manager_fee_fraction(&e)
     }
 
-    pub fn get_index_contract_wasm(e: Env) -> BytesN<32> {
+    fn get_index_contract_wasm(e: Env) -> BytesN<32> {
         get_fee_contract_wasm(&e)
     }
 
     // Index Registry Query Methods
-    pub fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address> {
+    fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address> {
         get_deployed_indexes(&e, &operator)
     }
 
-    pub fn get_all_deployed_indexes(e: Env) -> Vec<Address> {
+    fn get_all_deployed_indexes(e: Env) -> Vec<Address> {
         get_all_deployed_indexes(&e)
     }
 
-    pub fn get_index_count(e: Env, operator: Address) -> u32 {
+    fn get_index_count(e: Env, operator: Address) -> u32 {
         let indexes = get_deployed_indexes(&e, &operator);
         indexes.len()
     }
 
-    pub fn get_total_index_count(e: Env) -> u32 {
+    fn get_total_index_count(e: Env) -> u32 {
         let all_indexes = get_all_deployed_indexes(&e);
         all_indexes.len()
     }
 
-    // Note: Bulk index information queries would require importing the Index contract's types
-    // These would need to be implemented if cross-contract calls are needed:
-    //
-    // pub fn query_multiple_indexes_info(e: Env, addresses: Vec<Address>) -> Vec<IndexInfo> {
-    //     let mut results = Vec::new(&e);
-    //     for address in addresses.iter() {
-    //         // Call index.get_index_info() for each address
-    //         let info: IndexInfo = e.invoke_contract(&address, &symbol_short!("get_index_info"), Vec::new(&e));
-    //         results.push_back(info);
-    //     }
-    //     results
-    // }
-    //
-    // pub fn query_operator_indexes_info(e: Env, operator: Address) -> Vec<IndexInfo> {
-    //     let addresses = get_deployed_indexes(&e, &operator);
-    //     IndexFactory::query_multiple_indexes_info(e, addresses)
-    // }
-}
-
-impl AdminInterface for IndexFactory {
     //   ________  _______  ___________  ___________  _______   _______    ________
     //  /"       )/"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
     // (:   \___/(: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
@@ -286,6 +244,13 @@ impl AdminInterface for IndexFactory {
     //  /" \   :)(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
     // (_______/  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
 
+    // set_index_contract_wasm
+    // Updates the WASM hash for the swap fee contract.
+    //
+    // Arguments:
+    //   - e: The Soroban environment.
+    //   - admin: The admin address (must be authorized).
+    //   - index_contract_wasm: The new WASM hash (BytesN<32>) for the swap fee contract.
     fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
@@ -293,16 +258,29 @@ impl AdminInterface for IndexFactory {
         Events::new(&e).set_wasm(index_contract_wasm);
     }
 
-    fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_protocol_fee_fraction(&e, &fraction);
-    }
-
+    // set_index_contract_wasm
+    // Updates the WASM hash for the swap fee contract.
+    //
+    // Arguments:
+    //   - e: The Soroban environment.
+    //   - admin: The admin address (must be authorized).
+    //   - fraction: The new WASM hash (u32) for the swap fee contract.
     fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
         set_max_manager_fee_fraction(&e, &fraction);
+    }
+
+    fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_protocol_fee_recipient(&e, &recipient);
+    }
+
+    fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_protocol_fee_fraction(&e, &fraction);
     }
 
     //    _______     __       ____  ____   ________  _______  ________
@@ -318,7 +296,7 @@ impl AdminInterface for IndexFactory {
         require_admin(&e, &admin);
 
         set_is_killed_create(&e, &true);
-        FundEvents::new(&e).kill_create();
+        // FactoryEvents::new(&e).kill_create();
     }
 
     fn unkill_create(e: Env, admin: Address) {
@@ -326,11 +304,12 @@ impl AdminInterface for IndexFactory {
         require_admin(&e, &admin);
 
         set_is_killed_create(&e, &false);
-        FundEvents::new(&e).unkill_create();
+        // FactoryEvents::new(&e).unkill_create();
     }
 
     fn get_is_killed_create(e: Env) -> bool {
-        get_is_killed_create(&e)
+        return false;
+        // get_is_killed_create(&e)
     }
 }
 
@@ -484,10 +463,11 @@ impl TransferableContract for IndexFactory {
         let access_control = AccessControl::new(&e);
         let role = Role::from_symbol(&e, role_name);
         match access_control.get_transfer_ownership_deadline(&role) {
-            0 => match access_control.get_role_safe(&role) {
-                Some(address) => address,
-                None => panic_with_error!(&e, AccessControlError::RoleNotFound),
-            },
+            0 =>
+                match access_control.get_role_safe(&role) {
+                    Some(address) => address,
+                    None => panic_with_error!(&e, AccessControlError::RoleNotFound),
+                }
             _ => access_control.get_future_address(&role),
         }
     }

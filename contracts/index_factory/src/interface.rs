@@ -1,4 +1,6 @@
-use soroban_sdk::{ Address, Env };
+use soroban_sdk::{ Address, BytesN, Env, Vec };
+
+use crate::{ contract::FactoryConfig, storage::DexDistribution };
 
 pub trait IndexFactoryTrait {
     //  ___      ___       __        __    _____  ___
@@ -29,6 +31,28 @@ pub trait IndexFactoryTrait {
 }
 
 pub trait AdminInterface {
+    fn get_protocol_fee_recipient(e: Env) -> Address;
+
+    fn get_factory_config(e: Env) -> FactoryConfig;
+
+    fn get_aggregator(e: Env) -> Address;
+
+    fn get_router(e: Env) -> Address;
+
+    fn get_protocol_fee_fraction(e: Env) -> u32;
+
+    fn get_max_manager_fee_fraction(e: Env) -> u32;
+
+    fn get_index_contract_wasm(e: Env) -> BytesN<32>;
+
+    fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address>;
+
+    fn get_all_deployed_indexes(e: Env) -> Vec<Address>;
+
+    fn get_index_count(e: Env, operator: Address) -> u32;
+
+    fn get_total_index_count(e: Env) -> u32;
+
     //   ________  _______  ___________  ___________  _______   _______    ________
     //  /"       )/"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
     // (:   \___/(: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
@@ -42,6 +66,8 @@ pub trait AdminInterface {
     fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32);
 
     fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32);
+
+    fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address);
 
     //    _______     __       ____  ____   ________  _______  ________
     //   |   __ "\   /""\     ("  _||_ " | /"       )/"     "||"      "\
