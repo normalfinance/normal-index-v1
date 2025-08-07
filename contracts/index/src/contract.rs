@@ -29,9 +29,8 @@ use crate::storage::{
     set_total_shares, set_unstaking_period, Component,
 };
 use crate::storage::{
-    get_base_nav, get_blacklist_status, get_component, get_component_balance, get_factory,
-    get_initial_price, get_last_fee_collection, get_last_rebalance_ts, get_last_updated_ts,
-    get_public, get_rebalance_threshold, get_total_mints, get_total_redemptions,
+     get_blacklist_status, 
+     get_last_fee_collection,
     get_whitelist_status, set_base_nav, set_blacklist_status, set_initial_price,
     set_rebalance_threshold, set_whitelist_status,
 };
@@ -800,10 +799,6 @@ impl QueryInterface for Index {
         get_all_component_balances(&e)
     }
 
-    fn get_component_balance(e: Env, token: Address) -> u128 {
-        get_component_balance(&e, token)
-    }
-
     fn get_total_index_value(e: Env) -> u128 {
         let mut total_value: u128 = 0;
 
@@ -851,12 +846,14 @@ impl QueryInterface for Index {
     fn get_share_price(e: Env) -> u128 {
         let total_shares = get_total_shares(&e);
         if total_shares == 0 {
-            return get_initial_price(&e);
+            let ip = get_initial_price(&e);
+            return if ip < 0 { 0 } else { ip as u128 };
         }
 
         let total_value = Index::get_total_index_value(e.clone());
         if total_value == 0 {
-            return get_initial_price(&e);
+            let ip = get_initial_price(&e);
+            return if ip < 0 { 0 } else { ip as u128 };
         }
 
         // Share price = Total Portfolio Value / Total Shares
@@ -936,34 +933,15 @@ impl Index {
         _factory_address: &Address,
         token: &Address,
     ) -> Option<u128> {
-        // FUTURE IMPLEMENTATION:
-        // This would make an actual call to the factory's aggregator to get current market prices
-        // For example:
-        // let factory_client = FactoryClient::new(e, factory_address);
-        // let base_currency = Address::from_str(e, "USDC_CONTRACT_ADDRESS");
-        // let price_result = factory_client.get_spot_price(token, &base_currency, &1_000_000u128);
-
-        // For now, simulate different prices for demonstration
-        let token_str = token.to_string();
-
-        // Mock prices based on token address patterns (for demonstration)
-        if token_str.contains("usdc") || token_str.contains("USDC") {
-            Some(1_000_000u128) // 1 USDC = 1.000000 (6 decimals)
-        } else if token_str.contains("xlm") || token_str.contains("XLM") {
-            Some(120_000u128) // 1 XLM = 0.12 USDC (simulated price)
-        } else if token_str.contains("btc") || token_str.contains("BTC") {
-            Some(45_000_000_000u128) // 1 BTC = 45,000 USDC (simulated price)
-        } else if token_str.contains("eth") || token_str.contains("ETH") {
-            Some(2_500_000_000u128) // 1 ETH = 2,500 USDC (simulated price)
-        } else {
-            None // Unknown token, fall back to weight-based pricing
-        }
+        // Placeholder: aggregator not implemented yet. Return None to fall back to weight-based pricing.
+        let _ = (e, token);
+        None
     }
 
     // Helper function to get price based on component weight
     fn get_price_from_component_weight(e: &Env, token: &Address) -> u128 {
         // Get component information to use weight as a price indicator
-        match get_component_safe(e, token.clone()) {
+        match crate::storage::get_component_safe(e, token.clone()) {
             Some(component) => {
                 // Use component weight as a price multiplier
                 // Higher weight = more valuable component
