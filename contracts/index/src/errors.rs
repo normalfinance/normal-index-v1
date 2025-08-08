@@ -19,4 +19,12 @@ pub enum IndexError {
     // Insurance Fund Errors
     InvalidIFForNewStakes = 35,
     InvalidIFSharesDetected = 36,
+    
+    // Rebalancing Errors
+    RebalanceTooSoon = 37,
+    UnauthorizedRebalance = 38,
+    PublicRebalanceRequiresProposal = 39,
+    InvalidWeightSum = 40,
+    ComponentNotFound = 41,
+    InvalidComponentAction = 42,
 }
