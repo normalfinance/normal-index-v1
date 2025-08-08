@@ -120,8 +120,8 @@ pub struct IndexInfo {
     pub address: Address,
     pub token_address: Address,
     pub total_shares: u128,
-    pub base_nav: u128,
-    pub initial_price: u128,
+    pub base_nav: i128,
+    pub initial_price: i128,
     pub is_public: bool,
     pub manager_fee_fraction: u32,
     pub manager_address: Address,
@@ -172,7 +172,6 @@ pub trait QueryInterface {
     fn get_all_components(e: Env) -> Map<Address, Component>;
     fn get_component_info(e: Env, token: Address) -> Component;
     fn get_all_component_balances(e: Env) -> Map<Address, u128>;
-    fn get_component_balance(e: Env, token: Address) -> u128;
     fn get_total_index_value(e: Env) -> u128;
 
     // Financial metrics
