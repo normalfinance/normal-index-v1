@@ -32,7 +32,7 @@ use crate::storage::{
      get_all_rebalance_authorities, get_blacklist_status, 
      get_last_fee_collection, get_rebalance_authority_status,
     get_whitelist_status, remove_component, set_base_nav, set_blacklist_status, set_component, set_initial_price, set_last_rebalance_ts, set_last_updated_ts,
-    set_rebalance_authority_status, set_rebalance_threshold, set_whitelist_status, update_component_weight,
+    set_rebalance_authority_status, set_rebalance_threshold, set_whitelist_status, update_component_weight
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
