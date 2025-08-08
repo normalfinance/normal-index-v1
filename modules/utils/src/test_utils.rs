@@ -1,10 +1,7 @@
 #![cfg(any(test, feature = "testutils"))]
 
-use soroban_sdk::testutils::{Ledger, LedgerInfo};
-use soroban_sdk::token::{
-    StellarAssetClient as SorobanTokenAdminClient, TokenClient as SorobanTokenClient,
-};
-use soroban_sdk::{Address, BytesN, Env, String, Symbol, Vec, U256};
+use soroban_sdk::testutils::{ Ledger, LedgerInfo };
+use soroban_sdk::{  BytesN, Env, U256 };
 
 pub fn assert_approx_eq_abs(a: u128, b: u128, delta: u128) {
     assert!(
@@ -56,50 +53,5 @@ pub fn jump_sequence(e: &Env, sequence: u32) {
 
 pub fn install_dummy_wasm<'a>(e: &Env) -> BytesN<32> {
     soroban_sdk::contractimport!(file = "../../wasm/dummy_contract.wasm");
-    e.deployer().upload_contract_wasm(WASM)
-}
-
-//  ____  ____  ___________  __    ___        ________
-// ("  _||_ " |("     _   ")|" \  |"  |      /"       )
-// |   (  ) : | )__/  \\__/ ||  | ||  |     (:   \___/
-// (:  |  | . )    \\_ /    |:  | |:  |      \___  \
-//  \\ \__/ //     |.  |    |.  |  \  |___    __/  \\
-//  /\\ __ //\     \:  |    /\  |\( \_|:  \  /" \   :)
-// (__________)     \__|   (__\_|_)\_______)(_______/
-
-// was pub(crate)
-pub fn get_token_admin_client<'a>(e: &Env, address: &Address) -> SorobanTokenAdminClient<'a> {
-    SorobanTokenAdminClient::new(e, address)
-}
-
-//   ______    ______    _____  ___  ___________  _______        __       ______  ___________  ________
-//  /" _  "\  /    " \  (\"   \|"  \("     _   ")/"      \      /""\     /" _  "\("     _   ")/"       )
-// (: ( \___)// ____  \ |.\\   \    |)__/  \\__/|:        |    /    \   (: ( \___))__/  \\__/(:   \___/
-//  \/ \    /  /    ) :)|: \.   \\  |   \\_ /   |_____/   )   /' /\  \   \/ \        \\_ /    \___  \
-//  //  \ _(: (____/ // |.  \    \. |   |.  |    //      /   //  __'  \  //  \ _     |.  |     __/  \\
-// (:   _) \\        /  |    \    \ |   \:  |   |:  __   \  /   /  \\  \(:   _) \    \:  |    /" \   :)
-//  \_______)\"_____/    \___|\____\)    \__|   |__|  \___)(___/    \___)\_______)    \__|   (_______/
-
-// was pub(crate)
-pub fn create_token_contract<'a>(e: &Env, admin: &Address) -> SorobanTokenClient<'a> {
-    SorobanTokenClient::new(
-        e,
-        &e.register_stellar_asset_contract_v2(admin.clone())
-            .address(),
-    )
-}
-
-//   __    __       __        ________  __    __    _______   ________
-//  /" |  | "\     /""\      /"       )/" |  | "\  /"     "| /"       )
-// (:  (__)  :)   /    \    (:   \___/(:  (__)  :)(: ______)(:   \___/
-//  \/      \/   /' /\  \    \___  \   \/      \/  \/    |   \___  \
-//  //  __  \\  //  __'  \    __/  \\  //  __  \\  // ___)_   __/  \\
-// (:  (  )  :)/   /  \\  \  /" \   :)(:  (  )  :)(:      "| /" \   :)
-//  \__|  |__/(___/    \___)(_______/  \__|  |__/  \_______)(_______/
-
-pub fn install_token_wasm(e: &Env) -> BytesN<32> {
-    soroban_sdk::contractimport!(
-        file = "../../target/wasm32v1-none/release/soroban_token_contract.wasm"
-    );
     e.deployer().upload_contract_wasm(WASM)
 }
