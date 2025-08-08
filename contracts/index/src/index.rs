@@ -132,15 +132,19 @@ pub fn vault_amount_to_shares(
 }
 
 // Enhanced rebalancing swap generation
-pub fn generate_rebalance_swaps(e: &Env, params: &crate::interface::RebalanceParams) -> Vec<SwapParams> {
+pub fn generate_rebalance_swaps(
+    e: &Env,
+    params: &crate::interface::RebalanceParams,
+) -> Vec<SwapParams> {
     let current_nav = crate::storage::get_base_nav(e) as u128; // Simplified NAV calculation
     let target_nav = params.target_nav.map(|n| n as u128).unwrap_or(current_nav);
-    
+
     let mut swaps = Vec::new(e);
-    
+
     for update in params.component_updates.iter() {
-        let current_balance = crate::storage::get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
-        
+        let current_balance =
+            crate::storage::get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
+
         match update.action {
             crate::interface::ComponentAction::Add => {
                 // Calculate target balance for new component
@@ -149,13 +153,14 @@ pub fn generate_rebalance_swaps(e: &Env, params: &crate::interface::RebalancePar
                 } else {
                     0
                 };
-                
+
                 if target_balance > current_balance {
                     // Need to buy this component
-                    let swap = create_buy_swap(e, update.token.clone(), target_balance - current_balance);
+                    let swap =
+                        create_buy_swap(e, update.token.clone(), target_balance - current_balance);
                     swaps.push_back(swap);
                 }
-            },
+            }
             crate::interface::ComponentAction::UpdateWeight => {
                 // Calculate new target balance based on updated weight
                 let target_balance = if target_nav > 0 {
@@ -163,33 +168,35 @@ pub fn generate_rebalance_swaps(e: &Env, params: &crate::interface::RebalancePar
                 } else {
                     0
                 };
-                
+
                 if target_balance > current_balance {
                     // Need to buy more
-                    let swap = create_buy_swap(e, update.token.clone(), target_balance - current_balance);
+                    let swap =
+                        create_buy_swap(e, update.token.clone(), target_balance - current_balance);
                     swaps.push_back(swap);
                 } else if target_balance < current_balance {
                     // Need to sell some
-                    let swap = create_sell_swap(e, update.token.clone(), current_balance - target_balance);
+                    let swap =
+                        create_sell_swap(e, update.token.clone(), current_balance - target_balance);
                     swaps.push_back(swap);
                 }
-            },
+            }
             crate::interface::ComponentAction::Remove => {
                 // Sell all of this component
                 if current_balance > 0 {
                     let swap = create_sell_swap(e, update.token.clone(), current_balance);
                     swaps.push_back(swap);
                 }
-            },
+            }
         }
     }
-    
+
     swaps
 }
 
 fn create_buy_swap(e: &Env, token_out: Address, amount_needed: u128) -> SwapParams {
     let base_token = get_base_token(e);
-    
+
     SwapParams {
         token_in: base_token,
         token_out,
@@ -203,7 +210,7 @@ fn create_buy_swap(e: &Env, token_out: Address, amount_needed: u128) -> SwapPara
 
 fn create_sell_swap(e: &Env, token_in: Address, amount_to_sell: u128) -> SwapParams {
     let base_token = get_base_token(e);
-    
+
     SwapParams {
         token_in,
         token_out: base_token,

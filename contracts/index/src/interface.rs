@@ -60,7 +60,7 @@ pub trait AdminInterface {
     fn initialize(e: Env, admin: Address, token: Address);
 
     fn rebalance(e: Env, caller: Address, params: RebalanceParams);
-    
+
     fn set_rebalance_authority(e: Env, admin: Address, authority: Address, status: bool);
 
     fn distribute_manager_fees(e: Env, admin: Address);
@@ -198,7 +198,7 @@ pub struct ComponentAllocation {
     pub percentage_of_nav: u128, // In basis points
 }
 
-#[contracttype] 
+#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RebalanceStatus {
     pub can_rebalance: bool,
@@ -228,7 +228,7 @@ pub trait QueryInterface {
     // Operational status
     fn get_index_status(e: Env) -> IndexStatus;
     fn can_rebalance(e: Env) -> bool;
-    
+
     // Rebalancing queries
     fn get_rebalance_status(e: Env) -> RebalanceStatus;
     fn can_address_rebalance(e: Env, caller: Address) -> bool;

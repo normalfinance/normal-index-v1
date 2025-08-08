@@ -62,16 +62,16 @@ pub(crate) trait IndexEvents {
     fn manager_address_updated(&self, old_manager: Address, new_manager: Address);
 
     fn protocol_fee_recipient_updated(&self, old_recipient: Address, new_recipient: Address);
-    
+
     // Rebalancing Events
     fn component_added(&self, token: Address, weight: u128);
-    
+
     fn component_removed(&self, token: Address);
-    
+
     fn component_weight_updated(&self, token: Address, old_weight: u128, new_weight: u128);
-    
+
     fn rebalance_authority_updated(&self, authority: Address, status: bool);
-    
+
     fn rebalance_completed(&self, caller: Address, components_updated: u32, total_swaps: u32);
 }
 
@@ -220,28 +220,20 @@ impl IndexEvents for Events {
             (),
         )
     }
-    
+
     fn component_added(&self, token: Address, weight: u128) {
         self.env().events().publish(
-            (
-                Symbol::new(self.env(), "component_added"),
-                token,
-                weight,
-            ),
+            (Symbol::new(self.env(), "component_added"), token, weight),
             (),
         )
     }
-    
+
     fn component_removed(&self, token: Address) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "component_removed"),
-                token,
-            ),
-            (),
-        )
+        self.env()
+            .events()
+            .publish((Symbol::new(self.env(), "component_removed"), token), ())
     }
-    
+
     fn component_weight_updated(&self, token: Address, old_weight: u128, new_weight: u128) {
         self.env().events().publish(
             (
@@ -253,7 +245,7 @@ impl IndexEvents for Events {
             (),
         )
     }
-    
+
     fn rebalance_authority_updated(&self, authority: Address, status: bool) {
         self.env().events().publish(
             (
@@ -264,7 +256,7 @@ impl IndexEvents for Events {
             (),
         )
     }
-    
+
     fn rebalance_completed(&self, caller: Address, components_updated: u32, total_swaps: u32) {
         self.env().events().publish(
             (

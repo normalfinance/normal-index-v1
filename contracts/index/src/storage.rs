@@ -58,7 +58,7 @@ enum DataKey {
 
     // Rebalancing authorities (for private indexes)
     RebalanceAuthority(Address), // Address -> bool mapping for rebalance authorities
-    RebalanceAuthorityRegistry, // Vec<Address> - list of all rebalance authority addresses
+    RebalanceAuthorityRegistry,  // Vec<Address> - list of all rebalance authority addresses
 }
 
 generate_instance_storage_getter_and_setter_with_default!(
@@ -186,7 +186,6 @@ pub fn set_blacklist_status(e: &Env, address: &Address, status: bool) {
     }
 }
 
-
 /// Checks if an address has rebalance authority for private indexes
 /// Returns true if authorized, false if not (missing entries are treated as not authorized)
 pub fn get_rebalance_authority_status(e: &Env, address: &Address) -> bool {
@@ -235,7 +234,7 @@ pub fn add_rebalance_authority_to_registry(e: &Env, address: Address) {
 
     for existing_address in registry.iter() {
         if existing_address == address {
-            return; 
+            return;
         }
     }
 
@@ -248,7 +247,7 @@ pub fn remove_rebalance_authority_from_registry(e: &Env, address: Address) {
     let key = DataKey::RebalanceAuthorityRegistry;
     let mut registry: Vec<Address> = match e.storage().persistent().get(&key) {
         Some(reg) => reg,
-        None => return, 
+        None => return,
     };
 
     let mut new_registry = Vec::new(e);
@@ -262,17 +261,16 @@ pub fn remove_rebalance_authority_from_registry(e: &Env, address: Address) {
     bump_persistent(e, &key);
 }
 
-
 pub fn get_all_rebalance_authorities(e: &Env) -> Vec<Address> {
     let registry = get_rebalance_authority_registry(e);
     let mut active_authorities = Vec::new(e);
-    
+
     for address in registry.iter() {
         if get_rebalance_authority_status(e, &address) {
             active_authorities.push_back(address);
         }
     }
-    
+
     active_authorities
 }
 
@@ -378,9 +376,9 @@ pub fn set_component(env: &Env, token: Address, component: Component) {
 pub fn remove_component(env: &Env, token: Address) {
     let key = DataKey::Component(token.clone());
     env.storage().persistent().remove(&key);
-    
+
     remove_component_from_registry(env, token.clone());
-    
+
     let balance_key = DataKey::ComponentBalance(token);
     env.storage().persistent().remove(&balance_key);
 }

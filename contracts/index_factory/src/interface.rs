@@ -1,6 +1,6 @@
-use soroban_sdk::{ Address, BytesN, Env, Vec };
+use soroban_sdk::{Address, BytesN, Env, Vec};
 
-use crate::{ contract::FactoryConfig, storage::DexDistribution };
+use crate::{contract::FactoryConfig, storage::DexDistribution};
 
 pub trait IndexFactoryTrait {
     //  ___      ___       __        __    _____  ___
@@ -15,7 +15,7 @@ pub trait IndexFactoryTrait {
         e: Env,
         operator: Address,
         fee_destination: Address,
-        max_max_swap_fee_fraction: u32
+        max_max_swap_fee_fraction: u32,
     ) -> Address;
 
     fn swap(
@@ -26,7 +26,7 @@ pub trait IndexFactoryTrait {
         amount_out_min: i128,
         distribution: Vec<DexDistribution>,
         to: Address,
-        deadline: u64
+        deadline: u64,
     ) -> Vec<Vec<i128>>;
 }
 

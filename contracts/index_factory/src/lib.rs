@@ -1,8 +1,8 @@
 #![no_std]
 
 mod contract;
-mod interface;
 mod events;
+mod interface;
 mod storage;
 // mod test;
 // mod test_permissions;
