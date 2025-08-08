@@ -130,3 +130,102 @@ pub fn vault_amount_to_shares(
 
     n_shares
 }
+
+// Enhanced rebalancing swap generation
+pub fn generate_rebalance_swaps(e: &Env, params: &crate::interface::RebalanceParams) -> Vec<SwapParams> {
+    let current_nav = crate::storage::get_base_nav(e) as u128; // Simplified NAV calculation
+    let target_nav = params.target_nav.map(|n| n as u128).unwrap_or(current_nav);
+    
+    let mut swaps = Vec::new(e);
+    
+    for update in params.component_updates.iter() {
+        let current_balance = crate::storage::get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
+        
+        match update.action {
+            crate::interface::ComponentAction::Add => {
+                // Calculate target balance for new component
+                let target_balance = if target_nav > 0 {
+                    (target_nav * update.new_weight as u128) / 10000
+                } else {
+                    0
+                };
+                
+                if target_balance > current_balance {
+                    // Need to buy this component
+                    let swap = create_buy_swap(e, update.token.clone(), target_balance - current_balance);
+                    swaps.push_back(swap);
+                }
+            },
+            crate::interface::ComponentAction::UpdateWeight => {
+                // Calculate new target balance based on updated weight
+                let target_balance = if target_nav > 0 {
+                    (target_nav * update.new_weight as u128) / 10000
+                } else {
+                    0
+                };
+                
+                if target_balance > current_balance {
+                    // Need to buy more
+                    let swap = create_buy_swap(e, update.token.clone(), target_balance - current_balance);
+                    swaps.push_back(swap);
+                } else if target_balance < current_balance {
+                    // Need to sell some
+                    let swap = create_sell_swap(e, update.token.clone(), current_balance - target_balance);
+                    swaps.push_back(swap);
+                }
+            },
+            crate::interface::ComponentAction::Remove => {
+                // Sell all of this component
+                if current_balance > 0 {
+                    let swap = create_sell_swap(e, update.token.clone(), current_balance);
+                    swaps.push_back(swap);
+                }
+            },
+        }
+    }
+    
+    swaps
+}
+
+fn create_buy_swap(e: &Env, token_out: Address, amount_needed: u128) -> SwapParams {
+    let base_token = get_base_token(e);
+    
+    SwapParams {
+        token_in: base_token,
+        token_out,
+        amount_in: amount_needed as i128, // Simplified 1:1 ratio
+        amount_out_min: (amount_needed as i128 * 95) / 100, // 5% slippage tolerance
+        distribution: get_default_distribution(e),
+        to: e.current_contract_address(),
+        deadline: e.ledger().timestamp() + utils::constant::FIVE_MINUTE as u64,
+    }
+}
+
+fn create_sell_swap(e: &Env, token_in: Address, amount_to_sell: u128) -> SwapParams {
+    let base_token = get_base_token(e);
+    
+    SwapParams {
+        token_in,
+        token_out: base_token,
+        amount_in: amount_to_sell as i128,
+        amount_out_min: (amount_to_sell as i128 * 95) / 100, // 5% slippage tolerance
+        distribution: get_default_distribution(e),
+        to: e.current_contract_address(),
+        deadline: e.ledger().timestamp() + utils::constant::FIVE_MINUTE as u64,
+    }
+}
+
+fn get_base_token(e: &Env) -> Address {
+    // Returns the index token as base
+    crate::storage::get_token(e)
+}
+
+fn get_default_distribution(e: &Env) -> Vec<DexDistribution> {
+    let mut distribution = Vec::new(e);
+    distribution.push_back(DexDistribution {
+        protocol_id: String::from_str(e, "soroswap"),
+        path: String::from_str(e, "direct"),
+        parts: String::from_str(e, "100"),
+    });
+    distribution
+}
