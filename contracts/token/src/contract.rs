@@ -4,7 +4,6 @@ use crate::balance::{read_balance, receive_balance, spend_balance};
 use crate::errors::TokenError;
 use crate::interface::UpgradeableContract;
 use crate::metadata::{read_decimal, read_name, read_symbol, write_metadata};
-use crate::pool::{checkpoint_user_incentives, checkpoint_user_working_balance};
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::errors::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
@@ -58,9 +57,12 @@ impl Token {
 
         bump_instance(&e);
 
+        // Perform the actual mint using traditional balance functions
         receive_balance(&e, to.clone(), amount);
+
         TokenUtils::new(&e).events().mint(admin, to, amount);
     }
+
 }
 
 #[contractimpl]
@@ -95,15 +97,9 @@ impl token::Interface for Token {
 
         bump_instance(&e);
 
-        // To avoid fee abuse through token transfers, checkpoint the fee indices when LP tokens are minted/burned/transferred
-        checkpoint_user_incentives(&e, from.clone());
-        checkpoint_user_incentives(&e, to.clone());
-
+        // Perform the actual transfer using traditional balance functions
         spend_balance(&e, from.clone(), amount);
         receive_balance(&e, to.clone(), amount);
-
-        checkpoint_user_working_balance(&e, from.clone());
-        checkpoint_user_working_balance(&e, to.clone());
 
         TokenUtils::new(&e).events().transfer(from, to, amount);
     }
@@ -115,16 +111,9 @@ impl token::Interface for Token {
 
         bump_instance(&e);
 
-        // To avoid fee abuse through token transfers, checkpoint the fee indices when LP tokens are minted/burned/transferred
-        checkpoint_user_incentives(&e, from.clone());
-        checkpoint_user_incentives(&e, to.clone());
-
         spend_allowance(&e, from.clone(), spender, amount);
         spend_balance(&e, from.clone(), amount);
         receive_balance(&e, to.clone(), amount);
-
-        checkpoint_user_working_balance(&e, from.clone());
-        checkpoint_user_working_balance(&e, to.clone());
 
         TokenUtils::new(&e).events().transfer(from, to, amount)
     }
@@ -136,7 +125,9 @@ impl token::Interface for Token {
 
         bump_instance(&e);
 
+        // Perform the actual burn using traditional balance functions
         spend_balance(&e, from.clone(), amount);
+
         TokenUtils::new(&e).events().burn(from, amount);
     }
 
@@ -147,8 +138,10 @@ impl token::Interface for Token {
 
         bump_instance(&e);
 
+        // Perform the actual burn using traditional balance functions
         spend_allowance(&e, from.clone(), spender, amount);
         spend_balance(&e, from.clone(), amount);
+
         TokenUtils::new(&e).events().burn(from, amount)
     }
 

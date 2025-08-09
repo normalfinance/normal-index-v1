@@ -1,6 +1,7 @@
 use crate::errors::IndexError;
 use crate::events::Events;
 use crate::events::IndexEvents;
+use crate::fees::{initialize_or_update_user_tracking, collect_fees_before_action, preview_accrued_fees, get_effective_balance, batch_collect_fees, get_users_with_accrued_fees, force_collect_fees, get_last_batch_collection, set_last_batch_collection, set_minimum_fee_threshold};
 
 use crate::index::vault_amount_to_shares;
 use crate::interface::{
@@ -57,6 +58,7 @@ use token_share::mint_shares;
 use token_share::put_token_share;
 use token_share::Client as LPTokenClient;
 use upgrade::events::Events as UpgradeEvents;
+use utils::bump::bump_instance;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
 use utils::math::safe_math::SafeMath;
@@ -106,41 +108,8 @@ impl Index {
         set_last_fee_collection(&e, &e.ledger().timestamp());
     }
 
-    // Helper function to calculate and collect manager fees
-    fn collect_manager_fees(e: &Env, amount: u128, user: &Address, token: &Address) -> u128 {
-        let manager_fee_fraction = get_manager_fee_fraction(e);
-
-        if manager_fee_fraction == 0 {
-            return amount; // No fees to collect
-        }
-
-        // Calculate manager fee (in basis points, so divide by 20000, since two halves)
-        let manager_fee = (amount * manager_fee_fraction as u128) / 20000;
-
-        let protocol_fee = (amount * manager_fee_fraction as u128) / 20000;
-        let total_fee = manager_fee + protocol_fee;
-
-        // Accumulate fees
-        let current_manager_fees = get_accumulated_manager_fees(e);
-        let current_protocol_fees = get_accumulated_protocol_fees(e);
-        let current_total_fees = get_total_fees(e);
-
-        set_accumulated_manager_fees(e, &(current_manager_fees + manager_fee));
-        set_accumulated_protocol_fees(e, &(current_protocol_fees + protocol_fee));
-        set_total_fees(e, &(current_total_fees + total_fee));
-
-        set_last_fee_collection(e, &e.ledger().timestamp());
-
-        Events::new(e).fee_collected(
-            user.clone(),
-            token.clone(),
-            amount,
-            manager_fee,
-            protocol_fee,
-        );
-
-        amount - total_fee
-    }
+    // Old fee collection function - DEPRECATED
+    // Fee collection now handled by time-based system in fees.rs
 }
 
 // The `IndexTrait` trait provides the interface for interacting with a liquidity pool.
@@ -175,10 +144,9 @@ impl IndexTrait for Index {
             IndexError::InvalidIFForNewStakes
         );
 
-        // Collect manager fees from the deposit amount
-        let amount_after_fees = Index::collect_manager_fees(&e, amount, &user, &token);
-
-        let n_shares = vault_amount_to_shares(&e, amount_after_fees, total_shares, vault_amount);
+        // Note: Fee collection now handled by time-based system in token contract
+        // No upfront fee collection needed here
+        let n_shares = vault_amount_to_shares(&e, amount, total_shares, vault_amount);
 
         // Configure swaps
         let swaps_chain: Vec<(Vec<Address>, BytesN<32>, Address)> = Vec::new(&e);
@@ -201,19 +169,36 @@ impl IndexTrait for Index {
         // Mint share tokens
         let value = match destination {
             Some(v) => v,
-            None => user,
+            None => user.clone(),
         };
         mint_shares(&e, &value, n_shares as i128);
+
+        // Initialize fee tracking for new user
+        initialize_or_update_user_tracking(&e, &value, n_shares as i128);
 
         // Metrics
         set_total_mints(&e, &n_shares);
     }
 
-    fn redeem(e: Env, user: Address, _share_amount: u128) {
+    fn redeem(e: Env, user: Address, share_amount: u128) {
         user.require_auth();
 
         if get_is_killed_redeem(&e) {
             panic_with_error!(e, IndexError::IndexRedeemKilled);
+        }
+
+        // Collect any accrued fees before redemption
+        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &user, -(share_amount as i128));
+        
+        // TODO: Add actual redemption logic here
+        // This would typically involve:
+        // 1. Calculating redemption value
+        // 2. Burning share tokens
+        // 3. Transferring underlying assets back to user
+        
+        // For now, just emit event showing fees were collected
+        if manager_fees > 0 || protocol_fees > 0 {
+            // Fees already emitted in collect_fees_before_action
         }
     }
 
@@ -668,6 +653,7 @@ impl AdminInterface for Index {
         crate::storage::set_manager_fee_fraction(&e, &fee_fraction);
     }
 
+
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -963,5 +949,67 @@ impl Index {
                 1_000_000u128 // 1.0 with 6 decimals
             }
         }
+    }
+}
+
+// Fee system management functions
+
+#[contractimpl]
+impl Index {
+    /// Preview accrued fees for a user without collecting them
+    pub fn preview_fees(e: Env, user: Address) -> (u128, u128) {
+        preview_accrued_fees(&e, &user)
+    }
+
+    /// Get effective balance (balance minus accrued fees)
+    pub fn get_effective_balance(e: Env, user: Address) -> i128 {
+        get_effective_balance(&e, &user)
+    }
+
+    /// Manually trigger fee collection for a user (admin function)
+    pub fn collect_fees(e: Env, admin: Address, user: Address) -> (u128, u128) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        
+        collect_fees_before_action(&e, &user, 0) // 0 balance change for manual collection
+    }
+
+    /// Set minimum fee threshold (admin function)
+    pub fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_minimum_fee_threshold(&e, threshold);
+    }
+
+    /// Batch collect fees from multiple users (admin function for periodic collection)
+    pub fn batch_collect_fees(e: Env, admin: Address, users: Vec<Address>) -> (u128, u128) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        
+        let result = batch_collect_fees(&e, users);
+        
+        // Update last batch collection timestamp
+        set_last_batch_collection(&e, e.ledger().timestamp());
+        
+        result
+    }
+
+    /// Get users with accrued fees above threshold (admin function)
+    pub fn get_users_with_fees(e: Env, admin: Address, user_addresses: Vec<Address>) -> Vec<Address> {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        get_users_with_accrued_fees(&e, user_addresses)
+    }
+
+    /// Force collect fees from a user regardless of threshold (emergency admin function)
+    pub fn force_collect_fees(e: Env, admin: Address, user: Address) -> (u128, u128) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        force_collect_fees(&e, &user)
+    }
+
+    /// Get last batch collection timestamp
+    pub fn get_last_batch_collection(e: Env) -> u64 {
+        get_last_batch_collection(&e)
     }
 }
