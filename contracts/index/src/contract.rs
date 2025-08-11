@@ -170,6 +170,21 @@ impl IndexTrait for Index {
             panic_with_error!(e, IndexError::IndexMintKilled);
         }
 
+        if get_blacklist_status(&e, &user) {
+            panic_with_error!(e, IndexError::Blacklisted);
+        }
+
+        let is_public = get_public(&e);
+        if !is_public {
+            let access_control = AccessControl::new(&e);
+            let is_admin = access_control.has_role(&user, &Role::Admin);
+            let is_whitelisted = get_whitelist_status(&e, &user);
+            
+            if !is_admin && !is_whitelisted {
+                panic_with_error!(e, IndexError::NotWhitelisted);
+            }
+        }
+
         validate_token_contracts(&e, &vec![&e, token.clone()]);
 
         // ...
@@ -224,6 +239,21 @@ impl IndexTrait for Index {
 
         if get_is_killed_redeem(&e) {
             panic_with_error!(e, IndexError::IndexRedeemKilled);
+        }
+
+        if get_blacklist_status(&e, &user) {
+            panic_with_error!(e, IndexError::Blacklisted);
+        }
+
+        let is_public = get_public(&e);
+        if !is_public {
+            let access_control = AccessControl::new(&e);
+            let is_admin = access_control.has_role(&user, &Role::Admin);
+            let is_whitelisted = get_whitelist_status(&e, &user);
+            
+            if !is_admin && !is_whitelisted {
+                panic_with_error!(e, IndexError::NotWhitelisted);
+            }
         }
     }
 
@@ -454,6 +484,21 @@ impl AdminInterface for Index {
             panic_with_error!(e, IndexError::IndexRebalanceKilled);
         }
 
+        if get_blacklist_status(&e, &caller) {
+            panic_with_error!(e, IndexError::Blacklisted);
+        }
+
+        let is_public = get_public(&e);
+        if !is_public {
+            let access_control = AccessControl::new(&e);
+            let is_admin = access_control.has_role(&caller, &Role::Admin);
+            let is_whitelisted = get_whitelist_status(&e, &caller);
+            
+            if !is_admin && !is_whitelisted {
+                panic_with_error!(e, IndexError::NotWhitelisted);
+            }
+        }
+
         // Check rebalance threshold timing
         let current_time = e.ledger().timestamp();
         let last_rebalance = get_last_rebalance_ts(&e);
@@ -464,8 +509,6 @@ impl AdminInterface for Index {
         }
 
         // Permission checks based on index type
-        let is_public = get_public(&e);
-
         if is_public {
             // Public index: requires DAO proposal approval (for now, only admin)
             Index::validate_public_rebalance(&e, &caller, &params);

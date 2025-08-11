@@ -27,4 +27,7 @@ pub enum IndexError {
     InvalidWeightSum = 40,
     ComponentNotFound = 41,
     InvalidComponentAction = 42,
+
+    NotWhitelisted = 43,
+    Blacklisted = 44,
 }
