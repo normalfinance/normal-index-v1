@@ -5,9 +5,7 @@ use utils::{constant::FIVE_MINUTE, math::safe_math::SafeMath, validate};
 
 use crate::errors::IndexError;
 use crate::events::{Events, IndexEvents};
-use crate::storage::{
-    get_all_components, get_component_balance, get_factory, get_index_vault_amount,
-};
+use crate::storage::{get_all_components, get_factory};
 
 #[derive(Clone)]
 #[contracttype]

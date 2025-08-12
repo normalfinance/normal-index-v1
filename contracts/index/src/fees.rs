@@ -8,10 +8,7 @@ use crate::storage::{
     set_accumulated_manager_fees, set_accumulated_protocol_fees, set_last_fee_collection,
     set_total_fees,
 };
-use access_control::access::AccessControl;
-use access_control::management::SingleAddressManagementTrait;
-use access_control::role::Role;
-use soroban_sdk::{contracttype, symbol_short, Address, Env, IntoVal, Symbol, Vec};
+use soroban_sdk::{contracttype, Address, Env, Symbol, Vec};
 use utils::bump::bump_persistent;
 
 /// Get protocol fee fraction from Factory contract
