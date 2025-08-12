@@ -52,7 +52,7 @@ use soroban_sdk::auth::{ContractContext, InvokerContractAuthEntry, SubContractIn
 use soroban_sdk::String;
 use soroban_sdk::{
     contract, contractimpl, log, panic_with_error, vec, Address, BytesN, Env, IntoVal, Map, Symbol,
-    Vec,
+    Vec, token::TokenClient as SorobanTokenClient,
 };
 use token_share::mint_shares;
 use token_share::put_token_share;
@@ -144,9 +144,14 @@ impl IndexTrait for Index {
             IndexError::InvalidIFForNewStakes
         );
 
-        // Note: Fee collection now handled by time-based system in token contract
-        // No upfront fee collection needed here
         let n_shares = vault_amount_to_shares(&e, amount, total_shares, vault_amount);
+
+        // Collect any accrued fees before minting new shares
+        let destination_user = match destination {
+            Some(ref v) => v.clone(),
+            None => user.clone(),
+        };
+        collect_fees_before_action(&e, &destination_user, n_shares as i128);
 
         // Configure swaps
         let swaps_chain: Vec<(Vec<Address>, BytesN<32>, Address)> = Vec::new(&e);
@@ -210,16 +215,16 @@ impl IndexTrait for Index {
         crate::storage::get_factory(&e)
     }
 
-    fn get_base_nav(e: Env) -> i128 {
+    fn get_base_nav(e: Env) -> u128 {
         crate::storage::get_base_nav(&e)
     }
 
-    fn get_initial_price(e: Env) -> i128 {
+    fn get_initial_price(e: Env) -> u128 {
         crate::storage::get_initial_price(&e)
     }
 
     fn get_nav(e: Env) -> i128 {
-        let base_nav = crate::storage::get_base_nav(&e);
+        let base_nav = crate::storage::get_base_nav(&e) as i128;
         let total_shares = crate::storage::get_total_shares(&e);
         if total_shares == 0 {
             return base_nav;
@@ -234,7 +239,7 @@ impl IndexTrait for Index {
         let nav = Self::get_nav(e.clone());
         let total_shares = crate::storage::get_total_shares(&e);
         if total_shares == 0 {
-            return crate::storage::get_initial_price(&e);
+            return crate::storage::get_initial_price(&e) as i128;
         }
         nav / (total_shares as i128)
     }
@@ -293,6 +298,40 @@ impl IndexTrait for Index {
 
     fn get_last_fee_collection(e: Env) -> u64 {
         crate::storage::get_last_fee_collection(&e)
+    }
+
+    /// Transfer shares between users with proper fee handling
+    fn transfer_shares(e: Env, from: Address, to: Address, amount: u128) {
+        from.require_auth();
+
+        // Collect fees from both sender and receiver before transfer
+        collect_fees_before_action(&e, &from, -(amount as i128));
+        collect_fees_before_action(&e, &to, amount as i128);
+
+        // Execute the token transfer
+        let share_token = crate::storage::get_token(&e);
+        SorobanTokenClient::new(&e, &share_token).transfer(&from, &to, &(amount as i128));
+
+        // Update fee tracking for both users
+        initialize_or_update_user_tracking(&e, &from, -(amount as i128));
+        initialize_or_update_user_tracking(&e, &to, amount as i128);
+    }
+
+    /// Transfer shares from allowance with proper fee handling  
+    fn transfer_shares_from(e: Env, spender: Address, from: Address, to: Address, amount: u128) {
+        spender.require_auth();
+
+        // Collect fees from both sender and receiver before transfer
+        collect_fees_before_action(&e, &from, -(amount as i128));
+        collect_fees_before_action(&e, &to, amount as i128);
+
+        // Execute the token transfer from allowance
+        let share_token = crate::storage::get_token(&e);
+        SorobanTokenClient::new(&e, &share_token).transfer_from(&spender, &from, &to, &(amount as i128));
+
+        // Update fee tracking for both users
+        initialize_or_update_user_tracking(&e, &from, -(amount as i128));
+        initialize_or_update_user_tracking(&e, &to, amount as i128);
     }
 }
 
@@ -392,6 +431,9 @@ impl AdminInterface for Index {
         access_control.set_role_address(&Role::Admin, &admin);
 
         put_token(&e, &token);
+        
+        // No complex registration needed! 
+        // The token's admin IS this index contract, so fee calls work automatically
     }
 
     // Sets the unstaking period.
@@ -605,7 +647,7 @@ impl AdminInterface for Index {
         crate::storage::set_factory(&e, &factory);
     }
 
-    fn set_base_nav(e: Env, admin: Address, base_nav: i128) {
+    fn set_base_nav(e: Env, admin: Address, base_nav: u128) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
@@ -613,7 +655,7 @@ impl AdminInterface for Index {
         crate::storage::set_base_nav(&e, &base_nav);
     }
 
-    fn set_initial_price(e: Env, admin: Address, initial_price: i128) {
+    fn set_initial_price(e: Env, admin: Address, initial_price: u128) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
@@ -661,6 +703,7 @@ impl AdminInterface for Index {
 
         crate::storage::set_rebalance_threshold(&e, &threshold);
     }
+
 }
 
 // The `TransferableContract` trait provides the interface for transferring ownership of the contract.
@@ -832,14 +875,12 @@ impl QueryInterface for Index {
     fn get_share_price(e: Env) -> u128 {
         let total_shares = get_total_shares(&e);
         if total_shares == 0 {
-            let ip = get_initial_price(&e);
-            return if ip < 0 { 0 } else { ip as u128 };
+            return get_initial_price(&e);
         }
 
         let total_value = Index::get_total_index_value(e.clone());
         if total_value == 0 {
-            let ip = get_initial_price(&e);
-            return if ip < 0 { 0 } else { ip as u128 };
+            return get_initial_price(&e);
         }
 
         // Share price = Total Portfolio Value / Total Shares
@@ -974,6 +1015,7 @@ impl Index {
         collect_fees_before_action(&e, &user, 0) // 0 balance change for manual collection
     }
 
+
     /// Set minimum fee threshold (admin function)
     pub fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128) {
         admin.require_auth();
@@ -993,6 +1035,57 @@ impl Index {
         
         result
     }
+
+    /// Called by token contract during transfers to enforce fee collection
+    /// This ensures fees are collected regardless of where tokens are traded (external DEXes)
+    pub fn collect_fees_before_transfer(
+        e: Env, 
+        from: Address, 
+        to: Address, 
+        amount: i128
+    ) -> (u128, u128) {
+        // No auth required - this is called by the trusted token contract
+        
+        // Collect fees from sender before they transfer tokens
+        // This prevents fee avoidance when trading on external DEXes
+        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -(amount));
+        
+        // Update tracking for both users
+        // Sender: reduce their tracked balance
+        initialize_or_update_user_tracking(&e, &from, -(amount));
+        // Receiver: increase their tracked balance  
+        initialize_or_update_user_tracking(&e, &to, amount);
+        
+        (manager_fees, protocol_fees)
+    }
+
+    /// Called by token contract during burns to enforce fee collection
+    pub fn collect_fees_before_burn(e: Env, from: Address, amount: i128) -> (u128, u128) {
+        // No auth required - this is called by the trusted token contract
+        
+        // Collect fees before user reduces their position via burn
+        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -(amount));
+        
+        // Update tracking - user is reducing their position
+        initialize_or_update_user_tracking(&e, &from, -(amount));
+        
+        (manager_fees, protocol_fees)
+    }
+
+    /// Called by token contract during external mints to enforce fee collection
+    /// This prevents users from bypassing fees by acquiring tokens on external DEXes
+    pub fn collect_fees_before_mint(e: Env, user: Address, amount: i128) -> (u128, u128) {
+        // No auth required - this is called by the trusted token contract
+        
+        // Collect any accrued fees on user's existing balance
+        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &user, amount);
+        
+        // Update user tracking with the new amount
+        initialize_or_update_user_tracking(&e, &user, amount);
+        
+        (manager_fees, protocol_fees)
+    }
+
 
     /// Get users with accrued fees above threshold (admin function)
     pub fn get_users_with_fees(e: Env, admin: Address, user_addresses: Vec<Address>) -> Vec<Address> {

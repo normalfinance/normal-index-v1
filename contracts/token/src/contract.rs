@@ -12,10 +12,32 @@ use access_control::management::SingleAddressManagementTrait;
 use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
 use soroban_sdk::token::{self, Interface as _};
-use soroban_sdk::{contract, contractimpl, panic_with_error, Address, BytesN, Env, String, Symbol};
+use soroban_sdk::{contract, contractimpl, panic_with_error, Address, BytesN, Env, String, Symbol, Vec, IntoVal};
 use soroban_token_sdk::metadata::TokenMetadata;
 use soroban_token_sdk::TokenUtils;
 use utils::bump::bump_instance;
+
+/// Get the index contract that manages this token (using existing admin relationship)
+fn get_index_contract(e: &Env) -> Address {
+    // The token's admin IS the index contract - elegant and simple!
+    AccessControl::new(e).get_role(&Role::Admin)
+}
+
+/// Collect fees before token transfer by calling index contract
+fn collect_fees_before_transfer(e: &Env, from: &Address, to: &Address, amount: i128) {
+    let index_contract = get_index_contract(e);
+    
+    // Call the index (admin) for fee collection - same pattern as checkpoint_user_incentives
+    let _result: (u128, u128) = e.invoke_contract(
+        &index_contract,
+        &Symbol::new(e, "collect_fees_before_transfer"),
+        Vec::from_array(e, [
+            from.clone().into_val(e),
+            to.clone().into_val(e),
+            amount.into_val(e)
+        ])
+    );
+}
 
 fn check_nonnegative_amount(e: &Env, amount: i128) {
     if amount < 0 {
@@ -57,11 +79,26 @@ impl Token {
 
         bump_instance(&e);
 
+        // If caller is NOT the index contract (admin), collect fees to prevent external DEX bypass
+        if e.invoker() != admin {
+            // External party trying to mint - collect fees on existing balance first
+            let index_contract = get_index_contract(&e);
+            let _result: (u128, u128) = e.invoke_contract(
+                &index_contract,
+                &Symbol::new(&e, "collect_fees_before_mint"),
+                Vec::from_array(&e, [
+                    to.clone().into_val(&e),
+                    amount.into_val(&e)
+                ])
+            );
+        }
+
         // Perform the actual mint using traditional balance functions
         receive_balance(&e, to.clone(), amount);
 
         TokenUtils::new(&e).events().mint(admin, to, amount);
     }
+
 
 }
 
@@ -97,6 +134,9 @@ impl token::Interface for Token {
 
         bump_instance(&e);
 
+        // CRITICAL: Collect fees before transfer (prevents external DEX fee avoidance)
+        collect_fees_before_transfer(&e, &from, &to, amount);
+
         // Perform the actual transfer using traditional balance functions
         spend_balance(&e, from.clone(), amount);
         receive_balance(&e, to.clone(), amount);
@@ -110,6 +150,9 @@ impl token::Interface for Token {
         check_nonnegative_amount(&e, amount);
 
         bump_instance(&e);
+
+        // CRITICAL: Collect fees before transfer (prevents external DEX fee avoidance)
+        collect_fees_before_transfer(&e, &from, &to, amount);
 
         spend_allowance(&e, from.clone(), spender, amount);
         spend_balance(&e, from.clone(), amount);
@@ -125,6 +168,17 @@ impl token::Interface for Token {
 
         bump_instance(&e);
 
+        // Collect fees before burn (user is reducing their position)
+        let index_contract = get_index_contract(&e);
+        let _result: (u128, u128) = e.invoke_contract(
+            &index_contract,
+            &Symbol::new(&e, "collect_fees_before_burn"),
+            Vec::from_array(&e, [
+                from.clone().into_val(&e),
+                amount.into_val(&e)
+            ])
+        );
+
         // Perform the actual burn using traditional balance functions
         spend_balance(&e, from.clone(), amount);
 
@@ -137,6 +191,17 @@ impl token::Interface for Token {
         check_nonnegative_amount(&e, amount);
 
         bump_instance(&e);
+
+        // Collect fees before burn_from (spender is burning from user's position)
+        let index_contract = get_index_contract(&e);
+        let _result: (u128, u128) = e.invoke_contract(
+            &index_contract,
+            &Symbol::new(&e, "collect_fees_before_burn"),
+            Vec::from_array(&e, [
+                from.clone().into_val(&e),
+                amount.into_val(&e)
+            ])
+        );
 
         // Perform the actual burn using traditional balance functions
         spend_allowance(&e, from.clone(), spender, amount);

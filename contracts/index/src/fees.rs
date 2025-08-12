@@ -1,20 +1,37 @@
 //! Time-based fee collection system for Normal Protocol
 //! Implements 0.5% annual management fee with lazy calculation approach
 
-use crate::storage::{get_accumulated_manager_fees, get_accumulated_protocol_fees, get_total_fees, get_manager_fee_fraction, set_accumulated_manager_fees, set_accumulated_protocol_fees, set_total_fees, set_last_fee_collection};
-use crate::events::Events;
+use crate::storage::{get_accumulated_manager_fees, get_accumulated_protocol_fees, get_total_fees, get_manager_fee_fraction, get_factory_safe, set_accumulated_manager_fees, set_accumulated_protocol_fees, set_total_fees, set_last_fee_collection};
+use crate::events::{Events, IndexEvents};
 use access_control::access::AccessControl;
 use access_control::management::SingleAddressManagementTrait;
 use access_control::role::Role;
-use soroban_sdk::{contracttype, Address, Env, Symbol, Vec, IntoVal};
+use soroban_sdk::{contracttype, Address, Env, Symbol, Vec, IntoVal, symbol_short};
 use utils::bump::bump_persistent;
+
+/// Get protocol fee fraction from Factory contract
+/// Returns 0 if factory is not set or call fails
+pub fn get_protocol_fee_fraction_from_factory(e: &Env) -> u32 {
+    match get_factory_safe(e) {
+        Some(factory_address) => {
+            // Call Factory's get_protocol_fee_fraction() function
+            // Use invoke_contract directly since we trust the factory contract
+            e.invoke_contract::<u32>(
+                &factory_address,
+                &Symbol::new(e, "get_protocol_fee_fraction"),
+                Vec::new(e),
+            )
+        }
+        None => 0, // Return 0 if factory not set
+    }
+}
 
 /// User fee state tracking structure
 #[derive(Clone)]
 #[contracttype]
 pub struct UserFeeState {
     pub balance: i128,
-    pub last_fee_update: u64,
+    pub last_fee_update: u64, //when was the last time fees were collected for this user
     pub accrued_manager_fees: u128,
     pub accrued_protocol_fees: u128,
 }
@@ -94,21 +111,26 @@ pub fn calculate_accrued_fees(
     }
 
     let time_elapsed = current_timestamp - last_update_timestamp;
-    let annual_fee_rate_bps = get_manager_fee_fraction(e) as u128;
+    let user_balance_u128 = user_balance as u128;
+    let time_elapsed_u128 = time_elapsed as u128;
 
-    if annual_fee_rate_bps == 0 {
-        return (0, 0);
-    }
+    // Get separate fee rates
+    let manager_fee_rate_bps = get_manager_fee_fraction(e) as u128; // Manager fee (optional, max 2%)
+    let protocol_fee_rate_bps = get_protocol_fee_fraction_from_factory(e) as u128; // Protocol fee (0.75%, max 2%)
 
-    // Calculate total annual fee using simple interest
-    // Fee = Principal × Rate × (Time_Elapsed / Seconds_Per_Year)
-    // Using basis points: rate_bps / 10_000
-    let total_accrued_fee = (user_balance as u128 * annual_fee_rate_bps * time_elapsed as u128) 
-                           / (10_000 * SECONDS_PER_YEAR as u128);
+    // Calculate manager fee separately
+    let manager_fee = if manager_fee_rate_bps > 0 {
+        (user_balance_u128 * manager_fee_rate_bps * time_elapsed_u128) / (10_000 * SECONDS_PER_YEAR as u128)
+    } else {
+        0
+    };
 
-    // Split 50/50 between manager and protocol
-    let manager_fee = total_accrued_fee / 2;
-    let protocol_fee = total_accrued_fee / 2;
+    // Calculate protocol fee separately  
+    let protocol_fee = if protocol_fee_rate_bps > 0 {
+        (user_balance_u128 * protocol_fee_rate_bps * time_elapsed_u128) / (10_000 * SECONDS_PER_YEAR as u128)
+    } else {
+        0
+    };
 
     (manager_fee, protocol_fee)
 }

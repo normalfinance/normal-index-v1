@@ -19,9 +19,9 @@ pub trait IndexTrait {
 
     fn get_factory(e: Env) -> Address;
 
-    fn get_base_nav(e: Env) -> i128;
+    fn get_base_nav(e: Env) -> u128;
 
-    fn get_initial_price(e: Env) -> i128;
+    fn get_initial_price(e: Env) -> u128;
 
     fn get_nav(e: Env) -> i128;
 
@@ -54,6 +54,12 @@ pub trait IndexTrait {
     fn get_component_balance(e: Env, token: Address) -> u128;
 
     fn get_last_fee_collection(e: Env) -> u64;
+    
+    /// Transfer shares between users with proper fee handling
+    fn transfer_shares(e: Env, from: Address, to: Address, amount: u128);
+    
+    /// Transfer shares from allowance with proper fee handling  
+    fn transfer_shares_from(e: Env, spender: Address, from: Address, to: Address, amount: u128);
 }
 
 pub trait AdminInterface {
@@ -67,9 +73,9 @@ pub trait AdminInterface {
 
     fn set_factory(e: Env, admin: Address, factory: Address);
 
-    fn set_base_nav(e: Env, admin: Address, base_nav: i128);
+    fn set_base_nav(e: Env, admin: Address, base_nav: u128);
 
-    fn set_initial_price(e: Env, admin: Address, initial_price: i128);
+    fn set_initial_price(e: Env, admin: Address, initial_price: u128);
 
     fn set_public_status(e: Env, admin: Address, public: bool);
 
@@ -120,8 +126,8 @@ pub struct IndexInfo {
     pub address: Address,
     pub token_address: Address,
     pub total_shares: u128,
-    pub base_nav: i128,
-    pub initial_price: i128,
+    pub base_nav: u128,
+    pub initial_price: u128,
     pub is_public: bool,
     pub manager_fee_fraction: u32,
     pub manager_address: Address,
