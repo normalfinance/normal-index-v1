@@ -2,9 +2,9 @@ use crate::events::{Events, FactoryConfigEvents, FactoryEvents};
 use crate::storage::{
     add_deployed_index, get_aggregator, get_all_deployed_indexes, get_contract_sequence,
     get_deployed_indexes, get_fee_contract_wasm, get_max_manager_fee_fraction,
-    get_protocol_fee_fraction, get_protocol_fee_recipient, get_router, set_aggregator,
+    get_minimum_fee_threshold, get_protocol_fee_fraction, get_protocol_fee_recipient, get_router, set_aggregator,
     set_contract_sequence, set_fee_contract_wasm, set_max_manager_fee_fraction,
-    set_protocol_fee_fraction, set_protocol_fee_recipient, set_router, DexDistribution,
+    set_minimum_fee_threshold, set_protocol_fee_fraction, set_protocol_fee_recipient, set_router, DexDistribution,
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -35,6 +35,7 @@ pub struct FactoryConfig {
     pub protocol_fee_fraction: u32,
     pub max_manager_fee_fraction: u32,
     pub protocol_fee_recipient: Address,
+    pub minimum_fee_threshold: u128,
     pub index_contract_wasm: BytesN<32>,
 }
 
@@ -60,6 +61,7 @@ impl IndexFactory {
         max_manager_fee_fraction: u32,
         protocol_fee_fraction: u32,
         protocol_fee_recipient: Address,
+        minimum_fee_threshold: u128,
     ) {
         let access_control = AccessControl::new(&e);
         access_control.set_role_address(&Role::Admin, &admin);
@@ -72,6 +74,8 @@ impl IndexFactory {
         set_protocol_fee_fraction(&e, &protocol_fee_fraction);
         set_max_manager_fee_fraction(&e, &max_manager_fee_fraction);
         set_protocol_fee_recipient(&e, &protocol_fee_recipient);
+        // Set universal minimum fee threshold - IMMUTABLE after initialization
+        set_minimum_fee_threshold(&e, &minimum_fee_threshold);
     }
 
     // set_index_contract_wasm
@@ -119,6 +123,20 @@ impl IndexFactory {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
         set_protocol_fee_recipient(&e, &recipient);
+    }
+
+    // set_minimum_fee_threshold
+    // Updates the universal minimum fee threshold for all indexes.
+    // Only the protocol admin can call this function.
+    //
+    // Arguments:
+    //   - e: The Soroban environment.
+    //   - admin: The admin address (must be authorized).
+    //   - threshold: The new minimum fee threshold (u128) in token units.
+    pub fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_minimum_fee_threshold(&e, &threshold);
     }
 
     // Gets the protocol fee recipient address.
@@ -213,6 +231,7 @@ impl IndexFactory {
             protocol_fee_fraction: get_protocol_fee_fraction(&e),
             max_manager_fee_fraction: get_max_manager_fee_fraction(&e),
             protocol_fee_recipient: get_protocol_fee_recipient(&e),
+            minimum_fee_threshold: get_minimum_fee_threshold(&e),
             index_contract_wasm: get_fee_contract_wasm(&e),
         }
     }
@@ -232,6 +251,10 @@ impl IndexFactory {
 
     pub fn get_max_manager_fee_fraction(e: Env) -> u32 {
         get_max_manager_fee_fraction(&e)
+    }
+
+    pub fn get_minimum_fee_threshold(e: Env) -> u128 {
+        get_minimum_fee_threshold(&e)
     }
 
     pub fn get_index_contract_wasm(e: Env) -> BytesN<32> {

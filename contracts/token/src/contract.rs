@@ -79,19 +79,8 @@ impl Token {
 
         bump_instance(&e);
 
-        // If caller is NOT the index contract (admin), collect fees to prevent external DEX bypass
-        if e.invoker() != admin {
-            // External party trying to mint - collect fees on existing balance first
-            let index_contract = get_index_contract(&e);
-            let _result: (u128, u128) = e.invoke_contract(
-                &index_contract,
-                &Symbol::new(&e, "collect_fees_before_mint"),
-                Vec::from_array(&e, [
-                    to.clone().into_val(&e),
-                    amount.into_val(&e)
-                ])
-            );
-        }
+        // Note: Fee collection for minting is handled by the index contract
+        // at the appropriate time. No additional fee collection needed here.
 
         // Perform the actual mint using traditional balance functions
         receive_balance(&e, to.clone(), amount);

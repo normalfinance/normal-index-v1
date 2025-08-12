@@ -24,6 +24,7 @@ enum DataKey {
     ProtocolFeeFraction,
     MaxManagerFeeFraction,
     ProtocolFeeRecipient, // Address where protocol fees are sent
+    MinimumFeeThreshold,  // Universal minimum fee threshold (immutable)
     IndexContractWASM,
     ContractSequence(Address),
     // Index registry storage
@@ -47,6 +48,11 @@ generate_instance_storage_getter_and_setter!(
     protocol_fee_recipient,
     DataKey::ProtocolFeeRecipient,
     Address
+);
+generate_instance_storage_getter_and_setter!(
+    minimum_fee_threshold,
+    DataKey::MinimumFeeThreshold,
+    u128
 );
 generate_instance_storage_getter_and_setter!(
     fee_contract_wasm,

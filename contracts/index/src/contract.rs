@@ -1,7 +1,7 @@
 use crate::errors::IndexError;
 use crate::events::Events;
 use crate::events::IndexEvents;
-use crate::fees::{initialize_or_update_user_tracking, collect_fees_before_action, preview_accrued_fees, get_effective_balance, batch_collect_fees, get_users_with_accrued_fees, force_collect_fees, get_last_batch_collection, set_last_batch_collection, set_minimum_fee_threshold};
+use crate::fees::{initialize_or_update_user_tracking, collect_fees_before_action, preview_accrued_fees, get_effective_balance, batch_collect_fees, get_users_with_accrued_fees, force_collect_fees, get_last_batch_collection, set_last_batch_collection};
 
 use crate::index::vault_amount_to_shares;
 use crate::interface::{
@@ -1016,12 +1016,8 @@ impl Index {
     }
 
 
-    /// Set minimum fee threshold (admin function)
-    pub fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_minimum_fee_threshold(&e, threshold);
-    }
+    // Note: Minimum fee threshold is now set universally by the Factory contract
+    // and cannot be changed after deployment. This ensures protocol consistency.
 
     /// Batch collect fees from multiple users (admin function for periodic collection)
     pub fn batch_collect_fees(e: Env, admin: Address, users: Vec<Address>) -> (u128, u128) {

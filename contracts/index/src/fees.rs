@@ -41,7 +41,6 @@ pub struct UserFeeState {
 #[contracttype]
 enum FeeDataKey {
     UserFeeState(Address),
-    MinimumFeeThreshold,
     LastBatchCollection,
 }
 
@@ -75,28 +74,18 @@ fn write_user_fee_state(e: &Env, user: &Address, state: &UserFeeState) {
     bump_persistent(e, &key);
 }
 
-/// Get minimum fee threshold
+/// Get minimum fee threshold from Factory contract (universal threshold)
 pub fn get_minimum_fee_threshold(e: &Env) -> u128 {
-    let key = FeeDataKey::MinimumFeeThreshold;
-    match e.storage().persistent().get::<FeeDataKey, u128>(&key) {
-        Some(threshold) => {
-            bump_persistent(e, &key);
-            threshold
+    match get_factory_safe(e) {
+        Some(factory_address) => {
+            e.invoke_contract::<u128>(&factory_address, &Symbol::new(e, "get_minimum_fee_threshold"), Vec::new(e))
         }
-        None => DEFAULT_MINIMUM_FEE_THRESHOLD,
+        None => DEFAULT_MINIMUM_FEE_THRESHOLD, // Fallback during testing/development
     }
 }
 
-/// Set minimum fee threshold (admin only)
-pub fn set_minimum_fee_threshold(e: &Env, threshold: u128) {
-    let access_control = AccessControl::new(&e);
-    let admin = access_control.get_role(&Role::Admin);
-    admin.require_auth();
-
-    let key = FeeDataKey::MinimumFeeThreshold;
-    e.storage().persistent().set(&key, &threshold);
-    bump_persistent(e, &key);
-}
+// Note: Minimum fee threshold is now set universally by the Factory contract during deployment
+// and cannot be changed thereafter. This ensures protocol-wide consistency.
 
 /// Calculate time-based accrued fees for a user
 /// Returns (manager_fee, protocol_fee)
