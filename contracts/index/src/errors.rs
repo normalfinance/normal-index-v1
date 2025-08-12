@@ -5,8 +5,6 @@ use soroban_sdk::contracterror;
 #[repr(u32)]
 pub enum IndexError {
     #[doc = "IndexError"]
-    MaxIFWithdrawReached = 0,
-
     PathIsEmpty = 29,
     IndexMintKilled = 30,
     IndexRedeemKilled = 31,
