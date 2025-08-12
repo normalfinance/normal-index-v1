@@ -2,6 +2,7 @@
 
 mod contract;
 mod events;
+mod interface;
 mod storage;
 // mod test;
 // mod test_permissions;

@@ -1,4 +1,8 @@
-use crate::events::{Events, FactoryConfigEvents, FactoryEvents};
+use crate::events::Events;
+use crate::events::FactoryConfigEvents;
+use crate::events::FactoryEvents;
+use crate::interface::{AdminInterface, IndexFactoryTrait};
+use crate::storage::set_is_killed_create;
 use crate::storage::{
     add_deployed_index, get_aggregator, get_all_deployed_indexes, get_contract_sequence,
     get_deployed_indexes, get_fee_contract_wasm, get_max_manager_fee_fraction,
@@ -14,6 +18,7 @@ use access_control::interface::TransferableContract;
 use access_control::management::SingleAddressManagementTrait;
 use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
+use access_control::utils::require_admin;
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
     contract, contractimpl, contracttype, panic_with_error, symbol_short, Address, Bytes, BytesN,
@@ -77,73 +82,9 @@ impl IndexFactory {
         // Set universal minimum fee threshold - IMMUTABLE after initialization
         set_minimum_fee_threshold(&e, &minimum_fee_threshold);
     }
+}
 
-    // set_index_contract_wasm
-    // Updates the WASM hash for the swap fee contract.
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - admin: The admin address (must be authorized).
-    //   - index_contract_wasm: The new WASM hash (BytesN<32>) for the swap fee contract.
-    pub fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_fee_contract_wasm(&e, &index_contract_wasm);
-        Events::new(&e).set_wasm(index_contract_wasm);
-    }
-
-    // set_index_contract_wasm
-    // Updates the WASM hash for the swap fee contract.
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - admin: The admin address (must be authorized).
-    //   - fraction: The new WASM hash (BytesN<32>) for the swap fee contract.
-    pub fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_protocol_fee_fraction(&e, &fraction);
-    }
-
-    // set_index_contract_wasm
-    // Updates the WASM hash for the swap fee contract.
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - admin: The admin address (must be authorized).
-    //   - fraction: The new WASM hash (u32) for the swap fee contract.
-    pub fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_max_manager_fee_fraction(&e, &fraction);
-    }
-
-    // Sets the protocol fee recipient address.
-    pub fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_protocol_fee_recipient(&e, &recipient);
-    }
-
-    // set_minimum_fee_threshold
-    // Updates the universal minimum fee threshold for all indexes.
-    // Only the protocol admin can call this function.
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - admin: The admin address (must be authorized).
-    //   - threshold: The new minimum fee threshold (u128) in token units.
-    pub fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_minimum_fee_threshold(&e, &threshold);
-    }
-
-    // Gets the protocol fee recipient address.
-    pub fn get_protocol_fee_recipient(e: Env) -> Address {
-        get_protocol_fee_recipient(&e)
-    }
-
+impl IndexFactoryTrait for IndexFactory {
     // deploy_index_contract
     // Deploys a new swap fee contract instance.
     //
@@ -155,7 +96,7 @@ impl IndexFactory {
     //
     // Returns:
     //   - The address of the newly deployed swap fee contract.
-    pub fn deploy_index_contract(
+    fn deploy_index_contract(
         e: Env,
         operator: Address,
         fee_destination: Address,
@@ -192,7 +133,7 @@ impl IndexFactory {
         address
     }
 
-    pub fn swap(
+    fn swap(
         e: Env,
         token_in: Address,
         token_out: Address,
@@ -222,9 +163,24 @@ impl IndexFactory {
 
         result
     }
+}
+
+impl AdminInterface for IndexFactory {
+    //   _______    _______  ___________  ___________  _______   _______    ________
+    //  /" _   "|  /"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
+    // (: ( \___) (: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
+    //  \/ \       \/    |      \\_ /        \\_ /    \/    |  |_____/   ) \___  \
+    //  //  \ ___  // ___)_     |.  |        |.  |    // ___)_  //      /   __/  \\
+    // (:   _(  _|(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
+    //  \_______)  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
+    
+    // Gets the protocol fee recipient address.
+    fn get_protocol_fee_recipient(e: Env) -> Address {
+        get_protocol_fee_recipient(&e)
+    }
 
     // Query Methods - Factory Configuration
-    pub fn get_factory_config(e: Env) -> FactoryConfig {
+    fn get_factory_config(e: Env) -> FactoryConfig {
         FactoryConfig {
             aggregator: get_aggregator(&e),
             router: get_router(&e),
@@ -237,66 +193,139 @@ impl IndexFactory {
     }
 
     // Individual getters for factory configuration
-    pub fn get_aggregator(e: Env) -> Address {
+    fn get_aggregator(e: Env) -> Address {
         get_aggregator(&e)
     }
 
-    pub fn get_router(e: Env) -> Address {
+    fn get_router(e: Env) -> Address {
         get_router(&e)
     }
 
-    pub fn get_protocol_fee_fraction(e: Env) -> u32 {
+    fn get_protocol_fee_fraction(e: Env) -> u32 {
         get_protocol_fee_fraction(&e)
     }
 
-    pub fn get_max_manager_fee_fraction(e: Env) -> u32 {
+    fn get_max_manager_fee_fraction(e: Env) -> u32 {
         get_max_manager_fee_fraction(&e)
     }
 
-    pub fn get_minimum_fee_threshold(e: Env) -> u128 {
+    fn get_minimum_fee_threshold(e: Env) -> u128 {
         get_minimum_fee_threshold(&e)
     }
 
-    pub fn get_index_contract_wasm(e: Env) -> BytesN<32> {
+    fn get_index_contract_wasm(e: Env) -> BytesN<32> {
         get_fee_contract_wasm(&e)
     }
 
     // Index Registry Query Methods
-    pub fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address> {
+    fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address> {
         get_deployed_indexes(&e, &operator)
     }
 
-    pub fn get_all_deployed_indexes(e: Env) -> Vec<Address> {
+    fn get_all_deployed_indexes(e: Env) -> Vec<Address> {
         get_all_deployed_indexes(&e)
     }
 
-    pub fn get_index_count(e: Env, operator: Address) -> u32 {
+    fn get_index_count(e: Env, operator: Address) -> u32 {
         let indexes = get_deployed_indexes(&e, &operator);
         indexes.len()
     }
 
-    pub fn get_total_index_count(e: Env) -> u32 {
+    fn get_total_index_count(e: Env) -> u32 {
         let all_indexes = get_all_deployed_indexes(&e);
         all_indexes.len()
     }
 
-    // Note: Bulk index information queries would require importing the Index contract's types
-    // These would need to be implemented if cross-contract calls are needed:
+    //   ________  _______  ___________  ___________  _______   _______    ________
+    //  /"       )/"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
+    // (:   \___/(: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
+    //  \___  \   \/    |      \\_ /        \\_ /    \/    |  |_____/   ) \___  \
+    //   __/  \\  // ___)_     |.  |        |.  |    // ___)_  //      /   __/  \\
+    //  /" \   :)(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
+    // (_______/  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
+
+    // set_index_contract_wasm
+    // Updates the WASM hash for the swap fee contract.
     //
-    // pub fn query_multiple_indexes_info(e: Env, addresses: Vec<Address>) -> Vec<IndexInfo> {
-    //     let mut results = Vec::new(&e);
-    //     for address in addresses.iter() {
-    //         // Call index.get_index_info() for each address
-    //         let info: IndexInfo = e.invoke_contract(&address, &symbol_short!("get_index_info"), Vec::new(&e));
-    //         results.push_back(info);
-    //     }
-    //     results
-    // }
+    // Arguments:
+    //   - e: The Soroban environment.
+    //   - admin: The admin address (must be authorized).
+    //   - index_contract_wasm: The new WASM hash (BytesN<32>) for the swap fee contract.
+    fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_fee_contract_wasm(&e, &index_contract_wasm);
+        Events::new(&e).set_wasm(index_contract_wasm);
+    }
+
+    fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_protocol_fee_fraction(&e, &fraction);
+    }
+
+    fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_protocol_fee_recipient(&e, &recipient);
+    }
+
+     // set_max_manager_fee_fraction
+    // .
     //
-    // pub fn query_operator_indexes_info(e: Env, operator: Address) -> Vec<IndexInfo> {
-    //     let addresses = get_deployed_indexes(&e, &operator);
-    //     IndexFactory::query_multiple_indexes_info(e, addresses)
-    // }
+    // Arguments:
+    //   - e: The Soroban environment.
+    //   - admin: The admin address (must be authorized).
+    //   - fraction: The new WASM hash (u32) for the swap fee contract.
+    fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_max_manager_fee_fraction(&e, &fraction);
+    }
+    
+
+    // set_minimum_fee_threshold
+    // Updates the universal minimum fee threshold for all indexes.
+    // Only the protocol admin can call this function.
+    //
+    // Arguments:
+    //   - e: The Soroban environment.
+    //   - admin: The admin address (must be authorized).
+    //   - threshold: The new minimum fee threshold (u128) in token units.
+    fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_minimum_fee_threshold(&e, &threshold);
+    }
+
+    //    _______     __       ____  ____   ________  _______  ________
+    //   |   __ "\   /""\     ("  _||_ " | /"       )/"     "||"      "\
+    //   (. |__) :) /    \    |   (  ) : |(:   \___/(: ______)(.  ___  :)
+    //   |:  ____/ /' /\  \   (:  |  | . ) \___  \   \/    |  |: \   ) ||
+    //   (|  /    //  __'  \   \\ \__/ //   __/  \\  // ___)_ (| (___\ ||
+    //  /|__/ \  /   /  \\  \  /\\ __ //\  /" \   :)(:      "||:       :)
+    // (_______)(___/    \___)(__________)(_______/  \_______)(________/
+
+    fn kill_create(e: Env, admin: Address) {
+        admin.require_auth();
+        require_admin(&e, &admin);
+
+        set_is_killed_create(&e, &true);
+        // FactoryEvents::new(&e).kill_create();
+    }
+
+    fn unkill_create(e: Env, admin: Address) {
+        admin.require_auth();
+        require_admin(&e, &admin);
+
+        set_is_killed_create(&e, &false);
+        // FactoryEvents::new(&e).unkill_create();
+    }
+
+    fn get_is_killed_create(e: Env) -> bool {
+        return false;
+        // get_is_killed_create(&e)
+    }
 }
 
 #[contractimpl]

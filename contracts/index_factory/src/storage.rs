@@ -4,7 +4,7 @@ use utils::bump::{bump_instance, bump_persistent};
 use utils::storage_errors::StorageError;
 use utils::{
     generate_instance_storage_getter, generate_instance_storage_getter_and_setter,
-    generate_instance_storage_setter,
+    generate_instance_storage_getter_and_setter_with_default, generate_instance_storage_setter, generate_instance_storage_getter_with_default,
 };
 
 // FROM SOROSWAP
@@ -30,6 +30,9 @@ enum DataKey {
     // Index registry storage
     DeployedIndexes(Address), // operator -> Vec<Address>
     AllDeployedIndexes,       // global registry -> Vec<Address>
+
+    // paused
+    IsKilledCreate,
 }
 
 generate_instance_storage_getter_and_setter!(aggregator, DataKey::Aggregator, Address);
@@ -58,6 +61,14 @@ generate_instance_storage_getter_and_setter!(
     fee_contract_wasm,
     DataKey::IndexContractWASM,
     BytesN<32>
+);
+
+// paused ops
+generate_instance_storage_getter_and_setter_with_default!(
+    is_killed_create,
+    DataKey::IsKilledCreate,
+    bool,
+    false
 );
 
 pub(crate) fn get_contract_sequence(env: &Env, operator: Address) -> u32 {

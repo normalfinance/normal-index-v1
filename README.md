@@ -29,7 +29,7 @@ Fully customizable on-chain index funds supporting any crypto token, real-world 
 
 ## Todo
 
-- [ ] Add an interface to the `IndexFactory`
+- [x] Add an interface to the `IndexFactory`
 - [ ] Finish the `generate_swap_params()` function
 - [ ] Finish the `execute_swaps()` function interfacing with the Soroswap Aggregator
 - [ ] Add index fee checkpointing to token transfers (i.e. https://github.com/normalfinance/normal-stellar-amm/blob/c66b7b6b2ba9a1814878ba06e606d1e1c30a261e/contracts/token/src/contract.rs#L99)

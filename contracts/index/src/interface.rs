@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Env, Map};
+use soroban_sdk::{contracttype, Address, Env, Map, Vec};
 
 use crate::stake::Stake;
 use crate::storage::Component;
@@ -65,7 +65,9 @@ pub trait IndexTrait {
 pub trait AdminInterface {
     fn initialize(e: Env, admin: Address, token: Address);
 
-    fn rebalance(e: Env, admin: Address);
+    fn rebalance(e: Env, caller: Address, params: RebalanceParams);
+
+    fn set_rebalance_authority(e: Env, admin: Address, authority: Address, status: bool);
 
     fn distribute_manager_fees(e: Env, admin: Address);
 
@@ -169,6 +171,50 @@ pub struct IndexStatus {
     pub rebalance_threshold: u64,
 }
 
+// Rebalancing Data Structures
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ComponentAction {
+    Add,
+    Remove,
+    UpdateWeight,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ComponentUpdate {
+    pub token: Address,
+    pub new_weight: u128,
+    pub action: ComponentAction,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RebalanceParams {
+    pub component_updates: Vec<ComponentUpdate>,
+    pub target_nav: Option<i128>, // Optional NAV target
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ComponentAllocation {
+    pub component: Component,
+    pub current_balance: u128,
+    pub target_balance: u128,
+    pub percentage_of_nav: u128, // In basis points
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RebalanceStatus {
+    pub can_rebalance: bool,
+    pub time_until_next_rebalance: u64,
+    pub last_rebalance_ts: u64,
+    pub rebalance_threshold: u64,
+    pub is_public: bool,
+    pub authorized_rebalancers: Vec<Address>, // For private indexes
+}
+
 // Query Interface
 pub trait QueryInterface {
     // Comprehensive index information
@@ -188,4 +234,10 @@ pub trait QueryInterface {
     // Operational status
     fn get_index_status(e: Env) -> IndexStatus;
     fn can_rebalance(e: Env) -> bool;
+
+    // Rebalancing queries
+    fn get_rebalance_status(e: Env) -> RebalanceStatus;
+    fn can_address_rebalance(e: Env, caller: Address) -> bool;
+    fn get_component_allocation(e: Env) -> Map<Address, ComponentAllocation>;
+    fn get_rebalance_authorities(e: Env) -> Vec<Address>;
 }

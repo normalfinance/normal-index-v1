@@ -5,14 +5,25 @@ use crate::fees::{initialize_or_update_user_tracking, collect_fees_before_action
 
 use crate::index::vault_amount_to_shares;
 use crate::interface::{
-    AdminInterface, IndexInfo, IndexMetrics, IndexStatus, IndexTrait, QueryInterface,
+    AdminInterface, ComponentAction, ComponentAllocation, ComponentUpdate, IndexInfo, IndexMetrics,
+    IndexStatus, IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus,
 };
 use crate::stake::Stake;
+use crate::storage::get_all_rebalance_authorities;
+use crate::storage::get_blacklist_status;
 use crate::storage::get_index_vault_amount;
+use crate::storage::get_rebalance_authority_status;
+use crate::storage::get_whitelist_status;
+use crate::storage::remove_component;
+use crate::storage::set_component;
 use crate::storage::set_factory;
+use crate::storage::set_last_rebalance_ts;
+use crate::storage::set_last_updated_ts;
 use crate::storage::set_manager_fee_fraction;
 use crate::storage::set_public;
+use crate::storage::set_rebalance_authority_status;
 use crate::storage::set_total_mints;
+use crate::storage::update_component_weight;
 use crate::storage::{
     get_accumulated_manager_fees, get_accumulated_protocol_fees, get_manager_address,
     get_manager_fee_fraction, get_protocol_fee_recipient, get_total_fees,
@@ -28,12 +39,6 @@ use crate::storage::{
     get_total_mints, get_total_redemptions, get_total_shares, get_unstaking_period, put_token,
     set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem, set_max_shares,
     set_total_shares, set_unstaking_period, Component,
-};
-use crate::storage::{
-     get_blacklist_status, 
-     get_last_fee_collection,
-    get_whitelist_status, set_base_nav, set_blacklist_status, set_initial_price,
-    set_rebalance_threshold, set_whitelist_status,
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -91,6 +96,7 @@ impl Index {
         initial_price: i128,
         initial_deposit: i128,
         components: Vec<Address>,
+        rebalance_authorities: Vec<Address>, // New parameter for private index authorities
     ) {
         // set admin
         set_factory(&e, &factory);
@@ -104,6 +110,13 @@ impl Index {
 
         // Set the admin as the initial manager who will receive fees
         set_manager_address(&e, &admin);
+
+        // Set up rebalance authorities for private indexes
+        if !public {
+            for authority in rebalance_authorities.iter() {
+                set_rebalance_authority_status(&e, &authority, true);
+            }
+        }
 
         set_last_fee_collection(&e, &e.ledger().timestamp());
     }
@@ -127,6 +140,21 @@ impl IndexTrait for Index {
 
         if get_is_killed_mint(&e) {
             panic_with_error!(e, IndexError::IndexMintKilled);
+        }
+
+        if get_blacklist_status(&e, &user) {
+            panic_with_error!(e, IndexError::Blacklisted);
+        }
+
+        let is_public = get_public(&e);
+        if !is_public {
+            let access_control = AccessControl::new(&e);
+            let is_admin = access_control.address_has_role(&user, &Role::Admin);
+            let is_whitelisted = get_whitelist_status(&e, &user);
+            
+            if !is_admin && !is_whitelisted {
+                panic_with_error!(e, IndexError::NotWhitelisted);
+            }
         }
 
         validate_token_contracts(&e, &vec![&e, token.clone()]);
@@ -204,6 +232,21 @@ impl IndexTrait for Index {
         // For now, just emit event showing fees were collected
         if manager_fees > 0 || protocol_fees > 0 {
             // Fees already emitted in collect_fees_before_action
+        }
+        
+        if get_blacklist_status(&e, &user) {
+            panic_with_error!(e, IndexError::Blacklisted);
+        }
+
+        let is_public = get_public(&e);
+        if !is_public {
+            let access_control = AccessControl::new(&e);
+            let is_admin = access_control.address_has_role(&user, &Role::Admin);
+            let is_whitelisted = get_whitelist_status(&e, &user);
+            
+            if !is_admin && !is_whitelisted {
+                panic_with_error!(e, IndexError::NotWhitelisted);
+            }
         }
     }
 
@@ -464,12 +507,66 @@ impl AdminInterface for Index {
         set_max_shares(&e, &max_shares);
     }
 
-    fn rebalance(e: Env, admin: Address) {
-        admin.require_auth();
+    fn rebalance(e: Env, caller: Address, params: RebalanceParams) {
+        caller.require_auth();
 
         if get_is_killed_rebalance(&e) {
             panic_with_error!(e, IndexError::IndexRebalanceKilled);
         }
+
+        if get_blacklist_status(&e, &caller) {
+            panic_with_error!(e, IndexError::Blacklisted);
+        }
+
+        let is_public = get_public(&e);
+        if !is_public {
+            let access_control = AccessControl::new(&e);
+            let is_admin = access_control.address_has_role(&caller, &Role::Admin);
+            let is_whitelisted = get_whitelist_status(&e, &caller);
+            
+            if !is_admin && !is_whitelisted {
+                panic_with_error!(e, IndexError::NotWhitelisted);
+            }
+        }
+
+        // Check rebalance threshold timing
+        let current_time = e.ledger().timestamp();
+        let last_rebalance = get_last_rebalance_ts(&e);
+        let threshold = get_rebalance_threshold(&e);
+
+        if current_time < last_rebalance + threshold {
+            panic_with_error!(e, IndexError::RebalanceTooSoon);
+        }
+
+        // Permission checks based on index type
+        if is_public {
+            // Public index: requires DAO proposal approval (for now, only admin)
+            Index::validate_public_rebalance(&e, &caller, &params);
+        } else {
+            // Private index: admin or rebalance authority
+            Index::validate_private_rebalance(&e, &caller);
+        }
+
+        // Execute rebalancing logic
+        Index::execute_rebalancing(&e, params.clone());
+
+        // Update timestamps
+        set_last_rebalance_ts(&e, &current_time);
+        set_last_updated_ts(&e, &current_time);
+
+        // Emit event
+        Events::new(&e).rebalance(current_time, caller);
+    }
+
+    fn set_rebalance_authority(e: Env, admin: Address, authority: Address, status: bool) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        set_rebalance_authority_status(&e, &authority, status);
+
+        // Emit event
+        Events::new(&e).rebalance_authority_updated(authority, status);
     }
 
     // Stops index mints instantly.
@@ -875,12 +972,14 @@ impl QueryInterface for Index {
     fn get_share_price(e: Env) -> u128 {
         let total_shares = get_total_shares(&e);
         if total_shares == 0 {
-            return get_initial_price(&e);
+            let ip = get_initial_price(&e);
+            return if ip < 0 { 0 } else { ip as u128 };
         }
 
         let total_value = Index::get_total_index_value(e.clone());
         if total_value == 0 {
-            return get_initial_price(&e);
+            let ip = get_initial_price(&e);
+            return if ip < 0 { 0 } else { ip as u128 };
         }
 
         // Share price = Total Portfolio Value / Total Shares
@@ -922,6 +1021,97 @@ impl QueryInterface for Index {
         let threshold = get_rebalance_threshold(&e);
 
         current_time >= last_rebalance + threshold
+    }
+
+    // Rebalancing queries
+    fn get_rebalance_status(e: Env) -> RebalanceStatus {
+        let current_time = e.ledger().timestamp();
+        let last_rebalance = get_last_rebalance_ts(&e);
+        let threshold = get_rebalance_threshold(&e);
+        let can_rebalance =
+            (current_time >= last_rebalance + threshold) && !get_is_killed_rebalance(&e);
+        let time_until_next = if can_rebalance {
+            0
+        } else {
+            (last_rebalance + threshold) - current_time
+        };
+
+        // Get authorized rebalancers for private indexes
+        let authorized_rebalancers = if get_public(&e) {
+            Vec::new(&e) // Public indexes don't have individual authorities
+        } else {
+            get_all_rebalance_authorities(&e)
+        };
+
+        RebalanceStatus {
+            can_rebalance,
+            time_until_next_rebalance: time_until_next,
+            last_rebalance_ts: last_rebalance,
+            rebalance_threshold: threshold,
+            is_public: get_public(&e),
+            authorized_rebalancers,
+        }
+    }
+
+    fn can_address_rebalance(e: Env, caller: Address) -> bool {
+        if get_is_killed_rebalance(&e) {
+            return false;
+        }
+
+        let current_time = e.ledger().timestamp();
+        let last_rebalance = get_last_rebalance_ts(&e);
+        let threshold = get_rebalance_threshold(&e);
+
+        if current_time < last_rebalance + threshold {
+            return false;
+        }
+
+        let access_control = AccessControl::new(&e);
+        let is_public = get_public(&e);
+
+        if is_public {
+            // Public index: only admin for now (later DAO)
+            access_control.address_has_role(&caller, &Role::Admin)
+        } else {
+            // Private index: admin or rebalance authority
+            access_control.address_has_role(&caller, &Role::Admin)
+                || get_rebalance_authority_status(&e, &caller)
+        }
+    }
+
+    fn get_component_allocation(e: Env) -> Map<Address, ComponentAllocation> {
+        let mut allocations = Map::new(&e);
+        let components = get_all_components(&e);
+        let current_nav = Index::get_current_nav(e.clone());
+
+        for (token, component) in components.iter() {
+            let current_balance = get_component_balance_safe(&e, token.clone()).unwrap_or(0);
+            let target_balance = if current_nav > 0 {
+                (current_nav * component.weight as u128) / 10000
+            } else {
+                0
+            };
+            let percentage = if current_nav > 0 {
+                (current_balance * 10000) / current_nav
+            } else {
+                0
+            };
+
+            let allocation = ComponentAllocation {
+                component: component.clone(),
+                current_balance,
+                target_balance,
+                percentage_of_nav: percentage,
+            };
+
+            allocations.set(token, allocation);
+        }
+
+        allocations
+    }
+
+    fn get_rebalance_authorities(e: Env) -> Vec<Address> {
+        get_all_rebalance_authorities(&e)
     }
 }
 
@@ -990,6 +1180,107 @@ impl Index {
                 1_000_000u128 // 1.0 with 6 decimals
             }
         }
+    }
+
+    // Rebalancing helper functions
+    fn validate_private_rebalance(e: &Env, caller: &Address) {
+        let access_control = AccessControl::new(e);
+
+        // Allow admin or rebalance authority
+        if !access_control.address_has_role(caller, &Role::Admin)
+            && !get_rebalance_authority_status(e, caller)
+        {
+            panic_with_error!(e, IndexError::UnauthorizedRebalance);
+        }
+    }
+
+    fn validate_public_rebalance(e: &Env, caller: &Address, _params: &RebalanceParams) {
+        // For now, only admin can rebalance public indexes
+        // Later, add DAO proposal validation logic
+        let access_control = AccessControl::new(e);
+        if !access_control.address_has_role(caller, &Role::Admin) {
+            panic_with_error!(e, IndexError::PublicRebalanceRequiresProposal);
+        }
+
+        // TODO: Validate DAO proposal approval
+        // if let Some(proposal_id) = params.proposal_id {
+        //     validate_dao_proposal_approval(e, proposal_id);
+        // }
+    }
+
+    fn execute_rebalancing(e: &Env, params: RebalanceParams) {
+        let mut total_weight = 0u128;
+        let mut components_updated = 0u32;
+
+        // Validate and execute component updates
+        for update in params.component_updates.iter() {
+            match update.action {
+                ComponentAction::Add => {
+                    // Create component with symbol (simplified for now)
+                    let component = Component {
+                        asset: Symbol::new(e, "TOKEN"), // Simplified - would need proper token symbol
+                        weight: update.new_weight,
+                    };
+                    set_component(e, update.token.clone(), component);
+                    total_weight += update.new_weight;
+                    components_updated += 1;
+
+                    // Emit event
+                    Events::new(e).component_added(update.token.clone(), update.new_weight);
+                }
+                ComponentAction::Remove => {
+                    // Verify component exists before removing
+                    let _ = get_component(e, update.token.clone()); // This will panic if not found
+                    remove_component(e, update.token.clone());
+                    components_updated += 1;
+
+                    // Emit event
+                    Events::new(e).component_removed(update.token.clone());
+                }
+                ComponentAction::UpdateWeight => {
+                    // Verify component exists before updating
+                    let old_component = get_component(e, update.token.clone()); // This will panic if not found
+                    let old_weight = old_component.weight;
+                    update_component_weight(e, update.token.clone(), update.new_weight);
+                    total_weight += update.new_weight;
+                    components_updated += 1;
+
+                    // Emit event
+                    Events::new(e).component_weight_updated(
+                        update.token.clone(),
+                        old_weight,
+                        update.new_weight,
+                    );
+                }
+            }
+        }
+
+        // Validate total weights equal 100% (10000 basis points) for add/update operations
+        let has_weight_operations = params.component_updates.iter().any(|u| {
+            matches!(
+                u.action,
+                ComponentAction::Add | ComponentAction::UpdateWeight
+            )
+        });
+
+        if has_weight_operations && total_weight != 10000 {
+            panic_with_error!(e, IndexError::InvalidWeightSum);
+        }
+
+        // Generate and execute swap transactions to reach target allocation
+        let swaps = crate::index::generate_rebalance_swaps(e, &params);
+        let total_swaps = swaps.len() as u32;
+
+        if total_swaps > 0 {
+            let _swap_results = crate::index::execute_swaps(e, swaps);
+        }
+
+        // Emit completion event
+        Events::new(e).rebalance_completed(
+            e.current_contract_address(),
+            components_updated,
+            total_swaps,
+        );
     }
 }
 
