@@ -31,6 +31,14 @@ pub trait IndexFactoryTrait {
 }
 
 pub trait AdminInterface {
+    //   _______    _______  ___________  ___________  _______   _______    ________
+    //  /" _   "|  /"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
+    // (: ( \___) (: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
+    //  \/ \       \/    |      \\_ /        \\_ /    \/    |  |_____/   ) \___  \
+    //  //  \ ___  // ___)_     |.  |        |.  |    // ___)_  //      /   __/  \\
+    // (:   _(  _|(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
+    //  \_______)  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
+
     fn get_protocol_fee_recipient(e: Env) -> Address;
 
     fn get_factory_config(e: Env) -> FactoryConfig;
@@ -42,6 +50,8 @@ pub trait AdminInterface {
     fn get_protocol_fee_fraction(e: Env) -> u32;
 
     fn get_max_manager_fee_fraction(e: Env) -> u32;
+
+    fn get_minimum_fee_threshold(e: Env) -> u128;
 
     fn get_index_contract_wasm(e: Env) -> BytesN<32>;
 
@@ -65,9 +75,11 @@ pub trait AdminInterface {
 
     fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32);
 
+    fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address);
+
     fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32);
 
-    fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address);
+    fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128);
 
     //    _______     __       ____  ____   ________  _______  ________
     //   |   __ "\   /""\     ("  _||_ " | /"       )/"     "||"      "\

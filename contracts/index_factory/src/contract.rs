@@ -2,13 +2,14 @@ use crate::events::Events;
 use crate::events::FactoryConfigEvents;
 use crate::events::FactoryEvents;
 use crate::interface::{AdminInterface, IndexFactoryTrait};
+use crate::storage::set_is_killed_create;
 use crate::storage::{
     add_deployed_index, get_aggregator, get_all_deployed_indexes, get_contract_sequence,
     get_deployed_indexes, get_fee_contract_wasm, get_max_manager_fee_fraction,
-    get_protocol_fee_fraction, get_protocol_fee_recipient, get_router, set_aggregator,
-    set_contract_sequence, set_fee_contract_wasm, set_is_killed_create,
-    set_max_manager_fee_fraction, set_protocol_fee_fraction, set_protocol_fee_recipient,
-    set_router, DexDistribution,
+    get_minimum_fee_threshold, get_protocol_fee_fraction, get_protocol_fee_recipient, get_router,
+    set_aggregator, set_contract_sequence, set_fee_contract_wasm, set_max_manager_fee_fraction,
+    set_minimum_fee_threshold, set_protocol_fee_fraction, set_protocol_fee_recipient, set_router,
+    DexDistribution,
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -40,6 +41,7 @@ pub struct FactoryConfig {
     pub protocol_fee_fraction: u32,
     pub max_manager_fee_fraction: u32,
     pub protocol_fee_recipient: Address,
+    pub minimum_fee_threshold: u128,
     pub index_contract_wasm: BytesN<32>,
 }
 
@@ -65,6 +67,7 @@ impl IndexFactory {
         max_manager_fee_fraction: u32,
         protocol_fee_fraction: u32,
         protocol_fee_recipient: Address,
+        minimum_fee_threshold: u128,
     ) {
         let access_control = AccessControl::new(&e);
         access_control.set_role_address(&Role::Admin, &admin);
@@ -77,6 +80,8 @@ impl IndexFactory {
         set_protocol_fee_fraction(&e, &protocol_fee_fraction);
         set_max_manager_fee_fraction(&e, &max_manager_fee_fraction);
         set_protocol_fee_recipient(&e, &protocol_fee_recipient);
+        // Set universal minimum fee threshold - IMMUTABLE after initialization
+        set_minimum_fee_threshold(&e, &minimum_fee_threshold);
     }
 }
 
@@ -162,6 +167,14 @@ impl IndexFactoryTrait for IndexFactory {
 }
 
 impl AdminInterface for IndexFactory {
+    //   _______    _______  ___________  ___________  _______   _______    ________
+    //  /" _   "|  /"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
+    // (: ( \___) (: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
+    //  \/ \       \/    |      \\_ /        \\_ /    \/    |  |_____/   ) \___  \
+    //  //  \ ___  // ___)_     |.  |        |.  |    // ___)_  //      /   __/  \\
+    // (:   _(  _|(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
+    //  \_______)  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
+
     // Gets the protocol fee recipient address.
     fn get_protocol_fee_recipient(e: Env) -> Address {
         get_protocol_fee_recipient(&e)
@@ -175,6 +188,7 @@ impl AdminInterface for IndexFactory {
             protocol_fee_fraction: get_protocol_fee_fraction(&e),
             max_manager_fee_fraction: get_max_manager_fee_fraction(&e),
             protocol_fee_recipient: get_protocol_fee_recipient(&e),
+            minimum_fee_threshold: get_minimum_fee_threshold(&e),
             index_contract_wasm: get_fee_contract_wasm(&e),
         }
     }
@@ -194,6 +208,10 @@ impl AdminInterface for IndexFactory {
 
     fn get_max_manager_fee_fraction(e: Env) -> u32 {
         get_max_manager_fee_fraction(&e)
+    }
+
+    fn get_minimum_fee_threshold(e: Env) -> u128 {
+        get_minimum_fee_threshold(&e)
     }
 
     fn get_index_contract_wasm(e: Env) -> BytesN<32> {
@@ -241,8 +259,20 @@ impl AdminInterface for IndexFactory {
         Events::new(&e).set_wasm(index_contract_wasm);
     }
 
-    // set_index_contract_wasm
-    // Updates the WASM hash for the swap fee contract.
+    fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_protocol_fee_fraction(&e, &fraction);
+    }
+
+    fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_protocol_fee_recipient(&e, &recipient);
+    }
+
+    // set_max_manager_fee_fraction
+    // .
     //
     // Arguments:
     //   - e: The Soroban environment.
@@ -254,16 +284,18 @@ impl AdminInterface for IndexFactory {
         set_max_manager_fee_fraction(&e, &fraction);
     }
 
-    fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
+    // set_minimum_fee_threshold
+    // Updates the universal minimum fee threshold for all indexes.
+    // Only the protocol admin can call this function.
+    //
+    // Arguments:
+    //   - e: The Soroban environment.
+    //   - admin: The admin address (must be authorized).
+    //   - threshold: The new minimum fee threshold (u128) in token units.
+    fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_protocol_fee_recipient(&e, &recipient);
-    }
-
-    fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_protocol_fee_fraction(&e, &fraction);
+        set_minimum_fee_threshold(&e, &threshold);
     }
 
     //    _______     __       ____  ____   ________  _______  ________

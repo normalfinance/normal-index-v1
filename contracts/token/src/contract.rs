@@ -4,7 +4,6 @@ use crate::balance::{read_balance, receive_balance, spend_balance};
 use crate::errors::TokenError;
 use crate::interface::UpgradeableContract;
 use crate::metadata::{read_decimal, read_name, read_symbol, write_metadata};
-use crate::pool::{checkpoint_user_incentives, checkpoint_user_working_balance};
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::errors::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
@@ -13,10 +12,65 @@ use access_control::management::SingleAddressManagementTrait;
 use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
 use soroban_sdk::token::{self, Interface as _};
-use soroban_sdk::{contract, contractimpl, panic_with_error, Address, BytesN, Env, String, Symbol};
+use soroban_sdk::{
+    contract, contractimpl, panic_with_error, Address, BytesN, Env, IntoVal, String, Symbol, Vec,
+};
 use soroban_token_sdk::metadata::TokenMetadata;
 use soroban_token_sdk::TokenUtils;
 use utils::bump::bump_instance;
+
+/// Get the index contract that manages this token (using existing admin relationship)
+fn get_index_contract(e: &Env) -> Address {
+    // The token's admin IS the index contract - elegant and simple!
+    AccessControl::new(e).get_role(&Role::Admin)
+}
+
+/// Collect fees before token transfer by calling index contract
+fn collect_fees_before_transfer(e: &Env, from: &Address, to: &Address, amount: i128) {
+    let index_contract = get_index_contract(e);
+
+    let _result: (u128, u128) = e.invoke_contract(
+        &index_contract,
+        &Symbol::new(e, "collect_fees_before_operation"),
+        Vec::from_array(
+            e,
+            [
+                from.clone().into_val(e),
+                amount.into_val(e),
+                Some(to.clone()).into_val(e), // Some(address) for transfers
+            ],
+        ),
+    );
+}
+
+/// Collect fees before token mint by calling index contract
+fn collect_fees_before_mint(e: &Env, to: &Address, amount: i128) {
+    let index_contract = get_index_contract(e);
+
+    let _result: (u128, u128) = e.invoke_contract(
+        &index_contract,
+        &Symbol::new(e, "collect_fees_before_mint"),
+        Vec::from_array(e, [to.clone().into_val(e), amount.into_val(e)]),
+    );
+}
+
+/// Collect fees before token burn by calling index contract
+fn collect_fees_before_burn(e: &Env, from: &Address, amount: i128) {
+    let index_contract = get_index_contract(e);
+
+    let _result: (u128, u128) = e.invoke_contract(
+        &index_contract,
+        &Symbol::new(e, "collect_fees_before_operation"),
+        Vec::from_array(
+            e,
+            [
+                from.clone().into_val(e),
+                amount.into_val(e),
+                Option::<Address>::None.into_val(e), // None for burns
+            ],
+        ),
+    );
+}
 
 fn check_nonnegative_amount(e: &Env, amount: i128) {
     if amount < 0 {
@@ -58,7 +112,12 @@ impl Token {
 
         bump_instance(&e);
 
+        // Collect fees before minting (handles all fee collection at token level)
+        collect_fees_before_mint(&e, &to, amount);
+
+        // Perform the actual mint using traditional balance functions
         receive_balance(&e, to.clone(), amount);
+
         TokenUtils::new(&e).events().mint(admin, to, amount);
     }
 }
@@ -95,15 +154,12 @@ impl token::Interface for Token {
 
         bump_instance(&e);
 
-        // To avoid fee abuse through token transfers, checkpoint the fee indices when LP tokens are minted/burned/transferred
-        checkpoint_user_incentives(&e, from.clone());
-        checkpoint_user_incentives(&e, to.clone());
+        // CRITICAL: Collect fees before transfer (prevents external DEX fee avoidance)
+        collect_fees_before_transfer(&e, &from, &to, amount);
 
+        // Perform the actual transfer using traditional balance functions
         spend_balance(&e, from.clone(), amount);
         receive_balance(&e, to.clone(), amount);
-
-        checkpoint_user_working_balance(&e, from.clone());
-        checkpoint_user_working_balance(&e, to.clone());
 
         TokenUtils::new(&e).events().transfer(from, to, amount);
     }
@@ -115,16 +171,12 @@ impl token::Interface for Token {
 
         bump_instance(&e);
 
-        // To avoid fee abuse through token transfers, checkpoint the fee indices when LP tokens are minted/burned/transferred
-        checkpoint_user_incentives(&e, from.clone());
-        checkpoint_user_incentives(&e, to.clone());
+        // CRITICAL: Collect fees before transfer (prevents external DEX fee avoidance)
+        collect_fees_before_transfer(&e, &from, &to, amount);
 
         spend_allowance(&e, from.clone(), spender, amount);
         spend_balance(&e, from.clone(), amount);
         receive_balance(&e, to.clone(), amount);
-
-        checkpoint_user_working_balance(&e, from.clone());
-        checkpoint_user_working_balance(&e, to.clone());
 
         TokenUtils::new(&e).events().transfer(from, to, amount)
     }
@@ -136,7 +188,12 @@ impl token::Interface for Token {
 
         bump_instance(&e);
 
+        // Collect fees before burn (user is reducing their position)
+        collect_fees_before_burn(&e, &from, amount);
+
+        // Perform the actual burn using traditional balance functions
         spend_balance(&e, from.clone(), amount);
+
         TokenUtils::new(&e).events().burn(from, amount);
     }
 
@@ -147,8 +204,13 @@ impl token::Interface for Token {
 
         bump_instance(&e);
 
+        // Collect fees before burn_from (spender is burning from user's position)
+        collect_fees_before_burn(&e, &from, amount);
+
+        // Perform the actual burn using traditional balance functions
         spend_allowance(&e, from.clone(), spender, amount);
         spend_balance(&e, from.clone(), amount);
+
         TokenUtils::new(&e).events().burn(from, amount)
     }
 

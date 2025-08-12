@@ -69,11 +69,11 @@ generate_instance_storage_getter_and_setter_with_default!(
 );
 
 // Financial Configuration
-generate_instance_storage_getter_and_setter_with_default!(base_nav, DataKey::BaseNAV, i128, 0);
+generate_instance_storage_getter_and_setter_with_default!(base_nav, DataKey::BaseNAV, u128, 0);
 generate_instance_storage_getter_and_setter_with_default!(
     initial_price,
     DataKey::InitialPrice,
-    i128,
+    u128,
     0
 );
 

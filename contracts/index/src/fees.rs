@@ -1,0 +1,390 @@
+//! Time-based fee collection system for Normal Protocol
+//! Implements 0.5% annual management fee with lazy calculation approach
+
+use crate::events::{Events, IndexEvents};
+use crate::storage::{
+    get_accumulated_manager_fees, get_accumulated_protocol_fees, get_factory_safe,
+    get_manager_fee_fraction, get_total_fees, set_accumulated_manager_fees,
+    set_accumulated_protocol_fees, set_last_fee_collection, set_total_fees,
+};
+use access_control::access::AccessControl;
+use access_control::management::SingleAddressManagementTrait;
+use access_control::role::Role;
+use soroban_sdk::{contracttype, symbol_short, Address, Env, IntoVal, Symbol, Vec};
+use utils::bump::bump_persistent;
+
+/// Get protocol fee fraction from Factory contract
+/// Returns 0 if factory is not set or call fails
+pub fn get_protocol_fee_fraction_from_factory(e: &Env) -> u32 {
+    match get_factory_safe(e) {
+        Some(factory_address) => {
+            // Call Factory's get_protocol_fee_fraction() function
+            // Use invoke_contract directly since we trust the factory contract
+            e.invoke_contract::<u32>(
+                &factory_address,
+                &Symbol::new(e, "get_protocol_fee_fraction"),
+                Vec::new(e),
+            )
+        }
+        None => 0, // Return 0 if factory not set
+    }
+}
+
+/// User fee state tracking structure
+#[derive(Clone)]
+#[contracttype]
+pub struct UserFeeState {
+    pub balance: i128,
+    pub last_fee_update: u64, //when was the last time fees were collected for this user
+    pub accrued_manager_fees: u128,
+    pub accrued_protocol_fees: u128,
+}
+
+/// Storage keys for fee system
+#[derive(Clone)]
+#[contracttype]
+enum FeeDataKey {
+    UserFeeState(Address),
+    LastBatchCollection,
+}
+
+/// Minimum fee threshold to avoid dust collection (in tokens)
+const DEFAULT_MINIMUM_FEE_THRESHOLD: u128 = 1_000_000; // 1 token assuming 6 decimals
+
+/// Seconds per year for precise calculations
+const SECONDS_PER_YEAR: u64 = 31_536_000; // 365 * 24 * 60 * 60
+
+/// Get user fee state, initializing if doesn't exist
+pub fn get_user_fee_state(e: &Env, user: &Address) -> UserFeeState {
+    let key = FeeDataKey::UserFeeState(user.clone());
+    match e
+        .storage()
+        .persistent()
+        .get::<FeeDataKey, UserFeeState>(&key)
+    {
+        Some(state) => {
+            bump_persistent(e, &key);
+            state
+        }
+        None => UserFeeState {
+            balance: 0,
+            last_fee_update: e.ledger().timestamp(),
+            accrued_manager_fees: 0,
+            accrued_protocol_fees: 0,
+        },
+    }
+}
+
+/// Write user fee state to storage
+fn write_user_fee_state(e: &Env, user: &Address, state: &UserFeeState) {
+    let key = FeeDataKey::UserFeeState(user.clone());
+    e.storage().persistent().set(&key, state);
+    bump_persistent(e, &key);
+}
+
+/// Get minimum fee threshold from Factory contract (universal threshold)
+pub fn get_minimum_fee_threshold(e: &Env) -> u128 {
+    match get_factory_safe(e) {
+        Some(factory_address) => e.invoke_contract::<u128>(
+            &factory_address,
+            &Symbol::new(e, "get_minimum_fee_threshold"),
+            Vec::new(e),
+        ),
+        None => DEFAULT_MINIMUM_FEE_THRESHOLD, // Fallback during testing/development
+    }
+}
+
+// Note: Minimum fee threshold is now set universally by the Factory contract during deployment
+// and cannot be changed thereafter. This ensures protocol-wide consistency.
+
+/// Calculate time-based accrued fees for a user
+/// Returns (manager_fee, protocol_fee)
+pub fn calculate_accrued_fees(
+    e: &Env,
+    user_balance: i128,
+    last_update_timestamp: u64,
+    current_timestamp: u64,
+) -> (u128, u128) {
+    if current_timestamp <= last_update_timestamp || user_balance <= 0 {
+        return (0, 0);
+    }
+
+    let time_elapsed = current_timestamp - last_update_timestamp;
+    let user_balance_u128 = user_balance as u128;
+    let time_elapsed_u128 = time_elapsed as u128;
+
+    // Get separate fee rates
+    let manager_fee_rate_bps = get_manager_fee_fraction(e) as u128; // Manager fee (optional, max 2%)
+    let protocol_fee_rate_bps = get_protocol_fee_fraction_from_factory(e) as u128; // Protocol fee (0.75%, max 2%)
+
+    // Calculate manager fee separately
+    let manager_fee = if manager_fee_rate_bps > 0 {
+        (user_balance_u128 * manager_fee_rate_bps * time_elapsed_u128)
+            / (10_000 * SECONDS_PER_YEAR as u128)
+    } else {
+        0
+    };
+
+    // Calculate protocol fee separately
+    let protocol_fee = if protocol_fee_rate_bps > 0 {
+        (user_balance_u128 * protocol_fee_rate_bps * time_elapsed_u128)
+            / (10_000 * SECONDS_PER_YEAR as u128)
+    } else {
+        0
+    };
+
+    (manager_fee, protocol_fee)
+}
+
+/// Collect accrued fees for a user if they meet the minimum threshold
+/// Returns (manager_fee_collected, protocol_fee_collected)
+pub fn collect_accrued_fees_if_any(e: &Env, user: &Address) -> (u128, u128) {
+    let mut user_state = get_user_fee_state(e, user);
+    let current_time = e.ledger().timestamp();
+
+    // Calculate newly accrued fees since last update
+    let (new_manager_fee, new_protocol_fee) = calculate_accrued_fees(
+        e,
+        user_state.balance,
+        user_state.last_fee_update,
+        current_time,
+    );
+
+    // Add to accumulated fees
+    user_state.accrued_manager_fees += new_manager_fee;
+    user_state.accrued_protocol_fees += new_protocol_fee;
+
+    let minimum_threshold = get_minimum_fee_threshold(e);
+    let total_accrued = user_state.accrued_manager_fees + user_state.accrued_protocol_fees;
+
+    // Only collect if fees meet minimum threshold
+    let (collected_manager, collected_protocol) = if total_accrued >= minimum_threshold {
+        let manager_collected = user_state.accrued_manager_fees;
+        let protocol_collected = user_state.accrued_protocol_fees;
+
+        // Reset accumulated fees
+        user_state.accrued_manager_fees = 0;
+        user_state.accrued_protocol_fees = 0;
+
+        // Update accumulated fees in storage
+        if manager_collected > 0 || protocol_collected > 0 {
+            let current_manager_fees = get_accumulated_manager_fees(e);
+            let current_protocol_fees = get_accumulated_protocol_fees(e);
+            let current_total_fees = get_total_fees(e);
+
+            set_accumulated_manager_fees(e, &(current_manager_fees + manager_collected));
+            set_accumulated_protocol_fees(e, &(current_protocol_fees + protocol_collected));
+            set_total_fees(
+                e,
+                &(current_total_fees + manager_collected + protocol_collected),
+            );
+            set_last_fee_collection(e, &current_time);
+
+            // Emit fee collection event
+            Events::new(e).fee_collected(
+                user.clone(),
+                e.current_contract_address(), // token address
+                manager_collected + protocol_collected,
+                manager_collected,
+                protocol_collected,
+            );
+        }
+
+        (manager_collected, protocol_collected)
+    } else {
+        (0, 0)
+    };
+
+    // Update timestamp regardless of whether fees were collected
+    user_state.last_fee_update = current_time;
+
+    // Write updated state back to storage
+    write_user_fee_state(e, user, &user_state);
+
+    (collected_manager, collected_protocol)
+}
+
+/// Initialize or update user balance for fee tracking (called during mints, transfers)
+pub fn initialize_or_update_user_tracking(e: &Env, user: &Address, balance_change: i128) {
+    let current_time = e.ledger().timestamp();
+
+    // Get current state
+    let mut user_state = get_user_fee_state(e, user);
+
+    // Update balance
+    user_state.balance = (user_state.balance + balance_change).max(0);
+    user_state.last_fee_update = current_time;
+
+    write_user_fee_state(e, user, &user_state);
+}
+
+/// Collect fees before user action (transfers, burns, etc.)
+pub fn collect_fees_before_action(e: &Env, user: &Address, balance_change: i128) -> (u128, u128) {
+    // First collect any accrued fees
+    let (collected_manager, collected_protocol) = collect_accrued_fees_if_any(e, user);
+
+    // Then update the balance after fee collection
+    let mut user_state = get_user_fee_state(e, user);
+
+    // Deduct collected fees from balance first, then apply the balance change
+    let total_fees_collected = (collected_manager + collected_protocol) as i128;
+    user_state.balance = user_state.balance.saturating_sub(total_fees_collected);
+    user_state.balance = (user_state.balance + balance_change).max(0);
+    user_state.last_fee_update = e.ledger().timestamp();
+
+    write_user_fee_state(e, user, &user_state);
+
+    (collected_manager, collected_protocol)
+}
+
+/// Get effective balance for a user (balance minus pending accrued fees)
+pub fn get_effective_balance(e: &Env, user: &Address) -> i128 {
+    let user_state = get_user_fee_state(e, user);
+    let current_time = e.ledger().timestamp();
+
+    // Calculate newly accrued fees
+    let (new_manager_fee, new_protocol_fee) = calculate_accrued_fees(
+        e,
+        user_state.balance,
+        user_state.last_fee_update,
+        current_time,
+    );
+
+    let total_pending_fees = user_state.accrued_manager_fees
+        + user_state.accrued_protocol_fees
+        + new_manager_fee
+        + new_protocol_fee;
+
+    user_state
+        .balance
+        .saturating_sub(total_pending_fees as i128)
+}
+
+/// Preview fees that would be collected for a user (read-only)
+pub fn preview_accrued_fees(e: &Env, user: &Address) -> (u128, u128) {
+    let user_state = get_user_fee_state(e, user);
+    let current_time = e.ledger().timestamp();
+
+    let (new_manager_fee, new_protocol_fee) = calculate_accrued_fees(
+        e,
+        user_state.balance,
+        user_state.last_fee_update,
+        current_time,
+    );
+
+    (
+        user_state.accrued_manager_fees + new_manager_fee,
+        user_state.accrued_protocol_fees + new_protocol_fee,
+    )
+}
+
+/// Batch collect fees from multiple users (for periodic collection)
+/// Returns total fees collected (manager_fees, protocol_fees)
+pub fn batch_collect_fees(e: &Env, users: Vec<Address>) -> (u128, u128) {
+    let mut total_manager_fees = 0u128;
+    let mut total_protocol_fees = 0u128;
+
+    for user in users.iter() {
+        let (manager_collected, protocol_collected) = collect_accrued_fees_if_any(e, &user);
+        total_manager_fees += manager_collected;
+        total_protocol_fees += protocol_collected;
+    }
+
+    (total_manager_fees, total_protocol_fees)
+}
+
+/// Get all users with significant accrued fees (for batch collection)
+/// Returns users who have fees above the minimum threshold
+pub fn get_users_with_accrued_fees(e: &Env, user_addresses: Vec<Address>) -> Vec<Address> {
+    let minimum_threshold = get_minimum_fee_threshold(e);
+    let mut users_with_fees = Vec::new(e);
+
+    for user in user_addresses.iter() {
+        let (manager_fees, protocol_fees) = preview_accrued_fees(e, &user);
+        if manager_fees + protocol_fees >= minimum_threshold {
+            users_with_fees.push_back(user);
+        }
+    }
+
+    users_with_fees
+}
+
+/// Force collect fees from a user (admin emergency function)
+pub fn force_collect_fees(e: &Env, user: &Address) -> (u128, u128) {
+    let mut user_state = get_user_fee_state(e, user);
+    let current_time = e.ledger().timestamp();
+
+    // Calculate all accrued fees
+    let (new_manager_fee, new_protocol_fee) = calculate_accrued_fees(
+        e,
+        user_state.balance,
+        user_state.last_fee_update,
+        current_time,
+    );
+
+    // Add to accumulated fees
+    user_state.accrued_manager_fees += new_manager_fee;
+    user_state.accrued_protocol_fees += new_protocol_fee;
+
+    let manager_collected = user_state.accrued_manager_fees;
+    let protocol_collected = user_state.accrued_protocol_fees;
+
+    // Force collection regardless of threshold
+    if manager_collected > 0 || protocol_collected > 0 {
+        // Deduct collected fees from user balance
+        user_state.balance = user_state
+            .balance
+            .saturating_sub((manager_collected + protocol_collected) as i128);
+
+        // Reset accumulated fees
+        user_state.accrued_manager_fees = 0;
+        user_state.accrued_protocol_fees = 0;
+
+        // Update accumulated fees in storage
+        let current_manager_fees = get_accumulated_manager_fees(e);
+        let current_protocol_fees = get_accumulated_protocol_fees(e);
+        let current_total_fees = get_total_fees(e);
+
+        set_accumulated_manager_fees(e, &(current_manager_fees + manager_collected));
+        set_accumulated_protocol_fees(e, &(current_protocol_fees + protocol_collected));
+        set_total_fees(
+            e,
+            &(current_total_fees + manager_collected + protocol_collected),
+        );
+        set_last_fee_collection(e, &current_time);
+
+        // Emit fee collection event
+        Events::new(e).fee_collected(
+            user.clone(),
+            e.current_contract_address(),
+            manager_collected + protocol_collected,
+            manager_collected,
+            protocol_collected,
+        );
+    }
+
+    // Update timestamp
+    user_state.last_fee_update = current_time;
+    write_user_fee_state(e, user, &user_state);
+
+    (manager_collected, protocol_collected)
+}
+
+/// Get last batch collection timestamp
+pub fn get_last_batch_collection(e: &Env) -> u64 {
+    let key = FeeDataKey::LastBatchCollection;
+    match e.storage().persistent().get::<FeeDataKey, u64>(&key) {
+        Some(timestamp) => {
+            bump_persistent(e, &key);
+            timestamp
+        }
+        None => 0,
+    }
+}
+
+/// Set last batch collection timestamp
+pub fn set_last_batch_collection(e: &Env, timestamp: u64) {
+    let key = FeeDataKey::LastBatchCollection;
+    e.storage().persistent().set(&key, &timestamp);
+    bump_persistent(e, &key);
+}
