@@ -11,7 +11,7 @@ tasks:
 
   build:
     cmds:
-      - task -d ../token build || exit 1
+      - task -d ../index_token build || exit 1
       - soroban contract build --package index
       - soroban contract optimize --wasm ../../target/wasm32v1-none/release/index.wasm --wasm-out ../../target/wasm32v1-none/release/index.wasm
       - ls -l ../../target/wasm32v1-none/release/*.wasm

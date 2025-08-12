@@ -1,6 +1,6 @@
 [package]
-name = "soroban-token-contract"
-description = "Soroban standard token contract"
+name = "index-token"
+description = "Custom soroban token contract for Normal index funds"
 version.workspace = true
 edition = "2021"
 publish = false
