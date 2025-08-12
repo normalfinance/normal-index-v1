@@ -34,6 +34,17 @@ if (typeof window !== 'undefined') {
 
 
 
+export interface FactoryConfig {
+  aggregator: string;
+  index_contract_wasm: Buffer;
+  max_manager_fee_fraction: u32;
+  minimum_fee_threshold: u128;
+  protocol_fee_fraction: u32;
+  protocol_fee_recipient: string;
+  router: string;
+}
+
+
 export interface DexDistribution {
   parts: u32;
   path: Array<string>;
@@ -62,28 +73,6 @@ export const UpgradeError = {
   2908: {message:"ActionNotReadyYet"}
 }
 
-
-export interface TokenInitInfo {
-  name: string;
-  symbol: string;
-  token_wasm_hash: Buffer;
-}
-
-
-export interface PrivilegedAddresses {
-  emergency_admin: string;
-  emergency_pause_admins: Array<string>;
-  operations_admin: string;
-  pause_admin: string;
-  rewards_admin: string;
-}
-
-
-export interface InitializeParams {
-  admin: string;
-  privileged_addrs: PrivilegedAddresses;
-}
-
 export const MathError = {
   /**
    * MathError: NumberOverflow
@@ -107,107 +96,29 @@ export const ValidationError = {
   801: {message:"InvalidToken"}
 }
 
+
+export interface TokenInitInfo {
+  name: string;
+  symbol: string;
+  token_wasm_hash: Buffer;
+}
+
+
+export interface PrivilegedAddresses {
+  emergency_admin: string;
+  emergency_pause_admins: Array<string>;
+  operations_admin: string;
+  pause_admin: string;
+  rewards_admin: string;
+}
+
+
+export interface InitializeParams {
+  admin: string;
+  privileged_addrs: PrivilegedAddresses;
+}
+
 export interface Client {
-  /**
-   * Construct and simulate a set_index_contract_wasm transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   */
-  set_index_contract_wasm: ({admin, index_contract_wasm}: {admin: string, index_contract_wasm: Buffer}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<null>>
-
-  /**
-   * Construct and simulate a set_protocol_fee_fraction transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   */
-  set_protocol_fee_fraction: ({admin, fraction}: {admin: string, fraction: u32}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<null>>
-
-  /**
-   * Construct and simulate a set_max_manager_fee_fraction transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   */
-  set_max_manager_fee_fraction: ({admin, fraction}: {admin: string, fraction: u32}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<null>>
-
-  /**
-   * Construct and simulate a deploy_index_contract transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   */
-  deploy_index_contract: ({operator, fee_destination, max_max_swap_fee_fraction}: {operator: string, fee_destination: string, max_max_swap_fee_fraction: u32}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<string>>
-
-  /**
-   * Construct and simulate a swap transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   */
-  swap: ({token_in, token_out, amount_in, amount_out_min, distribution, to, deadline}: {token_in: string, token_out: string, amount_in: i128, amount_out_min: i128, distribution: Array<DexDistribution>, to: string, deadline: u64}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Array<Array<i128>>>>
-
   /**
    * Construct and simulate a version transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
@@ -412,7 +323,7 @@ export interface Client {
 export class Client extends ContractClient {
   static async deploy<T = Client>(
         /** Constructor/Initialization Args for the contract's `__constructor` method */
-        {admin, emergency_admin, aggregator, router, index_contract_wasm, max_manager_fee_fraction, protocol_fee_fraction}: {admin: string, emergency_admin: string, aggregator: string, router: string, index_contract_wasm: Buffer, max_manager_fee_fraction: u32, protocol_fee_fraction: u32},
+        {admin, emergency_admin, aggregator, router, index_contract_wasm, max_manager_fee_fraction, protocol_fee_fraction, protocol_fee_recipient, minimum_fee_threshold}: {admin: string, emergency_admin: string, aggregator: string, router: string, index_contract_wasm: Buffer, max_manager_fee_fraction: u32, protocol_fee_fraction: u32, protocol_fee_recipient: string, minimum_fee_threshold: u128},
     /** Options for initializing a Client as well as for calling a method, with extras specific to deploying. */
     options: MethodOptions &
       Omit<ContractClientOptions, "contractId"> & {
@@ -424,16 +335,12 @@ export class Client extends ContractClient {
         format?: "hex" | "base64";
       }
   ): Promise<AssembledTransaction<T>> {
-    return ContractClient.deploy({admin, emergency_admin, aggregator, router, index_contract_wasm, max_manager_fee_fraction, protocol_fee_fraction}, options)
+    return ContractClient.deploy({admin, emergency_admin, aggregator, router, index_contract_wasm, max_manager_fee_fraction, protocol_fee_fraction, protocol_fee_recipient, minimum_fee_threshold}, options)
   }
   constructor(public readonly options: ContractClientOptions) {
     super(
-      new ContractSpec([ "AAAAAAAAAAAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAcAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAPZW1lcmdlbmN5X2FkbWluAAAAABMAAAAAAAAACmFnZ3JlZ2F0b3IAAAAAABMAAAAAAAAABnJvdXRlcgAAAAAAEwAAAAAAAAATaW5kZXhfY29udHJhY3Rfd2FzbQAAAAPuAAAAIAAAAAAAAAAYbWF4X21hbmFnZXJfZmVlX2ZyYWN0aW9uAAAABAAAAAAAAAAVcHJvdG9jb2xfZmVlX2ZyYWN0aW9uAAAAAAAABAAAAAA=",
-        "AAAAAAAAAAAAAAAXc2V0X2luZGV4X2NvbnRyYWN0X3dhc20AAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAABNpbmRleF9jb250cmFjdF93YXNtAAAAA+4AAAAgAAAAAA==",
-        "AAAAAAAAAAAAAAAZc2V0X3Byb3RvY29sX2ZlZV9mcmFjdGlvbgAAAAAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAIZnJhY3Rpb24AAAAEAAAAAA==",
-        "AAAAAAAAAAAAAAAcc2V0X21heF9tYW5hZ2VyX2ZlZV9mcmFjdGlvbgAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAIZnJhY3Rpb24AAAAEAAAAAA==",
-        "AAAAAAAAAAAAAAAVZGVwbG95X2luZGV4X2NvbnRyYWN0AAAAAAAAAwAAAAAAAAAIb3BlcmF0b3IAAAATAAAAAAAAAA9mZWVfZGVzdGluYXRpb24AAAAAEwAAAAAAAAAZbWF4X21heF9zd2FwX2ZlZV9mcmFjdGlvbgAAAAAAAAQAAAABAAAAEw==",
-        "AAAAAAAAAAAAAAAEc3dhcAAAAAcAAAAAAAAACHRva2VuX2luAAAAEwAAAAAAAAAJdG9rZW5fb3V0AAAAAAAAEwAAAAAAAAAJYW1vdW50X2luAAAAAAAACwAAAAAAAAAOYW1vdW50X291dF9taW4AAAAAAAsAAAAAAAAADGRpc3RyaWJ1dGlvbgAAA+oAAAfQAAAAD0RleERpc3RyaWJ1dGlvbgAAAAAAAAAAAnRvAAAAAAATAAAAAAAAAAhkZWFkbGluZQAAAAYAAAABAAAD6gAAA+oAAAAL",
+      new ContractSpec([ "AAAAAQAAAAAAAAAAAAAADUZhY3RvcnlDb25maWcAAAAAAAAHAAAAAAAAAAphZ2dyZWdhdG9yAAAAAAATAAAAAAAAABNpbmRleF9jb250cmFjdF93YXNtAAAAA+4AAAAgAAAAAAAAABhtYXhfbWFuYWdlcl9mZWVfZnJhY3Rpb24AAAAEAAAAAAAAABVtaW5pbXVtX2ZlZV90aHJlc2hvbGQAAAAAAAAKAAAAAAAAABVwcm90b2NvbF9mZWVfZnJhY3Rpb24AAAAAAAAEAAAAAAAAABZwcm90b2NvbF9mZWVfcmVjaXBpZW50AAAAAAATAAAAAAAAAAZyb3V0ZXIAAAAAABM=",
+        "AAAAAAAAAAAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAkAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAPZW1lcmdlbmN5X2FkbWluAAAAABMAAAAAAAAACmFnZ3JlZ2F0b3IAAAAAABMAAAAAAAAABnJvdXRlcgAAAAAAEwAAAAAAAAATaW5kZXhfY29udHJhY3Rfd2FzbQAAAAPuAAAAIAAAAAAAAAAYbWF4X21hbmFnZXJfZmVlX2ZyYWN0aW9uAAAABAAAAAAAAAAVcHJvdG9jb2xfZmVlX2ZyYWN0aW9uAAAAAAAABAAAAAAAAAAWcHJvdG9jb2xfZmVlX3JlY2lwaWVudAAAAAAAEwAAAAAAAAAVbWluaW11bV9mZWVfdGhyZXNob2xkAAAAAAAACgAAAAA=",
         "AAAAAAAAAAAAAAAHdmVyc2lvbgAAAAAAAAAAAQAAAAQ=",
         "AAAAAAAAAAAAAAAOY29tbWl0X3VwZ3JhZGUAAAAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAANbmV3X3dhc21faGFzaAAAAAAAA+4AAAAgAAAAAA==",
         "AAAAAAAAAAAAAAANYXBwbHlfdXBncmFkZQAAAAAAAAEAAAAAAAAABWFkbWluAAAAAAAAEwAAAAEAAAPuAAAAIA==",
@@ -447,22 +354,17 @@ export class Client extends ContractClient {
         "AAAAAQAAAAAAAAAAAAAAD0RleERpc3RyaWJ1dGlvbgAAAAADAAAAAAAAAAVwYXJ0cwAAAAAAAAQAAAAAAAAABHBhdGgAAAPqAAAAEwAAAAAAAAALcHJvdG9jb2xfaWQAAAAAEA==",
         "AAAABAAAAAAAAAAAAAAAEkFjY2Vzc0NvbnRyb2xFcnJvcgAAAAAABwAAABJBY2Nlc3NDb250cm9sRXJyb3IAAAAAAAxSb2xlTm90Rm91bmQAAABlAAAAAAAAAAxVbmF1dGhvcml6ZWQAAABmAAAAAAAAAA9BZG1pbkFscmVhZHlTZXQAAAAAZwAAAAAAAAAMQmFkUm9sZVVzYWdlAAAAaAAAAAAAAAATQW5vdGhlckFjdGlvbkFjdGl2ZQAAAAtaAAAAAAAAAA5Ob0FjdGlvbkFjdGl2ZQAAAAALWwAAAAAAAAARQWN0aW9uTm90UmVhZHlZZXQAAAAAAAtc",
         "AAAABAAAAAAAAAAAAAAADFVwZ3JhZGVFcnJvcgAAAAMAAAAMVXBncmFkZUVycm9yAAAAE0Fub3RoZXJBY3Rpb25BY3RpdmUAAAALWgAAAAAAAAAOTm9BY3Rpb25BY3RpdmUAAAAAC1sAAAAAAAAAEUFjdGlvbk5vdFJlYWR5WWV0AAAAAAALXA==",
-        "AAAAAQAAAAAAAAAAAAAADVRva2VuSW5pdEluZm8AAAAAAAADAAAAAAAAAARuYW1lAAAAEAAAAAAAAAAGc3ltYm9sAAAAAAAQAAAAAAAAAA90b2tlbl93YXNtX2hhc2gAAAAD7gAAACA=",
-        "AAAAAQAAAAAAAAAAAAAAE1ByaXZpbGVnZWRBZGRyZXNzZXMAAAAABQAAAAAAAAAPZW1lcmdlbmN5X2FkbWluAAAAABMAAAAAAAAAFmVtZXJnZW5jeV9wYXVzZV9hZG1pbnMAAAAAA+oAAAATAAAAAAAAABBvcGVyYXRpb25zX2FkbWluAAAAEwAAAAAAAAALcGF1c2VfYWRtaW4AAAAAEwAAAAAAAAANcmV3YXJkc19hZG1pbgAAAAAAABM=",
-        "AAAAAQAAAAAAAAAAAAAAEEluaXRpYWxpemVQYXJhbXMAAAACAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAAEHByaXZpbGVnZWRfYWRkcnMAAAfQAAAAE1ByaXZpbGVnZWRBZGRyZXNzZXMA",
         "AAAABAAAAAAAAAAAAAAACU1hdGhFcnJvcgAAAAAAAAIAAAAZTWF0aEVycm9yOiBOdW1iZXJPdmVyZmxvdwAAAAAAAA5OdW1iZXJPdmVyZmxvdwAAAAAB/gAAAAAAAAAJTWF0aEVycm9yAAAAAAAB/w==",
         "AAAABAAAAAAAAAAAAAAADFN0b3JhZ2VFcnJvcgAAAAIAAAAMU3RvcmFnZUVycm9yAAAAE1ZhbHVlTm90SW5pdGlhbGl6ZWQAAAAB9QAAAAAAAAAMVmFsdWVNaXNzaW5nAAAB9g==",
-        "AAAABAAAAAAAAAAAAAAAD1ZhbGlkYXRpb25FcnJvcgAAAAABAAAAD1ZhbGlkYXRpb25FcnJvcgAAAAAMSW52YWxpZFRva2VuAAADIQ==" ]),
+        "AAAABAAAAAAAAAAAAAAAD1ZhbGlkYXRpb25FcnJvcgAAAAABAAAAD1ZhbGlkYXRpb25FcnJvcgAAAAAMSW52YWxpZFRva2VuAAADIQ==",
+        "AAAAAQAAAAAAAAAAAAAADVRva2VuSW5pdEluZm8AAAAAAAADAAAAAAAAAARuYW1lAAAAEAAAAAAAAAAGc3ltYm9sAAAAAAAQAAAAAAAAAA90b2tlbl93YXNtX2hhc2gAAAAD7gAAACA=",
+        "AAAAAQAAAAAAAAAAAAAAE1ByaXZpbGVnZWRBZGRyZXNzZXMAAAAABQAAAAAAAAAPZW1lcmdlbmN5X2FkbWluAAAAABMAAAAAAAAAFmVtZXJnZW5jeV9wYXVzZV9hZG1pbnMAAAAAA+oAAAATAAAAAAAAABBvcGVyYXRpb25zX2FkbWluAAAAEwAAAAAAAAALcGF1c2VfYWRtaW4AAAAAEwAAAAAAAAANcmV3YXJkc19hZG1pbgAAAAAAABM=",
+        "AAAAAQAAAAAAAAAAAAAAEEluaXRpYWxpemVQYXJhbXMAAAACAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAAEHByaXZpbGVnZWRfYWRkcnMAAAfQAAAAE1ByaXZpbGVnZWRBZGRyZXNzZXMA" ]),
       options
     )
   }
   public readonly fromJSON = {
-    set_index_contract_wasm: this.txFromJSON<null>,
-        set_protocol_fee_fraction: this.txFromJSON<null>,
-        set_max_manager_fee_fraction: this.txFromJSON<null>,
-        deploy_index_contract: this.txFromJSON<string>,
-        swap: this.txFromJSON<Array<Array<i128>>>,
-        version: this.txFromJSON<u32>,
+    version: this.txFromJSON<u32>,
         commit_upgrade: this.txFromJSON<null>,
         apply_upgrade: this.txFromJSON<Buffer>,
         revert_upgrade: this.txFromJSON<null>,
