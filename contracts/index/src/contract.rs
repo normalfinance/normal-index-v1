@@ -67,7 +67,6 @@ use token_share::get_token_share;
 use token_share::get_total_shares;
 use token_share::mint_shares;
 use token_share::put_token_share;
-use token_share::Client as ShareTokenClient;
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
