@@ -38,8 +38,8 @@ use crate::storage::{
     get_component_balance, get_component_balance_safe, get_component_registry, get_factory,
     get_factory_safe, get_initial_price, get_is_killed_mint, get_is_killed_rebalance,
     get_is_killed_redeem, get_last_rebalance_ts, get_last_updated_ts, get_public,
-    get_rebalance_threshold, get_token, get_total_mints, get_total_redemptions, get_total_shares,
-    put_token, set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem, Component,
+    get_rebalance_threshold, get_total_mints, get_total_redemptions, set_is_killed_mint,
+    set_is_killed_rebalance, set_is_killed_redeem, Component,
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -60,9 +60,11 @@ use soroban_sdk::{
     contract, contractimpl, log, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
     Address, BytesN, Env, IntoVal, Map, Symbol, Vec,
 };
+use token_share::get_token_share;
+use token_share::get_total_shares;
 use token_share::mint_shares;
 use token_share::put_token_share;
-use token_share::Client as LPTokenClient;
+use token_share::Client as ShareTokenClient;
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
@@ -301,7 +303,7 @@ impl IndexTrait for Index {
     }
 
     fn get_token(e: Env) -> Address {
-        crate::storage::get_token(&e)
+        get_token_share(&e)
     }
 
     fn get_factory(e: Env) -> Address {
@@ -318,19 +320,19 @@ impl IndexTrait for Index {
 
     fn get_nav(e: Env) -> i128 {
         let base_nav = crate::storage::get_base_nav(&e) as i128;
-        let total_shares = crate::storage::get_total_shares(&e);
+        let total_shares = get_total_shares(&e);
         if total_shares == 0 {
             return base_nav;
         }
 
-        let token = crate::storage::get_token(&e);
+        let token = get_token_share(&e);
         let vault_amount = crate::storage::get_index_vault_amount(&e, &token) as i128;
         vault_amount
     }
 
     fn get_price(e: Env) -> i128 {
         let nav = Self::get_nav(e.clone());
-        let total_shares = crate::storage::get_total_shares(&e);
+        let total_shares = get_total_shares(&e);
         if total_shares == 0 {
             return crate::storage::get_initial_price(&e) as i128;
         }
@@ -338,7 +340,7 @@ impl IndexTrait for Index {
     }
 
     fn get_total_shares(e: Env) -> u128 {
-        crate::storage::get_total_shares(&e)
+        get_total_shares(&e)
     }
 
     fn get_public_status(e: Env) -> bool {
@@ -406,7 +408,7 @@ impl IndexTrait for Index {
         collect_fees_before_action(&e, &to, amount as i128);
 
         // Execute the token transfer
-        let share_token = crate::storage::get_token(&e);
+        let share_token = get_token_share(&e);
         SorobanTokenClient::new(&e, &share_token).transfer(&from, &to, &(amount as i128));
 
         // Update fee tracking for both users
@@ -423,7 +425,7 @@ impl IndexTrait for Index {
         collect_fees_before_action(&e, &to, amount as i128);
 
         // Execute the token transfer from allowance
-        let share_token = crate::storage::get_token(&e);
+        let share_token = get_token_share(&e);
         SorobanTokenClient::new(&e, &share_token).transfer_from(
             &spender,
             &from,
@@ -532,7 +534,7 @@ impl AdminInterface for Index {
         }
         access_control.set_role_address(&Role::Admin, &admin);
 
-        put_token(&e, &token);
+        put_token_share(&e, token);
 
         // No complex registration needed!
         // The token's admin IS this index contract, so fee calls work automatically
@@ -1081,7 +1083,7 @@ impl QueryInterface for Index {
     fn get_index_info(e: Env) -> IndexInfo {
         IndexInfo {
             address: e.current_contract_address(),
-            token_address: get_token(&e),
+            token_address: get_token_share(&e),
             total_shares: get_total_shares(&e),
             base_nav: get_base_nav(&e),
             initial_price: get_initial_price(&e),
