@@ -123,7 +123,7 @@ pub fn vault_amount_to_shares(
         // get_proportion_u128(e, amount, total_shares, vault_amount)
     } else {
         // must be case that total_shares == 0 for nice result for user
-        validate!(e, total_shares == 0, IndexError::InvalidIFSharesDetected);
+        validate!(e, total_shares == 0, IndexError::InvalidSharesDetected);
 
         amount
     };

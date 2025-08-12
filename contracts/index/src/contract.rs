@@ -12,7 +12,6 @@ use crate::interface::{
     AdminInterface, ComponentAction, ComponentAllocation, ComponentUpdate, IndexInfo, IndexMetrics,
     IndexStatus, IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus,
 };
-use crate::stake::Stake;
 use crate::storage::get_all_rebalance_authorities;
 use crate::storage::get_blacklist_status;
 use crate::storage::get_index_vault_amount;
@@ -37,12 +36,10 @@ use crate::storage::{
 use crate::storage::{
     get_all_component_balances, get_all_components, get_base_nav, get_component,
     get_component_balance, get_component_balance_safe, get_component_registry, get_factory,
-    get_factory_safe, get_initial_price, get_insurance_vault_amount, get_is_killed_mint,
-    get_is_killed_rebalance, get_is_killed_redeem, get_last_rebalance_ts, get_last_updated_ts,
-    get_max_shares, get_public, get_rebalance_threshold, get_shares_base, get_token,
-    get_total_mints, get_total_redemptions, get_total_shares, get_unstaking_period, put_token,
-    set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem, set_max_shares,
-    set_total_shares, set_unstaking_period, Component,
+    get_factory_safe, get_initial_price, get_is_killed_mint, get_is_killed_rebalance,
+    get_is_killed_redeem, get_last_rebalance_ts, get_last_updated_ts, get_public,
+    get_rebalance_threshold, get_token, get_total_mints, get_total_redemptions, get_total_shares,
+    put_token, set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem, Component,
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -168,13 +165,12 @@ impl IndexTrait for Index {
         let total_shares = get_total_shares(&e);
 
         let vault_amount = get_index_vault_amount(&e, &token);
-        let insurance_vault_amount = get_insurance_vault_amount(&e);
 
-        validate!(
-            &e,
-            !(insurance_vault_amount == 0 && total_shares != 0),
-            IndexError::InvalidIFForNewStakes
-        );
+        // validate!(
+        //     &e,
+        //     !(insurance_vault_amount == 0 && total_shares != 0),
+        //     IndexError::InvalidIFForNewStakes
+        // );
 
         let n_shares = vault_amount_to_shares(&e, amount, total_shares, vault_amount);
 
@@ -540,34 +536,6 @@ impl AdminInterface for Index {
 
         // No complex registration needed!
         // The token's admin IS this index contract, so fee calls work automatically
-    }
-
-    // Sets the unstaking period.
-    //
-    // # Arguments
-    //
-    // * `admin` - The address of the admin.
-    // * `unstaking_period` - The new unstaking period.
-    fn set_unstaking_period(e: Env, admin: Address, unstaking_period: u64) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        set_unstaking_period(&e, &unstaking_period);
-    }
-
-    // Sets the max shares the Insurance Fund can have.
-    //
-    // # Arguments
-    //
-    // * `admin` - The address of the admin.
-    // * `max_shares` - The max number of shares.
-    fn set_max_shares(e: Env, admin: Address, max_shares: u128) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        set_max_shares(&e, &max_shares);
     }
 
     fn rebalance(e: Env, caller: Address, params: RebalanceParams) {

@@ -16,9 +16,7 @@ pub enum IndexError {
     ManagerNotSet = 33,
     ProtocolRecipientNotSet = 34,
 
-    // Insurance Fund Errors
-    InvalidIFForNewStakes = 35,
-    InvalidIFSharesDetected = 36,
+    InvalidSharesDetected = 35,
 
     // Rebalancing Errors
     RebalanceTooSoon = 37,

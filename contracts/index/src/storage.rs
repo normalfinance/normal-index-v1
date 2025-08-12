@@ -534,11 +534,6 @@ pub fn get_index_vault_amount(e: &Env, token: &Address) -> u128 {
     SorobanTokenClient::new(e, token).balance(&e.current_contract_address()) as u128
 }
 
-pub fn get_insurance_vault_amount(e: &Env) -> u128 {
-    // Placeholder implementation - return 0 for now
-    0
-}
-
 pub fn get_token(e: &Env) -> Address {
     bump_instance(e);
     match e.storage().instance().get(&DataKey::TokenIndex) {
@@ -553,42 +548,4 @@ pub fn get_token(e: &Env) -> Address {
 pub fn put_token(e: &Env, token: &Address) {
     bump_instance(e);
     e.storage().instance().set(&DataKey::TokenIndex, token);
-}
-
-pub fn get_max_shares(e: &Env) -> u128 {
-    bump_instance(e);
-    e.storage()
-        .instance()
-        .get(&DataKey::TotalShares)
-        .unwrap_or(0)
-}
-
-pub fn set_max_shares(e: &Env, max_shares: &u128) {
-    bump_instance(e);
-    e.storage()
-        .instance()
-        .set(&DataKey::TotalShares, max_shares);
-}
-
-pub fn get_unstaking_period(e: &Env) -> u64 {
-    bump_instance(e);
-    e.storage()
-        .instance()
-        .get(&DataKey::LastRebalanceTs)
-        .unwrap_or(0)
-}
-
-pub fn set_unstaking_period(e: &Env, period: &u64) {
-    bump_instance(e);
-    e.storage()
-        .instance()
-        .set(&DataKey::LastRebalanceTs, period);
-}
-
-pub fn get_shares_base(e: &Env) -> u128 {
-    bump_instance(e);
-    e.storage()
-        .instance()
-        .get(&DataKey::TotalShares)
-        .unwrap_or(0)
 }
