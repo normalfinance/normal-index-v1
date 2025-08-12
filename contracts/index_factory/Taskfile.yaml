@@ -13,8 +13,8 @@ tasks:
     cmds:
       - task -d ../index build || exit 1
       - soroban contract build --package index-factory
-      - soroban contract optimize --wasm ../target/wasm32v1-none/release/index_factory.wasm --wasm-out ../target/wasm32v1-none/release/index_factory.wasm
-      - ls -l ../target/wasm32v1-none/release/*.wasm
+      - soroban contract optimize --wasm ../../target/wasm32v1-none/release/index_factory.wasm --wasm-out ../../target/wasm32v1-none/release/index_factory.wasm
+      - ls -l ../../target/wasm32v1-none/release/*.wasm
       - cp ../../target/wasm32v1-none/release/index_factory.wasm ../../wasm/index_factory.wasm
 
   test:
