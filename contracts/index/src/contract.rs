@@ -7,7 +7,7 @@ use crate::fees::{
     preview_accrued_fees, set_last_batch_collection,
 };
 
-use crate::index::vault_amount_to_shares;
+use crate::index::{execute_swaps, generate_swap_params, vault_amount_to_shares};
 use crate::interface::{
     AdminInterface, ComponentAction, ComponentAllocation, IndexInfo, IndexMetrics, IndexStatus,
     IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus,
@@ -31,7 +31,7 @@ use crate::storage::{
     get_accumulated_manager_fees, get_accumulated_protocol_fees, get_manager_address,
     get_manager_fee_fraction, get_protocol_fee_recipient, get_total_fees,
     set_accumulated_manager_fees, set_accumulated_protocol_fees, set_last_fee_collection,
-    set_manager_address, set_protocol_fee_recipient, set_total_fees,
+    set_manager_address, set_protocol_fee_recipient,
 };
 use crate::storage::{
     get_all_component_balances, get_all_components, get_base_nav, get_component,
@@ -55,7 +55,6 @@ use access_control::utils::{
     require_pause_admin_or_owner, require_pause_or_emergency_pause_admin_or_owner,
 };
 use soroban_sdk::IntoVal;
-use soroban_sdk::String;
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
     Address, BytesN, Env, Map, Symbol, Vec,
@@ -176,11 +175,10 @@ impl IndexTrait for Index {
         };
         // Fee collection now handled at token level during mint_shares() call
 
-        // Configure swaps
-        let swaps_chain: Vec<(Vec<Address>, BytesN<32>, Address)> = Vec::new(&e);
+        // Generate swap parameters for component allocation
+        let swap_params = generate_swap_params(&e, token.clone(), amount_after_fees as i128);
 
-        // Execute swaps
-        // Deposit the token
+        // Deposit the token first
         transfer_token(
             &e,
             &token,
@@ -188,11 +186,9 @@ impl IndexTrait for Index {
             &e.current_contract_address(),
             &(amount as i128),
         );
-        if swaps_chain.len() == 0 {
-            panic_with_error!(&e, IndexError::PathIsEmpty);
-        }
 
-        // execute swaps
+        // Execute swaps to buy index components
+        let _swap_results = execute_swaps(&e, swap_params);
 
         // Mint share tokens
         let value = match &destination {
