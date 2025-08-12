@@ -27,14 +27,13 @@ fn get_index_contract(e: &Env) -> Address {
 fn collect_fees_before_transfer(e: &Env, from: &Address, to: &Address, amount: i128) {
     let index_contract = get_index_contract(e);
     
-    // Call the index (admin) for fee collection - same pattern as checkpoint_user_incentives
     let _result: (u128, u128) = e.invoke_contract(
         &index_contract,
-        &Symbol::new(e, "collect_fees_before_transfer"),
+        &Symbol::new(e, "collect_fees_before_operation"),
         Vec::from_array(e, [
             from.clone().into_val(e),
-            to.clone().into_val(e),
-            amount.into_val(e)
+            amount.into_val(e),
+            Some(to.clone()).into_val(e)  // Some(address) for transfers
         ])
     );
 }
@@ -59,10 +58,11 @@ fn collect_fees_before_burn(e: &Env, from: &Address, amount: i128) {
     
     let _result: (u128, u128) = e.invoke_contract(
         &index_contract,
-        &Symbol::new(e, "collect_fees_before_burn"),
+        &Symbol::new(e, "collect_fees_before_operation"),
         Vec::from_array(e, [
             from.clone().into_val(e),
-            amount.into_val(e)
+            amount.into_val(e),
+            Option::<Address>::None.into_val(e)  // None for burns
         ])
     );
 }

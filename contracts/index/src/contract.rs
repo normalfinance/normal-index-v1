@@ -1032,38 +1032,31 @@ impl Index {
         result
     }
 
-    /// Called by token contract during transfers to enforce fee collection
+    /// Called by token contract to enforce fee collection for transfers and burns
     /// This ensures fees are collected regardless of where tokens are traded (external DEXes)
-    pub fn collect_fees_before_transfer(
+    pub fn collect_fees_before_operation(
         e: Env, 
         from: Address, 
-        to: Address, 
-        amount: i128
+        amount: i128,
+        to: Option<Address>  // Some(address) for transfers, None for burns
     ) -> (u128, u128) {
         // No auth required - this is called by the trusted token contract
         
-        // Collect fees from sender before they transfer tokens
-        // This prevents fee avoidance when trading on external DEXes
+        // Collect fees from sender before they transfer/burn tokens
         let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -(amount));
         
-        // Update tracking for both users
-        // Sender: reduce their tracked balance
-        initialize_or_update_user_tracking(&e, &from, -(amount));
-        // Receiver: increase their tracked balance  
-        initialize_or_update_user_tracking(&e, &to, amount);
-        
-        (manager_fees, protocol_fees)
-    }
-
-    /// Called by token contract during burns to enforce fee collection
-    pub fn collect_fees_before_burn(e: Env, from: Address, amount: i128) -> (u128, u128) {
-        // No auth required - this is called by the trusted token contract
-        
-        // Collect fees before user reduces their position via burn
-        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -(amount));
-        
-        // Update tracking - user is reducing their position
-        initialize_or_update_user_tracking(&e, &from, -(amount));
+        // Update tracking based on operation type
+        match to {
+            Some(recipient) => {
+                // Transfer: update tracking for both users
+                initialize_or_update_user_tracking(&e, &from, -(amount));  // Sender: reduce balance
+                initialize_or_update_user_tracking(&e, &recipient, amount);  // Receiver: increase balance
+            }
+            None => {
+                // Burn: only update sender's tracking (tokens are destroyed)
+                initialize_or_update_user_tracking(&e, &from, -(amount));
+            }
+        }
         
         (manager_fees, protocol_fees)
     }
