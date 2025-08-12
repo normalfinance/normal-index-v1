@@ -1,15 +1,19 @@
 use crate::events::Events;
 use crate::events::FactoryConfigEvents;
 use crate::events::FactoryEvents;
+use crate::index_utils::get_index_salt;
 use crate::interface::{AdminInterface, IndexFactoryTrait};
+use crate::storage::get_index_contract_wasm;
+use crate::storage::get_index_token_contract_wasm;
+use crate::storage::set_index_contract_wasm;
+use crate::storage::set_index_token_contract_wasm;
 use crate::storage::set_is_killed_create;
 use crate::storage::{
     add_deployed_index, get_aggregator, get_all_deployed_indexes, get_contract_sequence,
-    get_deployed_indexes, get_fee_contract_wasm, get_max_manager_fee_fraction,
-    get_minimum_fee_threshold, get_protocol_fee_fraction, get_protocol_fee_recipient, get_router,
-    set_aggregator, set_contract_sequence, set_fee_contract_wasm, set_max_manager_fee_fraction,
-    set_minimum_fee_threshold, set_protocol_fee_fraction, set_protocol_fee_recipient, set_router,
-    DexDistribution,
+    get_deployed_indexes, get_max_manager_fee_fraction, get_minimum_fee_threshold,
+    get_protocol_fee_fraction, get_protocol_fee_recipient, get_router, set_aggregator,
+    set_contract_sequence, set_max_manager_fee_fraction, set_minimum_fee_threshold,
+    set_protocol_fee_fraction, set_protocol_fee_recipient, set_router, DexDistribution,
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -20,14 +24,14 @@ use access_control::management::SingleAddressManagementTrait;
 use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::require_admin;
-use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
-    contract, contractimpl, contracttype, panic_with_error, symbol_short, Address, Bytes, BytesN,
-    Env, IntoVal, Symbol, Vec,
+    contract, contractimpl, contracttype, panic_with_error, symbol_short, Address, BytesN, Env,
+    IntoVal, Symbol, Vec,
 };
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
+use utils::types::IndexParams;
 
 #[contract]
 pub struct IndexFactory;
@@ -43,6 +47,7 @@ pub struct FactoryConfig {
     pub protocol_fee_recipient: Address,
     pub minimum_fee_threshold: u128,
     pub index_contract_wasm: BytesN<32>,
+    pub index_token_contract_wasm: BytesN<32>,
 }
 
 #[contractimpl]
@@ -64,6 +69,7 @@ impl IndexFactory {
         aggregator: Address,
         router: Address,
         index_contract_wasm: BytesN<32>,
+        index_token_contract_wasm: BytesN<32>,
         max_manager_fee_fraction: u32,
         protocol_fee_fraction: u32,
         protocol_fee_recipient: Address,
@@ -76,7 +82,8 @@ impl IndexFactory {
 
         set_aggregator(&e, &aggregator);
         set_router(&e, &router);
-        set_fee_contract_wasm(&e, &index_contract_wasm);
+        set_index_contract_wasm(&e, &index_contract_wasm);
+        set_index_token_contract_wasm(&e, &index_token_contract_wasm);
         set_protocol_fee_fraction(&e, &protocol_fee_fraction);
         set_max_manager_fee_fraction(&e, &max_manager_fee_fraction);
         set_protocol_fee_recipient(&e, &protocol_fee_recipient);
@@ -91,39 +98,39 @@ impl IndexFactoryTrait for IndexFactory {
     //
     // Arguments:
     //   - e: The Soroban environment.
-    //   - operator: The address of the operator (must be authorized).
-    //   - fee_destination: The address where fees are sent.
-    //   - max_swap_fee_fraction: The fee in basis points to be set in the new contract.
+    //   - params: The address where fees are sent (params.admin must be authorized).
     //
     // Returns:
     //   - The address of the newly deployed swap fee contract.
-    fn deploy_index_contract(
-        e: Env,
-        operator: Address,
-        fee_destination: Address,
-        max_max_swap_fee_fraction: u32,
-    ) -> Address {
-        operator.require_auth();
+    fn deploy_index_contract(e: Env, params: IndexParams) -> Address {
+        params.admin.require_auth();
 
-        let sequence = get_contract_sequence(&e, operator.clone());
-        set_contract_sequence(&e, operator.clone(), sequence + 1);
-        let mut salt = Bytes::new(&e);
-        salt.append(&operator.clone().to_xdr(&e));
-        salt.append(&sequence.to_xdr(&e));
-        let address = e
-            .deployer()
-            .with_current_contract(e.crypto().sha256(&salt))
-            .deploy_v2(
-                get_fee_contract_wasm(&e),
-                (
-                    get_router(&e),
-                    operator.clone(),
-                    fee_destination.clone(),
-                    max_max_swap_fee_fraction,
-                ),
-            );
+        let sequence = get_contract_sequence(&e, params.admin.clone());
+        set_contract_sequence(&e, params.admin.clone(), sequence + 1);
+
+        let salt = get_index_salt(
+            &e,
+            params.public.clone(),
+            &params.admin,
+            params.token_symbol.clone(),
+        );
+
+        // Old salt method - sequence is still used
+        // let mut salt = Bytes::new(&e);
+        // salt.append(&operator.clone().to_xdr(&e));
+        // salt.append(&sequence.to_xdr(&e));
+
+        let address = e.deployer().with_current_contract(salt).deploy_v2(
+            get_index_contract_wasm(&e),
+            (
+                get_router(&e),
+                get_index_token_contract_wasm(&e),
+                params.clone(),
+            ),
+        );
+
         // Add to index registry
-        add_deployed_index(&e, &operator, &address);
+        add_deployed_index(&e, &params.admin, &address);
 
         // Emit enhanced deployment event
         let current_time = e.ledger().timestamp();
@@ -157,6 +164,7 @@ impl IndexFactoryTrait for IndexFactory {
             max_max_swap_fee_fraction,
             address.clone(),
         );
+        Events::new(&e).deploy(params.clone(), address.clone());
         address
     }
 
@@ -215,7 +223,8 @@ impl AdminInterface for IndexFactory {
             max_manager_fee_fraction: get_max_manager_fee_fraction(&e),
             protocol_fee_recipient: get_protocol_fee_recipient(&e),
             minimum_fee_threshold: get_minimum_fee_threshold(&e),
-            index_contract_wasm: get_fee_contract_wasm(&e),
+            index_contract_wasm: get_index_contract_wasm(&e),
+            index_token_contract_wasm: get_index_token_contract_wasm(&e),
         }
     }
 
@@ -241,7 +250,11 @@ impl AdminInterface for IndexFactory {
     }
 
     fn get_index_contract_wasm(e: Env) -> BytesN<32> {
-        get_fee_contract_wasm(&e)
+        get_index_contract_wasm(&e)
+    }
+
+    fn get_index_token_contract_wasm(e: Env) -> BytesN<32> {
+        get_index_token_contract_wasm(&e)
     }
 
     // Index Registry Query Methods
@@ -301,7 +314,15 @@ impl AdminInterface for IndexFactory {
             1,
         ); // version = 1
            // Also emit legacy event for backward compatibility
+        set_index_contract_wasm(&e, &index_contract_wasm);
         Events::new(&e).set_wasm(index_contract_wasm);
+    }
+
+    fn set_index_token_contract_wasm(e: Env, admin: Address, token_contract_wasm: BytesN<32>) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        set_index_token_contract_wasm(&e, &token_contract_wasm);
+        Events::new(&e).set_wasm(token_contract_wasm);
     }
 
     fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32) {

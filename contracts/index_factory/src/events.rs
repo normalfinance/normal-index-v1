@@ -1,4 +1,5 @@
 use soroban_sdk::{Address, BytesN, Env, Symbol, Vec};
+use utils::types::IndexParams;
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -67,6 +68,7 @@ pub(crate) trait FactoryEvents {
         max_swap_fee_fraction: u32,
         address: Address,
     );
+    fn deploy(&self, params: IndexParams, address: Address);
 }
 
 pub(crate) trait FactoryConfigEvents {
@@ -228,9 +230,10 @@ impl FactoryEvents for Events {
         max_swap_fee_fraction: u32,
         address: Address,
     ) {
+    fn deploy(&self, params: IndexParams, address: Address) {
         self.env().events().publish(
             (Symbol::new(self.env(), "deploy"),),
-            (operator, fee_destination, max_swap_fee_fraction, address),
+            (params.admin, address),
         );
     }
 }

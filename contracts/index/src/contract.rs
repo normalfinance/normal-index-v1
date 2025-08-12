@@ -46,6 +46,7 @@ use crate::storage::{
     get_rebalance_threshold, get_total_mints, get_total_redemptions, set_is_killed_mint,
     set_is_killed_rebalance, set_is_killed_redeem, Component,
 };
+use crate::token::create_index_token_contract;
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use access_control::errors::AccessControlError;
@@ -58,20 +59,21 @@ use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::{
     require_pause_admin_or_owner, require_pause_or_emergency_pause_admin_or_owner,
 };
+use soroban_sdk::IntoVal;
 use soroban_sdk::String;
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
     Address, BytesN, Env, Map, Symbol, Vec,
 };
-use token_share::get_token_share;
-use token_share::get_total_shares;
-use token_share::mint_shares;
-use token_share::put_token_share;
+use token_share::{
+    get_token_share, get_total_shares, mint_shares, put_token_share, Client as ShareTokenClient,
+};
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
 use utils::token::transfer_token;
 use utils::token::validate_token_contracts;
+use utils::types::IndexParams;
 
 #[contract]
 pub struct Index;
@@ -83,39 +85,36 @@ impl Index {
     // Arguments:
     //   - e: The Soroban environment.
     //   - factory: The address of the factory contract.
-    //   - operator: The address authorized to claim funds.
-    //   - fee_destination: The address where fees are sent.
-    //   - max_swap_fee_fraction: The maximum fee in basis points (bps).
+    //   - params: The address authorized to claim funds.
     pub fn __constructor(
         e: Env,
-        admin: Address,
         factory: Address,
-        name: String,
-        token_symbol: String,
-        description: String,
-        public: bool,
-        manager_fee_fraction: u32,
-        initial_price: i128,
-        initial_deposit: i128,
-        components: Vec<Address>,
-        rebalance_authorities: Vec<Address>, // New parameter for private index authorities
+        index_token_wasm_hash: BytesN<32>,
+        params: IndexParams,
     ) {
         // set admin
         set_factory(&e, &factory);
 
-        // deploy and initialize index token contract - placeholder implementation
-        let share_contract = Address::from_str(&e, "placeholder");
+        // deploy and initialize index token contract
+        let share_contract =
+            create_index_token_contract(&e, index_token_wasm_hash, &params.token_symbol);
+        ShareTokenClient::new(&e, &share_contract).initialize(
+            &e.current_contract_address(),
+            &7u32,
+            &params.name.into_val(&e),
+            &params.token_symbol.into_val(&e),
+        );
         put_token_share(&e, share_contract);
 
-        set_manager_fee_fraction(&e, &manager_fee_fraction);
-        set_public(&e, &public);
+        set_manager_fee_fraction(&e, &params.manager_fee_fraction);
+        set_public(&e, &params.public);
 
         // Set the admin as the initial manager who will receive fees
-        set_manager_address(&e, &admin);
+        set_manager_address(&e, &params.admin);
 
         // Set up rebalance authorities for private indexes
-        if !public {
-            for authority in rebalance_authorities.iter() {
+        if !params.public {
+            for authority in params.rebalance_authorities.iter() {
                 set_rebalance_authority_status(&e, &authority, true);
             }
         }
