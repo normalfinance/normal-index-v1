@@ -151,7 +151,7 @@ impl IndexTrait for Index {
             Some(ref v) => v.clone(),
             None => user.clone(),
         };
-        collect_fees_before_action(&e, &destination_user, n_shares as i128);
+        // Fee collection now handled at token level during mint_shares() call
 
         // Configure swaps
         let swaps_chain: Vec<(Vec<Address>, BytesN<32>, Address)> = Vec::new(&e);

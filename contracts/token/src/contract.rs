@@ -39,6 +39,34 @@ fn collect_fees_before_transfer(e: &Env, from: &Address, to: &Address, amount: i
     );
 }
 
+/// Collect fees before token mint by calling index contract
+fn collect_fees_before_mint(e: &Env, to: &Address, amount: i128) {
+    let index_contract = get_index_contract(e);
+    
+    let _result: (u128, u128) = e.invoke_contract(
+        &index_contract,
+        &Symbol::new(e, "collect_fees_before_mint"),
+        Vec::from_array(e, [
+            to.clone().into_val(e),
+            amount.into_val(e)
+        ])
+    );
+}
+
+/// Collect fees before token burn by calling index contract
+fn collect_fees_before_burn(e: &Env, from: &Address, amount: i128) {
+    let index_contract = get_index_contract(e);
+    
+    let _result: (u128, u128) = e.invoke_contract(
+        &index_contract,
+        &Symbol::new(e, "collect_fees_before_burn"),
+        Vec::from_array(e, [
+            from.clone().into_val(e),
+            amount.into_val(e)
+        ])
+    );
+}
+
 fn check_nonnegative_amount(e: &Env, amount: i128) {
     if amount < 0 {
         panic_with_error!(&e, TokenError::NegativeNotAllowed);
@@ -79,8 +107,8 @@ impl Token {
 
         bump_instance(&e);
 
-        // Note: Fee collection for minting is handled by the index contract
-        // at the appropriate time. No additional fee collection needed here.
+        // Collect fees before minting (handles all fee collection at token level)
+        collect_fees_before_mint(&e, &to, amount);
 
         // Perform the actual mint using traditional balance functions
         receive_balance(&e, to.clone(), amount);
@@ -158,15 +186,7 @@ impl token::Interface for Token {
         bump_instance(&e);
 
         // Collect fees before burn (user is reducing their position)
-        let index_contract = get_index_contract(&e);
-        let _result: (u128, u128) = e.invoke_contract(
-            &index_contract,
-            &Symbol::new(&e, "collect_fees_before_burn"),
-            Vec::from_array(&e, [
-                from.clone().into_val(&e),
-                amount.into_val(&e)
-            ])
-        );
+        collect_fees_before_burn(&e, &from, amount);
 
         // Perform the actual burn using traditional balance functions
         spend_balance(&e, from.clone(), amount);
@@ -182,15 +202,7 @@ impl token::Interface for Token {
         bump_instance(&e);
 
         // Collect fees before burn_from (spender is burning from user's position)
-        let index_contract = get_index_contract(&e);
-        let _result: (u128, u128) = e.invoke_contract(
-            &index_contract,
-            &Symbol::new(&e, "collect_fees_before_burn"),
-            Vec::from_array(&e, [
-                from.clone().into_val(&e),
-                amount.into_val(&e)
-            ])
-        );
+        collect_fees_before_burn(&e, &from, amount);
 
         // Perform the actual burn using traditional balance functions
         spend_allowance(&e, from.clone(), spender, amount);
