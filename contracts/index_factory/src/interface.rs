@@ -78,7 +78,7 @@ pub trait AdminInterface {
     fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address);
 
     fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32);
-   
+
     fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128);
 
     //    _______     __       ____  ____   ________  _______  ________

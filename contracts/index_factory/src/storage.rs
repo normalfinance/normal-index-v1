@@ -4,7 +4,8 @@ use utils::bump::{bump_instance, bump_persistent};
 use utils::storage_errors::StorageError;
 use utils::{
     generate_instance_storage_getter, generate_instance_storage_getter_and_setter,
-    generate_instance_storage_getter_and_setter_with_default, generate_instance_storage_setter, generate_instance_storage_getter_with_default,
+    generate_instance_storage_getter_and_setter_with_default,
+    generate_instance_storage_getter_with_default, generate_instance_storage_setter,
 };
 
 // FROM SOROSWAP

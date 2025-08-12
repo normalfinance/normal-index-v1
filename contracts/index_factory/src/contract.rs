@@ -6,9 +6,10 @@ use crate::storage::set_is_killed_create;
 use crate::storage::{
     add_deployed_index, get_aggregator, get_all_deployed_indexes, get_contract_sequence,
     get_deployed_indexes, get_fee_contract_wasm, get_max_manager_fee_fraction,
-    get_minimum_fee_threshold, get_protocol_fee_fraction, get_protocol_fee_recipient, get_router, set_aggregator,
-    set_contract_sequence, set_fee_contract_wasm, set_max_manager_fee_fraction,
-    set_minimum_fee_threshold, set_protocol_fee_fraction, set_protocol_fee_recipient, set_router, DexDistribution,
+    get_minimum_fee_threshold, get_protocol_fee_fraction, get_protocol_fee_recipient, get_router,
+    set_aggregator, set_contract_sequence, set_fee_contract_wasm, set_max_manager_fee_fraction,
+    set_minimum_fee_threshold, set_protocol_fee_fraction, set_protocol_fee_recipient, set_router,
+    DexDistribution,
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -173,7 +174,7 @@ impl AdminInterface for IndexFactory {
     //  //  \ ___  // ___)_     |.  |        |.  |    // ___)_  //      /   __/  \\
     // (:   _(  _|(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
     //  \_______)  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
-    
+
     // Gets the protocol fee recipient address.
     fn get_protocol_fee_recipient(e: Env) -> Address {
         get_protocol_fee_recipient(&e)
@@ -270,7 +271,7 @@ impl AdminInterface for IndexFactory {
         set_protocol_fee_recipient(&e, &recipient);
     }
 
-     // set_max_manager_fee_fraction
+    // set_max_manager_fee_fraction
     // .
     //
     // Arguments:
@@ -282,7 +283,6 @@ impl AdminInterface for IndexFactory {
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
         set_max_manager_fee_fraction(&e, &fraction);
     }
-    
 
     // set_minimum_fee_threshold
     // Updates the universal minimum fee threshold for all indexes.

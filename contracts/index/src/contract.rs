@@ -1,7 +1,11 @@
 use crate::errors::IndexError;
 use crate::events::Events;
 use crate::events::IndexEvents;
-use crate::fees::{initialize_or_update_user_tracking, collect_fees_before_action, preview_accrued_fees, get_effective_balance, batch_collect_fees, get_users_with_accrued_fees, force_collect_fees, get_last_batch_collection, set_last_batch_collection};
+use crate::fees::{
+    batch_collect_fees, collect_fees_before_action, force_collect_fees, get_effective_balance,
+    get_last_batch_collection, get_users_with_accrued_fees, initialize_or_update_user_tracking,
+    preview_accrued_fees, set_last_batch_collection,
+};
 
 use crate::index::vault_amount_to_shares;
 use crate::interface::{
@@ -56,16 +60,16 @@ use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation};
 use soroban_sdk::String;
 use soroban_sdk::{
-    contract, contractimpl, log, panic_with_error, vec, Address, BytesN, Env, IntoVal, Map, Symbol,
-    Vec, token::TokenClient as SorobanTokenClient,
+    contract, contractimpl, log, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
+    Address, BytesN, Env, IntoVal, Map, Symbol, Vec,
 };
 use token_share::mint_shares;
 use token_share::put_token_share;
 use token_share::Client as LPTokenClient;
 use upgrade::events::Events as UpgradeEvents;
-use utils::bump::bump_instance;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
+use utils::bump::bump_instance;
 use utils::math::safe_math::SafeMath;
 use utils::token::transfer_token;
 use utils::token::validate_token_contracts;
@@ -151,7 +155,7 @@ impl IndexTrait for Index {
             let access_control = AccessControl::new(&e);
             let is_admin = access_control.address_has_role(&user, &Role::Admin);
             let is_whitelisted = get_whitelist_status(&e, &user);
-            
+
             if !is_admin && !is_whitelisted {
                 panic_with_error!(e, IndexError::NotWhitelisted);
             }
@@ -221,19 +225,20 @@ impl IndexTrait for Index {
         }
 
         // Collect any accrued fees before redemption
-        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &user, -(share_amount as i128));
-        
+        let (manager_fees, protocol_fees) =
+            collect_fees_before_action(&e, &user, -(share_amount as i128));
+
         // TODO: Add actual redemption logic here
         // This would typically involve:
         // 1. Calculating redemption value
         // 2. Burning share tokens
         // 3. Transferring underlying assets back to user
-        
+
         // For now, just emit event showing fees were collected
         if manager_fees > 0 || protocol_fees > 0 {
             // Fees already emitted in collect_fees_before_action
         }
-        
+
         if get_blacklist_status(&e, &user) {
             panic_with_error!(e, IndexError::Blacklisted);
         }
@@ -243,7 +248,7 @@ impl IndexTrait for Index {
             let access_control = AccessControl::new(&e);
             let is_admin = access_control.address_has_role(&user, &Role::Admin);
             let is_whitelisted = get_whitelist_status(&e, &user);
-            
+
             if !is_admin && !is_whitelisted {
                 panic_with_error!(e, IndexError::NotWhitelisted);
             }
@@ -370,7 +375,12 @@ impl IndexTrait for Index {
 
         // Execute the token transfer from allowance
         let share_token = crate::storage::get_token(&e);
-        SorobanTokenClient::new(&e, &share_token).transfer_from(&spender, &from, &to, &(amount as i128));
+        SorobanTokenClient::new(&e, &share_token).transfer_from(
+            &spender,
+            &from,
+            &to,
+            &(amount as i128),
+        );
 
         // Update fee tracking for both users
         initialize_or_update_user_tracking(&e, &from, -(amount as i128));
@@ -474,8 +484,8 @@ impl AdminInterface for Index {
         access_control.set_role_address(&Role::Admin, &admin);
 
         put_token(&e, &token);
-        
-        // No complex registration needed! 
+
+        // No complex registration needed!
         // The token's admin IS this index contract, so fee calls work automatically
     }
 
@@ -523,7 +533,7 @@ impl AdminInterface for Index {
             let access_control = AccessControl::new(&e);
             let is_admin = access_control.address_has_role(&caller, &Role::Admin);
             let is_whitelisted = get_whitelist_status(&e, &caller);
-            
+
             if !is_admin && !is_whitelisted {
                 panic_with_error!(e, IndexError::NotWhitelisted);
             }
@@ -792,7 +802,6 @@ impl AdminInterface for Index {
         crate::storage::set_manager_fee_fraction(&e, &fee_fraction);
     }
 
-
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -800,7 +809,6 @@ impl AdminInterface for Index {
 
         crate::storage::set_rebalance_threshold(&e, &threshold);
     }
-
 }
 
 // The `TransferableContract` trait provides the interface for transferring ownership of the contract.
@@ -1302,10 +1310,9 @@ impl Index {
     pub fn collect_fees(e: Env, admin: Address, user: Address) -> (u128, u128) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        
+
         collect_fees_before_action(&e, &user, 0) // 0 balance change for manual collection
     }
-
 
     // Note: Minimum fee threshold is now set universally by the Factory contract
     // and cannot be changed after deployment. This ensures protocol consistency.
@@ -1314,41 +1321,41 @@ impl Index {
     pub fn batch_collect_fees(e: Env, admin: Address, users: Vec<Address>) -> (u128, u128) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        
+
         let result = batch_collect_fees(&e, users);
-        
+
         // Update last batch collection timestamp
         set_last_batch_collection(&e, e.ledger().timestamp());
-        
+
         result
     }
 
     /// Called by token contract to enforce fee collection for transfers and burns
     /// This ensures fees are collected regardless of where tokens are traded (external DEXes)
     pub fn collect_fees_before_operation(
-        e: Env, 
-        from: Address, 
+        e: Env,
+        from: Address,
         amount: i128,
-        to: Option<Address>  // Some(address) for transfers, None for burns
+        to: Option<Address>, // Some(address) for transfers, None for burns
     ) -> (u128, u128) {
         // No auth required - this is called by the trusted token contract
-        
+
         // Collect fees from sender before they transfer/burn tokens
         let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -(amount));
-        
+
         // Update tracking based on operation type
         match to {
             Some(recipient) => {
                 // Transfer: update tracking for both users
-                initialize_or_update_user_tracking(&e, &from, -(amount));  // Sender: reduce balance
-                initialize_or_update_user_tracking(&e, &recipient, amount);  // Receiver: increase balance
+                initialize_or_update_user_tracking(&e, &from, -(amount)); // Sender: reduce balance
+                initialize_or_update_user_tracking(&e, &recipient, amount); // Receiver: increase balance
             }
             None => {
                 // Burn: only update sender's tracking (tokens are destroyed)
                 initialize_or_update_user_tracking(&e, &from, -(amount));
             }
         }
-        
+
         (manager_fees, protocol_fees)
     }
 
@@ -1356,19 +1363,22 @@ impl Index {
     /// This prevents users from bypassing fees by acquiring tokens on external DEXes
     pub fn collect_fees_before_mint(e: Env, user: Address, amount: i128) -> (u128, u128) {
         // No auth required - this is called by the trusted token contract
-        
+
         // Collect any accrued fees on user's existing balance
         let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &user, amount);
-        
+
         // Update user tracking with the new amount
         initialize_or_update_user_tracking(&e, &user, amount);
-        
+
         (manager_fees, protocol_fees)
     }
 
-
     /// Get users with accrued fees above threshold (admin function)
-    pub fn get_users_with_fees(e: Env, admin: Address, user_addresses: Vec<Address>) -> Vec<Address> {
+    pub fn get_users_with_fees(
+        e: Env,
+        admin: Address,
+        user_addresses: Vec<Address>,
+    ) -> Vec<Address> {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
         get_users_with_accrued_fees(&e, user_addresses)

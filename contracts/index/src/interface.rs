@@ -54,10 +54,10 @@ pub trait IndexTrait {
     fn get_component_balance(e: Env, token: Address) -> u128;
 
     fn get_last_fee_collection(e: Env) -> u64;
-    
+
     /// Transfer shares between users with proper fee handling
     fn transfer_shares(e: Env, from: Address, to: Address, amount: u128);
-    
+
     /// Transfer shares from allowance with proper fee handling  
     fn transfer_shares_from(e: Env, spender: Address, from: Address, to: Address, amount: u128);
 }
