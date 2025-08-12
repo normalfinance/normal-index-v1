@@ -40,6 +40,11 @@ use crate::storage::{
     get_last_updated_ts, get_public, get_rebalance_threshold, get_total_mints,
     get_total_redemptions, set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem,
     Component,
+    get_component_balance, get_component_balance_safe, get_component_registry, get_factory,
+    get_factory_safe, get_initial_price, get_is_killed_mint, get_is_killed_rebalance,
+    get_is_killed_redeem, get_last_rebalance_ts, get_last_updated_ts, get_public,
+    get_rebalance_threshold, get_total_mints, get_total_redemptions, set_is_killed_mint,
+    set_is_killed_rebalance, set_is_killed_redeem, Component,
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -62,6 +67,7 @@ use token_share::get_token_share;
 use token_share::get_total_shares;
 use token_share::mint_shares;
 use token_share::put_token_share;
+use token_share::Client as ShareTokenClient;
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
