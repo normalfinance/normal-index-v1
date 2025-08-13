@@ -15,6 +15,7 @@ fn write_balance(e: &Env, addr: Address, amount: i128) {
 }
 
 pub fn read_balance(e: &Env, addr: Address) -> i128 {
+    //condition to check if the parent index is private, if yes, then we can't read the balance
     let key = DataKey::Balance(addr);
     match e.storage().persistent().get::<DataKey, i128>(&key) {
         Some(balance) => {

@@ -1,0 +1,9 @@
+[package]
+name = "privacy_manager"
+version.workspace = true
+rust-version.workspace = true
+edition = "2021"
+
+[dependencies]
+soroban-sdk.workspace = true
+soroban-token-sdk.workspace = true

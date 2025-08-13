@@ -40,6 +40,10 @@ impl StorageTrait for AccessControl {
             Role::OperationsAdmin => DataKey::OperationsAdmin,
             Role::PauseAdmin => DataKey::PauseAdmin,
             Role::EmergencyPauseAdmin => DataKey::EmPauseAdmins,
+            // Privacy roles use the same Admin key for now
+            // In a production system, these would have separate storage keys
+            Role::PrivacyViewer => DataKey::Admin,
+            Role::EmergencyDecryption => DataKey::Admin,
         }
     }
 
@@ -47,6 +51,8 @@ impl StorageTrait for AccessControl {
         match role {
             Role::Admin => DataKey::FutureAdmin,
             Role::EmergencyAdmin => DataKey::FutureEmergencyAdmin,
+            Role::PrivacyViewer => DataKey::FutureAdmin,        // Use admin future key   // Use admin future key
+            Role::EmergencyDecryption => DataKey::FutureAdmin,  // Use admin future key
             _ => panic_with_error!(&self.0, AccessControlError::BadRoleUsage),
         }
     }
@@ -55,6 +61,8 @@ impl StorageTrait for AccessControl {
         match role {
             Role::Admin => DataKey::TransferOwnershipDeadline,
             Role::EmergencyAdmin => DataKey::EmAdminTransferOwnershipDeadline,
+            Role::PrivacyViewer => DataKey::TransferOwnershipDeadline,      // Use admin deadline key
+            Role::EmergencyDecryption => DataKey::TransferOwnershipDeadline, // Use admin deadline key
             _ => panic_with_error!(&self.0, AccessControlError::BadRoleUsage),
         }
     }

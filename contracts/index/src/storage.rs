@@ -1,6 +1,6 @@
 use paste::paste;
 use soroban_sdk::token::TokenClient as SorobanTokenClient;
-use soroban_sdk::{contracttype, panic_with_error, Address, Env, Map, Symbol, Vec};
+use soroban_sdk::{contracttype, panic_with_error, Address, Env, Map, Symbol, Vec, Bytes};
 use utils::bump::{bump_instance, bump_persistent};
 use utils::constant::THIRTY_DAY;
 use utils::errors::storage_errors::StorageError;
@@ -9,6 +9,7 @@ use utils::{
     generate_instance_storage_getter_and_setter_with_default,
     generate_instance_storage_getter_with_default, generate_instance_storage_setter,
 };
+use privacy_manager::{IndexPrivacyConfig, PrivateComponent, ViewerAccessLevel};
 
 #[derive(Clone)]
 #[contracttype]
@@ -59,6 +60,13 @@ enum DataKey {
     // Rebalancing authorities (for private indexes)
     RebalanceAuthority(Address), // Address -> bool mapping for rebalance authorities
     RebalanceAuthorityRegistry,  // Vec<Address> - list of all rebalance authority addresses
+    
+    // Privacy-related storage
+    PrivacyConfig,               // IndexPrivacyConfig - privacy configuration for the index
+    PrivateComponent(Address),   // Address -> PrivateComponent mapping for privacy-aware components
+    PrivateComponentRegistry,    // Vec<Address> - list of all private component addresses
+    EncryptionKey,              // Master encryption key for the index
+    ViewerAccessLevel(Address), // Address -> ViewerAccessLevel mapping for viewer permissions
 }
 
 generate_instance_storage_getter_and_setter_with_default!(
@@ -584,4 +592,168 @@ pub fn get_shares_base(e: &Env) -> u128 {
         .instance()
         .get(&DataKey::TotalShares)
         .unwrap_or(0)
+}
+
+// Privacy-related storage functions
+
+// Privacy Configuration
+pub fn get_privacy_config(e: &Env) -> IndexPrivacyConfig {
+    bump_instance(e);
+    e.storage()
+        .instance()
+        .get(&DataKey::PrivacyConfig)
+        .unwrap_or_else(|| {
+            // Default to public privacy config
+            privacy_manager::create_public_privacy_config(e)
+        })
+}
+
+pub fn set_privacy_config(e: &Env, config: &IndexPrivacyConfig) {
+    bump_instance(e);
+    e.storage()
+        .instance()
+        .set(&DataKey::PrivacyConfig, config);
+}
+
+// Private Components
+pub fn get_private_component(e: &Env, token: Address) -> PrivateComponent {
+    let key = DataKey::PrivateComponent(token.clone());
+    bump_persistent(e, &key);
+    match e.storage().persistent().get(&key) {
+        Some(component) => component,
+        None => panic_with_error!(e, StorageError::ValueNotInitialized),
+    }
+}
+
+pub fn get_private_component_safe(e: &Env, token: Address) -> Option<PrivateComponent> {
+    let key = DataKey::PrivateComponent(token);
+    bump_persistent(e, &key);
+    e.storage().persistent().get(&key)
+}
+
+pub fn set_private_component(e: &Env, token: Address, component: PrivateComponent) {
+    let key = DataKey::PrivateComponent(token.clone());
+    e.storage().persistent().set(&key, &component);
+    bump_persistent(e, &key);
+    
+    // Add to private component registry
+    add_to_private_component_registry(e, &token);
+}
+
+pub fn remove_private_component(e: &Env, token: Address) {
+    let key = DataKey::PrivateComponent(token.clone());
+    e.storage().persistent().remove(&key);
+    
+    // Remove from private component registry
+    remove_from_private_component_registry(e, &token);
+}
+
+// Private Component Registry
+pub fn get_private_component_registry(e: &Env) -> Vec<Address> {
+    let key = DataKey::PrivateComponentRegistry;
+    match e.storage().persistent().get(&key) {
+        Some(registry) => {
+            bump_persistent(e, &key);
+            registry
+        }
+        None => Vec::new(e),
+    }
+}
+
+fn add_to_private_component_registry(e: &Env, token: &Address) {
+    let key = DataKey::PrivateComponentRegistry;
+    let mut registry = get_private_component_registry(e);
+    
+    // Check if already exists
+    for existing_token in registry.iter() {
+        if &existing_token == token {
+            return; // Already in registry
+        }
+    }
+    
+    registry.push_back(token.clone());
+    e.storage().persistent().set(&key, &registry);
+    bump_persistent(e, &key);
+}
+
+fn remove_from_private_component_registry(e: &Env, token: &Address) {
+    let key = DataKey::PrivateComponentRegistry;
+    let registry = get_private_component_registry(e);
+    let mut new_registry = Vec::new(e);
+    
+    for existing_token in registry.iter() {
+        if &existing_token != token {
+            new_registry.push_back(existing_token);
+        }
+    }
+    
+    e.storage().persistent().set(&key, &new_registry);
+    bump_persistent(e, &key);
+}
+
+// Get all private components
+pub fn get_all_private_components(e: &Env) -> Map<Address, PrivateComponent> {
+    let mut components_map = Map::new(e);
+    
+    // Get the list of private component addresses from registry
+    let private_component_addresses = get_private_component_registry(e);
+    
+    // Iterate through each private component address and get its data
+    for address in private_component_addresses.iter() {
+        match get_private_component_safe(e, address.clone()) {
+            Some(component) => {
+                components_map.set(address, component);
+            }
+            None => {
+                // Skip components that no longer exist
+                continue;
+            }
+        }
+    }
+    
+    components_map
+}
+
+// Encryption Key Management
+pub fn get_encryption_key(e: &Env) -> Option<Bytes> {
+    bump_instance(e);
+    e.storage().instance().get(&DataKey::EncryptionKey)
+}
+
+pub fn set_encryption_key(e: &Env, key: &Bytes) {
+    bump_instance(e);
+    e.storage().instance().set(&DataKey::EncryptionKey, key);
+}
+
+// Viewer Access Levels
+pub fn get_viewer_access_level(e: &Env, viewer: &Address) -> Option<ViewerAccessLevel> {
+    let key = DataKey::ViewerAccessLevel(viewer.clone());
+    bump_persistent(e, &key);
+    e.storage().persistent().get(&key)
+}
+
+pub fn set_viewer_access_level(e: &Env, viewer: &Address, access_level: ViewerAccessLevel) {
+    let key = DataKey::ViewerAccessLevel(viewer.clone());
+    e.storage().persistent().set(&key, &access_level);
+    bump_persistent(e, &key);
+}
+
+// Hybrid component access - works with both public and private components
+pub fn get_component_hybrid(e: &Env, token: Address) -> Either<Component, PrivateComponent> {
+    // First try to get as private component
+    if let Some(private_component) = get_private_component_safe(e, token.clone()) {
+        return Either::Right(private_component);
+    }
+    
+    // Fall back to public component
+    match get_component_safe(e, token) {
+        Some(component) => Either::Left(component),
+        None => panic_with_error!(e, StorageError::ValueNotInitialized),
+    }
+}
+
+// Helper enum for hybrid component access
+pub enum Either<L, R> {
+    Left(L),
+    Right(R),
 }

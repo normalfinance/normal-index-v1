@@ -1,11 +1,12 @@
 #![no_std]
-
 mod contract;
 pub mod errors;
 mod events;
 mod fees;
 mod index;
 mod interface;
+mod privacy;
+mod rebalance;
 mod stake;
 mod storage;
 // mod test;

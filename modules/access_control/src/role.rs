@@ -9,6 +9,9 @@ pub enum Role {
     OperationsAdmin,
     PauseAdmin,
     EmergencyPauseAdmin,
+    // Privacy-specific roles
+    PrivacyViewer,        // Can view private component details
+    EmergencyDecryption,  // Can decrypt in emergency situations
 }
 
 impl Role {
@@ -20,6 +23,9 @@ impl Role {
             Role::OperationsAdmin => false,
             Role::PauseAdmin => false,
             Role::EmergencyPauseAdmin => true,
+            // Privacy roles
+            Role::PrivacyViewer => true,        // Can have multiple viewers
+            Role::EmergencyDecryption => false, // Should be limited
         }
     }
 
@@ -31,6 +37,9 @@ impl Role {
             Role::OperationsAdmin => false,
             Role::PauseAdmin => false,
             Role::EmergencyPauseAdmin => false,
+            // Privacy roles
+            Role::PrivacyViewer => false,        // No delay for regular viewers
+            Role::EmergencyDecryption => true,   // Delay for emergency roles
         }
     }
 }
@@ -49,6 +58,9 @@ impl SymbolRepresentation for Role {
             Role::OperationsAdmin => Symbol::new(&e, "OperationsAdmin"),
             Role::PauseAdmin => Symbol::new(&e, "PauseAdmin"),
             Role::EmergencyPauseAdmin => Symbol::new(&e, "EmergencyPauseAdmin"),
+            // Privacy roles
+            Role::PrivacyViewer => Symbol::new(&e, "PrivacyViewer"),
+            Role::EmergencyDecryption => Symbol::new(&e, "EmergencyDecryption"),
         }
     }
 
@@ -65,6 +77,10 @@ impl SymbolRepresentation for Role {
             return Role::PauseAdmin;
         } else if value == Symbol::new(e, "EmergencyPauseAdmin") {
             return Role::EmergencyPauseAdmin;
+        } else if value == Symbol::new(e, "PrivacyViewer") {
+            return Role::PrivacyViewer;
+        } else if value == Symbol::new(e, "EmergencyDecryption") {
+            return Role::EmergencyDecryption;
         }
         panic_with_error!(e, AccessControlError::BadRoleUsage);
     }

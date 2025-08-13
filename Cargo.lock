@@ -665,6 +665,7 @@ version = "0.1.0"
 dependencies = [
  "access_control",
  "paste",
+ "privacy_manager",
  "soroban-fixed-point-math",
  "soroban-sdk",
  "token_share",
@@ -892,6 +893,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
 dependencies = [
  "elliptic-curve",
+]
+
+[[package]]
+name = "privacy_manager"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+ "soroban-token-sdk",
 ]
 
 [[package]]
