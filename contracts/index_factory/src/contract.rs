@@ -125,6 +125,32 @@ impl IndexFactoryTrait for IndexFactory {
         // Add to index registry
         add_deployed_index(&e, &operator, &address);
 
+        // Emit enhanced deployment event
+        let current_time = e.ledger().timestamp();
+        let initial_components = Vec::new(&e); // Empty initially 
+        let initial_weights = Vec::new(&e); // Empty initially
+        let base_nav = 0; // TODO: Get from contract parameters
+        let initial_price = 0; // TODO: Get from contract parameters
+        let is_public = false; // TODO: Get from contract parameters
+        let deployment_cost = 0; // TODO: Calculate actual deployment cost
+        
+        Events::new(&e).index_deployed(
+            current_time,
+            operator.clone(), // deployer
+            address.clone(), // index_address
+            operator.clone(), // operator
+            fee_destination.clone(), // manager (using fee_destination as manager for now)
+            fee_destination.clone(), // fee_destination
+            max_max_swap_fee_fraction,
+            initial_components,
+            initial_weights,
+            base_nav,
+            initial_price,
+            is_public,
+            deployment_cost,
+        );
+        
+        // Also emit legacy event for backward compatibility
         Events::new(&e).deploy(
             operator,
             fee_destination,
@@ -255,14 +281,28 @@ impl AdminInterface for IndexFactory {
     fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        
+        let old_wasm = get_fee_contract_wasm(&e);
         set_fee_contract_wasm(&e, &index_contract_wasm);
+        
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced events
+        Events::new(&e).wasm_hash_updated(current_time, admin.clone(), old_wasm.clone(), index_contract_wasm.clone());
+        Events::new(&e).wasm_updated(current_time, admin, old_wasm, index_contract_wasm.clone(), 1); // version = 1
+        // Also emit legacy event for backward compatibility
         Events::new(&e).set_wasm(index_contract_wasm);
     }
 
     fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        
+        let old_fee = get_protocol_fee_fraction(&e);
         set_protocol_fee_fraction(&e, &fraction);
+        
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).protocol_fee_updated(current_time, admin, old_fee, fraction);
     }
 
     fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
@@ -281,7 +321,13 @@ impl AdminInterface for IndexFactory {
     fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        
+        let old_max_fee = get_max_manager_fee_fraction(&e);
         set_max_manager_fee_fraction(&e, &fraction);
+        
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).max_management_fee_updated(current_time, admin, old_max_fee, fraction);
     }
 
     // set_minimum_fee_threshold
@@ -394,6 +440,15 @@ impl UpgradeableContract for IndexFactory {
         emergency_admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&emergency_admin, &Role::EmergencyAdmin);
         set_emergency_mode(&e, &value);
+        
+        let current_time = e.ledger().timestamp();
+        // Emit factory pause/unpause events based on emergency mode
+        if value {
+            Events::new(&e).factory_paused(current_time, emergency_admin.clone());
+        } else {
+            Events::new(&e).factory_unpaused(current_time, emergency_admin.clone());
+        }
+        
         AccessControlEvents::new(&e).set_emergency_mode(value);
     }
 
@@ -442,8 +497,16 @@ impl TransferableContract for IndexFactory {
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
-        let role = Role::from_symbol(&e, role_name);
+        let role = Role::from_symbol(&e, role_name.clone());
+        let old_address = access_control.get_role(&role);
         let new_address = access_control.apply_transfer_ownership(&role);
+        
+        // Emit factory admin updated event if this is an Admin role transfer
+        if role_name == Symbol::new(&e, "Admin") {
+            let current_time = e.ledger().timestamp();
+            Events::new(&e).factory_admin_updated(current_time, old_address, new_address.clone());
+        }
+        
         AccessControlEvents::new(&e).apply_transfer_ownership(role, new_address);
     }
 

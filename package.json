@@ -22,8 +22,8 @@
   },
   "homepage": "https://github.com/normalfinance/normal-index-v1",
   "devDependencies": {
+    "@anthropic-ai/claude-code": "^1.0.80",
     "glob": "^11.0.2"
   },
-  "type": "module",
-  "dependencies": {}
+  "type": "module"
 }

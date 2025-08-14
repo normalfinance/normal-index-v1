@@ -180,10 +180,25 @@ pub fn collect_accrued_fees_if_any(e: &Env, user: &Address) -> (u128, u128) {
             );
             set_last_fee_collection(e, &current_time);
 
-            // Emit fee collection event
+            // Emit enhanced fee collection event
+            let annual_fee_rate = get_manager_fee_fraction(e); // This gets the annual fee rate
+            Events::new(e).accrued_fees_collected(
+                current_time,
+                user.clone(),
+                (user_state.balance as u128) + manager_collected + protocol_collected, // shares_before (approximation)
+                user_state.balance as u128, // shares_after
+                user_state.last_fee_update, // fee_period_start
+                current_time, // fee_period_end
+                annual_fee_rate,
+                manager_collected + protocol_collected, // total_fee_collected
+                manager_collected, // manager_fee_portion
+                protocol_collected, // protocol_fee_portion
+            );
+            
+            // Also emit legacy event for backward compatibility
             Events::new(e).fee_collected(
                 user.clone(),
-                e.current_contract_address(), // token address
+                e.current_contract_address(),
                 manager_collected + protocol_collected,
                 manager_collected,
                 protocol_collected,
@@ -353,7 +368,23 @@ pub fn force_collect_fees(e: &Env, user: &Address) -> (u128, u128) {
         );
         set_last_fee_collection(e, &current_time);
 
-        // Emit fee collection event
+        // Emit enhanced fee collection event
+        let annual_fee_rate = get_manager_fee_fraction(e);
+        let user_state = get_user_fee_state(e, user);
+        Events::new(e).accrued_fees_collected(
+            current_time,
+            user.clone(),
+            (user_state.balance as u128) + manager_collected + protocol_collected, // shares_before (approximation)
+            user_state.balance as u128, // shares_after
+            user_state.last_fee_update, // fee_period_start
+            current_time, // fee_period_end
+            annual_fee_rate,
+            manager_collected + protocol_collected, // total_fee_collected
+            manager_collected, // manager_fee_portion
+            protocol_collected, // protocol_fee_portion
+        );
+        
+        // Also emit legacy event for backward compatibility
         Events::new(e).fee_collected(
             user.clone(),
             e.current_contract_address(),
