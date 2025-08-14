@@ -32,11 +32,10 @@ pub enum IndexError {
     Blacklisted = 44,
     
     // Privacy-related Errors
-    InvalidCommitmentProof = 45,
-    PrivateConstraintVerificationNotSupported = 46,
-    AuthorizedConstraintVerificationNotSupported = 47,
-    RebalancingConstraintsViolated = 48,
-    UnauthorizedPrivacyAccess = 49,
-    EncryptionKeyNotFound = 50,
-    DecryptionFailed = 51,
+    PrivateConstraintVerificationNotSupported = 45,
+    AuthorizedConstraintVerificationNotSupported = 46,
+    RebalancingConstraintsViolated = 47,
+    UnauthorizedPrivacyAccess = 48,
+    EncryptionKeyNotFound = 49,
+    DecryptionFailed = 50,
 }

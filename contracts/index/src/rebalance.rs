@@ -1,8 +1,7 @@
 use soroban_sdk::{Address, Env, Vec, Bytes};
 use privacy_manager::{
-    PrivateComponent, CommitmentProof, ComponentPrivacyMode, 
-    verify_weight_commitment, verify_rebalancing_constraints,
-    create_rebalance_commitment_proof
+    PrivateComponent, ComponentPrivacyMode, 
+    verify_weight_commitment, verify_rebalancing_constraints
 };
 extern crate alloc;
 use crate::storage::{
@@ -12,53 +11,27 @@ use crate::storage::{
 use crate::errors::IndexError;
 use soroban_sdk::panic_with_error;
 
-/// Execute private rebalancing with commitment verification
+/// Execute private rebalancing with basic verification
 pub fn execute_private_rebalancing(
     e: &Env,
     caller: &Address,
     new_commitments: Vec<PrivateComponent>,
-    commitment_proof: CommitmentProof,
 ) -> Result<(), IndexError> {
-    // 1. Verify commitment proof integrity
-    verify_commitment_proof_integrity(e, &commitment_proof)?;
-    
-    // 2. Extract and verify weight constraints
+    // 1. Extract and verify weight constraints
     let (old_weights, new_weights) = extract_weights_from_commitments(e, &new_commitments)?;
     
-    // 3. Verify rebalancing constraints
+    // 2. Verify rebalancing constraints
     verify_rebalancing_constraints_impl(e, &old_weights, &new_weights)?;
     
-    // 4. Update private component commitments
+    // 3. Update private component commitments
     update_private_component_commitments(e, new_commitments)?;
     
-    // 5. Log successful rebalancing
-    log_private_rebalancing(e, caller, &commitment_proof);
+    // 4. Log successful rebalancing
+    log_private_rebalancing(e, caller);
     
     Ok(())
 }
 
-/// Verify the integrity of the commitment proof
-fn verify_commitment_proof_integrity(
-    e: &Env,
-    commitment_proof: &CommitmentProof,
-) -> Result<(), IndexError> {
-    // Verify that old commitments match current state
-    let current_components = get_all_private_components(e);
-    
-    if commitment_proof.old_commitments.len() != current_components.len() as u32 {
-        return Err(IndexError::InvalidCommitmentProof);
-    }
-    
-    // Verify that new commitments have valid structure
-    if commitment_proof.new_commitments.len() != commitment_proof.old_commitments.len() {
-        return Err(IndexError::InvalidCommitmentProof);
-    }
-    
-    // TODO: Add cryptographic verification of the proof signature
-    // For now, we'll do basic structure validation
-    
-    Ok(())
-}
 
 /// Extract weights from commitments for constraint verification
 fn extract_weights_from_commitments(
@@ -217,7 +190,6 @@ fn update_private_component_commitments(
 fn log_private_rebalancing(
     e: &Env,
     caller: &Address,
-    commitment_proof: &CommitmentProof,
 ) {
     // Log the rebalancing event without revealing sensitive details
     // In a production system, this would emit a privacy-preserving event
@@ -227,111 +199,11 @@ fn log_private_rebalancing(
     
     // Could also store audit information for compliance
     let timestamp = e.ledger().timestamp();
-    // store_audit_log(e, caller, timestamp, commitment_proof);
+    // store_audit_log(e, caller, timestamp);
 }
 
-/// Create a new commitment proof for rebalancing
-pub fn create_private_rebalance_proof(
-    e: &Env,
-    old_components: &Vec<PrivateComponent>,
-    new_components: &Vec<PrivateComponent>,
-    rebalancer: &Address,
-) -> CommitmentProof {
-    // Extract old and new commitments
-    let mut old_commitments = Vec::new(e);
-    let mut new_commitments = Vec::new(e);
-    
-    for old_component in old_components.iter() {
-        if let Some(commitment) = &old_component.weight_commitment {
-            old_commitments.push_back(commitment.clone());
-        }
-    }
-    
-    for new_component in new_components.iter() {
-        if let Some(commitment) = &new_component.weight_commitment {
-            new_commitments.push_back(commitment.clone());
-        }
-    }
-    
-    // Create weight sum proof (simplified)
-    let weight_sum_proof = create_weight_sum_proof(e, new_components);
-    
-    // Create rebalancer signature (simplified)
-    let rebalancer_signature = create_rebalancer_signature(e, rebalancer, &new_commitments);
-    
-    CommitmentProof {
-        old_commitments,
-        new_commitments,
-        weight_sum_proof,
-        rebalancer_signature,
-    }
-}
 
-/// Create proof that new weights sum to 100%
-fn create_weight_sum_proof(
-    e: &Env,
-    components: &Vec<PrivateComponent>,
-) -> soroban_sdk::Bytes {
-    // This is a simplified implementation
-    // In a production system, this would be a zero-knowledge proof
-    
-    let mut proof_data = soroban_sdk::Bytes::new(e);
-    
-    // Add component count
-    let component_count = components.len() as u32;
-    let count_bytes = component_count.to_be_bytes();
-    for byte in count_bytes.iter() {
-        proof_data.push_back(*byte);
-    }
-    
-    // Add timestamp for uniqueness
-    let timestamp = e.ledger().timestamp();
-    let timestamp_bytes = timestamp.to_be_bytes();
-    for byte in timestamp_bytes.iter() {
-        proof_data.push_back(*byte);
-    }
-    
-    // Hash the proof data
-    e.crypto().sha256(&proof_data).into()
-}
 
-/// Create rebalancer signature
-fn create_rebalancer_signature(
-    e: &Env,
-    rebalancer: &Address,
-    commitments: &Vec<soroban_sdk::Bytes>,
-) -> soroban_sdk::Bytes {
-    // This is a simplified implementation
-    // In a production system, this would be a cryptographic signature
-    
-    let mut signature_data = soroban_sdk::Bytes::new(e);
-    
-    // Add rebalancer address (simplified approach)
-    let rebalancer_string = rebalancer.to_string();
-    let addr_len_bytes = (rebalancer_string.len() as u32).to_be_bytes();
-    for byte in addr_len_bytes.iter() {
-        signature_data.push_back(*byte);
-    }
-    
-    // Add commitment hashes
-    for commitment in commitments.iter() {
-        let commitment_hash = e.crypto().sha256(&commitment);
-        let hash_bytes: Bytes = commitment_hash.into();
-        for byte in hash_bytes.iter() {
-            signature_data.push_back(byte);
-        }
-    }
-    
-    // Add timestamp
-    let timestamp = e.ledger().timestamp();
-    let timestamp_bytes = timestamp.to_be_bytes();
-    for byte in timestamp_bytes.iter() {
-        signature_data.push_back(*byte);
-    }
-    
-    // Hash to create signature
-    e.crypto().sha256(&signature_data).into()
-}
 
 /// Verify private rebalancing authorization
 pub fn verify_private_rebalancing_authorization(

@@ -1,7 +1,7 @@
 use soroban_sdk::{Address, Bytes, Env, Vec, Map, Symbol};
 use privacy_manager::{
     IndexPrivacyConfig, PrivateComponent, ComponentView, NAVResponse, PortfolioSummary,
-    ViewerAccessLevel, DetailedNAV, PerformanceMetrics, AggregateMetrics, CommitmentProof,
+    ViewerAccessLevel, DetailedNAV, PerformanceMetrics, AggregateMetrics,
     ComponentPrivacyMode, IndexPrivacyMode,
     create_weight_commitment, verify_weight_commitment, commit_component_weights,
     encrypt_component_weight, decrypt_component_weight, derive_viewer_encryption_key,

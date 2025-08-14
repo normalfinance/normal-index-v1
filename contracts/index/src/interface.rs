@@ -4,9 +4,7 @@ use crate::stake::Stake;
 use crate::storage::Component;
 use privacy_manager::{
     IndexPrivacyConfig, PrivateComponent, ComponentView, NAVResponse, PortfolioSummary,
-    ViewerAccessLevel, DetailedNAV, PerformanceMetrics, AggregateMetrics, CommitmentProof,
-    RangeProof, SelectiveRevelationRequest, SelectiveRevelationResult,
-    ComplianceConstraint, ProofMethod
+    ViewerAccessLevel, DetailedNAV, PerformanceMetrics, AggregateMetrics
 };
 
 pub trait IndexTrait {
@@ -282,8 +280,7 @@ pub trait PrivacyInterface {
     fn private_rebalance_commitments(
         e: Env,
         caller: Address,
-        new_commitments: Vec<PrivateComponent>,
-        commitment_proof: CommitmentProof
+        new_commitments: Vec<PrivateComponent>
     );
     
     // Viewer access management
@@ -297,104 +294,4 @@ pub trait PrivacyInterface {
     fn decrypt_for_viewer(e: Env, viewer: Address, encrypted_data: Bytes) -> Option<Bytes>;
 }
 
-// Compliance Interface - For regulatory reporting and auditing
-pub trait ComplianceInterface {
-    /// Generate compliance report for authorized compliance authorities
-    fn generate_compliance_report(e: Env, compliance_authority: Address) -> crate::compliance::ComplianceReport;
-    
-    /// Get public portfolio summary (no sensitive details)
-    fn get_public_portfolio_summary(e: Env) -> crate::compliance::ComplianceReport;
-    
-    /// Get audit trail for specific time period (compliance authorities only)
-    fn get_audit_trail(
-        e: Env,
-        compliance_authority: Address,
-        start_time: u64,
-        end_time: u64
-    ) -> Vec<crate::compliance::AuditEntry>;
-    
-    /// Emergency access to decrypt all data (emergency authorities only)
-    fn emergency_decrypt_all(
-        e: Env,
-        emergency_authority: Address
-    ) -> Vec<PrivateComponent>;
-    
-    /// Get risk assessment for compliance purposes
-    fn get_risk_assessment(
-        e: Env,
-        compliance_authority: Address
-    ) -> crate::compliance::RiskMetrics;
-}
 
-// Zero-Knowledge Proof Interface - For selective revelation and privacy-preserving compliance
-pub trait ZKProofInterface {
-    /// Generate a range proof for an asset allocation
-    /// Allows institutions to prove their allocation is within a range without revealing exact amount
-    fn generate_asset_range_proof(
-        e: Env,
-        asset_owner: Address,
-        asset: soroban_sdk::Symbol,
-        min_percentage: u128,
-        max_percentage: u128,
-        salt: u64
-    ) -> RangeProof;
-    
-    /// Verify a range proof for an asset allocation
-    fn verify_asset_range_proof(
-        e: Env,
-        proof: RangeProof
-    ) -> bool;
-    
-    /// Generate a compliance proof showing portfolio meets regulatory requirements
-    /// without revealing individual asset weights
-    fn generate_compliance_proof(
-        e: Env,
-        portfolio_owner: Address,
-        constraints: Vec<ComplianceConstraint>,
-        method: ProofMethod
-    ) -> ComplianceProof;
-    
-    /// Verify a compliance proof
-    fn verify_compliance_proof(
-        e: Env,
-        proof: ComplianceProof
-    ) -> bool;
-    
-    /// Process a selective revelation request
-    /// Allows proving allocation ranges for regulatory compliance
-    fn process_selective_revelation(
-        e: Env,
-        request: SelectiveRevelationRequest,
-        salt: u64
-    ) -> SelectiveRevelationResult;
-    
-    /// Batch verify multiple ZK proofs for efficiency
-    fn batch_verify_proofs(
-        e: Env,
-        range_proofs: Vec<RangeProof>,
-        compliance_proofs: Vec<ComplianceProof>
-    ) -> ZKProofStatus;
-    
-    /// Get ZK proof verification status for a portfolio
-    fn get_proof_status(
-        e: Env,
-        portfolio_owner: Address
-    ) -> ZKProofStatus;
-    
-    /// Selective compliance check - prove specific regulatory constraints
-    /// without revealing full portfolio details
-    fn prove_regulatory_compliance(
-        e: Env,
-        institution: Address,
-        regulator: Address,
-        required_constraints: Vec<ComplianceConstraint>
-    ) -> ComplianceProof;
-    
-    /// Verify that an institution meets specific regulatory requirements
-    /// using zero-knowledge proofs
-    fn verify_regulatory_compliance(
-        e: Env,
-        compliance_proof: ComplianceProof,
-        required_constraints: Vec<ComplianceConstraint>
-    ) -> bool;
-}

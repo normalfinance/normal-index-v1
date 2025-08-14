@@ -82,65 +82,6 @@ pub fn verify_weight_sum(weights: &[u128]) -> bool {
     total == 10000 // 10000 basis points = 100%
 }
 
-/// Create a commitment proof for rebalancing
-/// 
-/// # Arguments
-/// * `e` - Soroban environment
-/// * `old_weights` - Current component weights
-/// * `new_weights` - Target component weights
-/// * `salt` - Salt for new commitments
-/// 
-/// # Returns
-/// * Proof that new weights are valid
-pub fn create_rebalance_commitment_proof(
-    e: &Env,
-    old_weights: &[u128],
-    new_weights: &[u128],
-    salt: u64,
-) -> Bytes {
-    // Verify new weights sum to 100%
-    if !verify_weight_sum(new_weights) {
-        panic!("New weights do not sum to 10000 basis points");
-    }
-    
-    // Create commitments for new weights
-    let mut proof_data = Bytes::new(e);
-    
-    // Add old weights hash
-    let old_weights_hash = hash_weight_array(e, old_weights);
-    for byte in old_weights_hash.iter() {
-        proof_data.push_back(byte);
-    }
-    
-    // Add new weights hash
-    let new_weights_hash = hash_weight_array(e, new_weights);
-    for byte in new_weights_hash.iter() {
-        proof_data.push_back(byte);
-    }
-    
-    // Add salt
-    let salt_bytes = salt.to_be_bytes();
-    for byte in salt_bytes.iter() {
-        proof_data.push_back(*byte);
-    }
-    
-    // Hash the entire proof
-    e.crypto().sha256(&proof_data).into()
-}
-
-/// Hash an array of weights for proof generation
-fn hash_weight_array(e: &Env, weights: &[u128]) -> Bytes {
-    let mut data = Bytes::new(e);
-    
-    for weight in weights.iter() {
-        let weight_bytes = weight.to_be_bytes();
-        for byte in weight_bytes.iter() {
-            data.push_back(*byte);
-        }
-    }
-    
-    e.crypto().sha256(&data).into()
-}
 
 /// Verify individual component weight is within valid range
 /// 

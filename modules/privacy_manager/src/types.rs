@@ -134,19 +134,6 @@ pub struct PerformanceMetrics {
     pub sharpe_ratio: i128,
 }
 
-/// Commitment proof for rebalancing
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CommitmentProof {
-    /// Old component commitments
-    pub old_commitments: Vec<Bytes>,
-    /// New component commitments
-    pub new_commitments: Vec<Bytes>,
-    /// Proof that weights still sum to 10000 basis points
-    pub weight_sum_proof: Bytes,
-    /// Signature from authorized rebalancer
-    pub rebalancer_signature: Bytes,
-}
 
 /// Portfolio summary for different access levels
 #[contracttype]
@@ -164,67 +151,10 @@ pub struct PortfolioSummary {
     pub components: Option<Vec<PrivateComponent>>,
 }
 
-// ==================== ZERO-KNOWLEDGE PROOF TYPES ====================
-
-/// Zero-knowledge range proof for selective revelation
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RangeProof {
-    /// The cryptographic proof data
-    pub proof_data: soroban_sdk::Bytes,
-    /// Minimum value in the range (in basis points)
-    pub min_value: u128,
-    /// Maximum value in the range (in basis points)
-    pub max_value: u128,
-    /// Commitment to the actual value
-    pub value_commitment: soroban_sdk::Bytes,
-    /// Proof type identifier
-    pub proof_type: RangeProofType,
-}
-
-/// Types of range proofs supported
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum RangeProofType {
-    /// Bulletproof-style range proof
-    Bulletproof,
-    /// RISC Zero generated range proof
-    RiscZero,
-    /// Simple commitment-based range proof
-    Commitment,
-}
 
 
 
 
 
 
-/// Selective revelation request
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SelectiveRevelationRequest {
-    /// Asset for which to create range proof
-    pub asset: soroban_sdk::Symbol,
-    /// Minimum percentage to prove (basis points)
-    pub min_percentage: u128,
-    /// Maximum percentage to prove (basis points)
-    pub max_percentage: u128,
-    /// Requester's address (for authorization)
-    pub requester: soroban_sdk::Address,
-}
 
-/// Result of selective revelation verification
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SelectiveRevelationResult {
-    /// Whether the proof is valid
-    pub is_valid: bool,
-    /// Asset that was proven
-    pub asset: soroban_sdk::Symbol,
-    /// Proven range (min, max in basis points)
-    pub proven_range: (u128, u128),
-    /// Timestamp of verification
-    pub verified_at: u64,
-    /// Method used for verification
-    pub verification_method: ProofMethod,
-}
