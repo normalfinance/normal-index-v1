@@ -25,3 +25,32 @@ pub struct InitializeParams {
     pub admin: Address,
     pub privileged_addrs: PrivilegedAddresses,
 }
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IndexParams {
+    // Address
+    pub admin: Address,                      // aka manager
+    pub rebalance_authorities: Vec<Address>, // New parameter for private index authorities
+    pub whitelist_accounts: Vec<Address>,
+    pub blacklist_accounts: Vec<Address>,
+
+    // Config
+    pub public: bool,
+
+    // Token
+    pub name: String,
+    pub token_symbol: String,
+    pub description: String,
+
+    // Price
+    pub base_nav: u128,
+    pub initial_price: u128,
+    pub initial_deposit: u128,
+
+    // Fees
+    pub manager_fee_fraction: u32,
+
+    // Assets
+    pub components: Vec<Address>,
+}

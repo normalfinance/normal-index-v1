@@ -6,7 +6,6 @@ pub mod errors;
 pub mod macros;
 pub mod storage;
 pub mod token;
-pub mod types;
 pub use errors::*;
 pub mod math;
 
