@@ -63,6 +63,8 @@ pub(crate) trait IndexEvents {
 
     fn protocol_fee_recipient_updated(&self, old_recipient: Address, new_recipient: Address);
 
+    fn fee_collection_toggled(&self, enabled: bool);
+
     // Rebalancing Events
     fn component_added(&self, token: Address, weight: u128);
 
@@ -217,6 +219,13 @@ impl IndexEvents for Events {
                 old_recipient,
                 new_recipient,
             ),
+            (),
+        )
+    }
+
+    fn fee_collection_toggled(&self, enabled: bool) {
+        self.env().events().publish(
+            (Symbol::new(self.env(), "fee_collection_toggled"), enabled),
             (),
         )
     }

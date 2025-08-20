@@ -34,6 +34,7 @@ enum DataKey {
     AccumulatedManagerFees,  // Total manager fees accumulated but not yet distributed
     AccumulatedProtocolFees, // Total protocol fees accumulated but not yet distributed
     LastFeeCollection,       // Timestamp of last fee collection
+    FeeCollectionEnabled,    // Boolean toggle to enable/disable fee collection for this index
 
     Whitelist(Address), // List of accounts explicitly allowed to mint the index
     Blacklist(Address), // List of accounts blocked from minting the index
@@ -121,6 +122,12 @@ generate_instance_storage_getter_and_setter_with_default!(
     DataKey::LastFeeCollection,
     u64,
     0
+);
+generate_instance_storage_getter_and_setter_with_default!(
+    fee_collection_enabled,
+    DataKey::FeeCollectionEnabled,
+    bool,
+    true
 );
 
 generate_instance_storage_getter_and_setter_with_default!(public, DataKey::Public, bool, false);
