@@ -1,6 +1,6 @@
 {
   "version": "0.0.0",
-  "name": "soroban_token_contract",
+  "name": "index_token",
   "type": "module",
   "exports": "./dist/index.js",
   "typings": "dist/index.d.ts",

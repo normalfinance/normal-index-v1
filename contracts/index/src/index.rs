@@ -1,12 +1,11 @@
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{contracttype, panic_with_error, Address, Env, IntoVal, String, Symbol, Vec};
+use token_share::get_token_share;
 use utils::{constant::FIVE_MINUTE, math::safe_math::SafeMath, validate};
 
 use crate::errors::IndexError;
 use crate::events::{Events, IndexEvents};
-use crate::storage::{
-    get_all_components, get_component_balance, get_factory, get_index_vault_amount,
-};
+use crate::storage::{get_all_components, get_factory};
 
 #[derive(Clone)]
 #[contracttype]
@@ -123,7 +122,7 @@ pub fn vault_amount_to_shares(
         // get_proportion_u128(e, amount, total_shares, vault_amount)
     } else {
         // must be case that total_shares == 0 for nice result for user
-        validate!(e, total_shares == 0, IndexError::InvalidIFSharesDetected);
+        validate!(e, total_shares == 0, IndexError::InvalidSharesDetected);
 
         amount
     };
@@ -224,7 +223,7 @@ fn create_sell_swap(e: &Env, token_in: Address, amount_to_sell: u128) -> SwapPar
 
 fn get_base_token(e: &Env) -> Address {
     // Returns the index token as base
-    crate::storage::get_token(e)
+    get_token_share(e)
 }
 
 fn get_default_distribution(e: &Env) -> Vec<DexDistribution> {

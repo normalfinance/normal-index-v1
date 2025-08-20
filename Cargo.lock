@@ -684,6 +684,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "index-token"
+version = "0.1.0"
+dependencies = [
+ "access_control",
+ "soroban-sdk",
+ "soroban-token-sdk",
+ "upgrade",
+ "utils",
+]
+
+[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1313,17 +1324,6 @@ dependencies = [
  "stellar-xdr",
  "syn 2.0.104",
  "thiserror",
-]
-
-[[package]]
-name = "soroban-token-contract"
-version = "0.1.0"
-dependencies = [
- "access_control",
- "soroban-sdk",
- "soroban-token-sdk",
- "upgrade",
- "utils",
 ]
 
 [[package]]

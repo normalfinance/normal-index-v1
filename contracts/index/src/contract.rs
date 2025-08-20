@@ -9,10 +9,9 @@ use crate::fees::{
 
 use crate::index::vault_amount_to_shares;
 use crate::interface::{
-    AdminInterface, ComponentAction, ComponentAllocation, ComponentUpdate, IndexInfo, IndexMetrics,
-    IndexStatus, IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus,
+    AdminInterface, ComponentAction, ComponentAllocation, IndexInfo, IndexMetrics, IndexStatus,
+    IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus,
 };
-use crate::stake::Stake;
 use crate::storage::get_all_rebalance_authorities;
 use crate::storage::get_blacklist_status;
 use crate::storage::get_index_vault_amount;
@@ -32,17 +31,15 @@ use crate::storage::{
     get_accumulated_manager_fees, get_accumulated_protocol_fees, get_fee_collection_enabled,
     get_manager_address, get_manager_fee_fraction, get_protocol_fee_recipient, get_total_fees,
     set_accumulated_manager_fees, set_accumulated_protocol_fees, set_fee_collection_enabled,
-    set_last_fee_collection, set_manager_address, set_protocol_fee_recipient, set_total_fees,
+    set_last_fee_collection, set_manager_address, set_protocol_fee_recipient,
 };
 use crate::storage::{
     get_all_component_balances, get_all_components, get_base_nav, get_component,
-    get_component_balance, get_component_balance_safe, get_component_registry, get_factory,
-    get_factory_safe, get_initial_price, get_insurance_vault_amount, get_is_killed_mint,
-    get_is_killed_rebalance, get_is_killed_redeem, get_last_rebalance_ts, get_last_updated_ts,
-    get_max_shares, get_public, get_rebalance_threshold, get_shares_base, get_token,
-    get_total_mints, get_total_redemptions, get_total_shares, get_unstaking_period, put_token,
-    set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem, set_max_shares,
-    set_total_shares, set_unstaking_period, Component,
+    get_component_balance_safe, get_component_registry, get_factory_safe, get_initial_price,
+    get_is_killed_mint, get_is_killed_rebalance, get_is_killed_redeem, get_last_rebalance_ts,
+    get_last_updated_ts, get_public, get_rebalance_threshold, get_total_mints,
+    get_total_redemptions, set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem,
+    Component,
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -56,24 +53,20 @@ use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::{
     require_pause_admin_or_owner, require_pause_or_emergency_pause_admin_or_owner,
 };
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation};
 use soroban_sdk::String;
 use soroban_sdk::{
-    contract, contractimpl, log, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
-    Address, BytesN, Env, IntoVal, Map, Symbol, Vec,
+    contract, contractimpl, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
+    Address, BytesN, Env, Map, Symbol, Vec,
 };
+use token_share::get_token_share;
+use token_share::get_total_shares;
 use token_share::mint_shares;
 use token_share::put_token_share;
-use token_share::Client as LPTokenClient;
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
-use utils::bump::bump_instance;
-use utils::math::safe_math::SafeMath;
 use utils::token::transfer_token;
 use utils::token::validate_token_contracts;
-use utils::validate;
 
 #[contract]
 pub struct Index;
@@ -168,13 +161,12 @@ impl IndexTrait for Index {
         let total_shares = get_total_shares(&e);
 
         let vault_amount = get_index_vault_amount(&e, &token);
-        let insurance_vault_amount = get_insurance_vault_amount(&e);
 
-        validate!(
-            &e,
-            !(insurance_vault_amount == 0 && total_shares != 0),
-            IndexError::InvalidIFForNewStakes
-        );
+        // validate!(
+        //     &e,
+        //     !(insurance_vault_amount == 0 && total_shares != 0),
+        //     IndexError::InvalidIFForNewStakes
+        // );
 
         let n_shares = vault_amount_to_shares(&e, amount, total_shares, vault_amount);
 
@@ -305,7 +297,7 @@ impl IndexTrait for Index {
     }
 
     fn get_token(e: Env) -> Address {
-        crate::storage::get_token(&e)
+        get_token_share(&e)
     }
 
     fn get_factory(e: Env) -> Address {
@@ -322,19 +314,19 @@ impl IndexTrait for Index {
 
     fn get_nav(e: Env) -> i128 {
         let base_nav = crate::storage::get_base_nav(&e) as i128;
-        let total_shares = crate::storage::get_total_shares(&e);
+        let total_shares = get_total_shares(&e);
         if total_shares == 0 {
             return base_nav;
         }
 
-        let token = crate::storage::get_token(&e);
+        let token = get_token_share(&e);
         let vault_amount = crate::storage::get_index_vault_amount(&e, &token) as i128;
         vault_amount
     }
 
     fn get_price(e: Env) -> i128 {
         let nav = Self::get_nav(e.clone());
-        let total_shares = crate::storage::get_total_shares(&e);
+        let total_shares = get_total_shares(&e);
         if total_shares == 0 {
             return crate::storage::get_initial_price(&e) as i128;
         }
@@ -342,7 +334,7 @@ impl IndexTrait for Index {
     }
 
     fn get_total_shares(e: Env) -> u128 {
-        crate::storage::get_total_shares(&e)
+        get_total_shares(&e)
     }
 
     fn get_public_status(e: Env) -> bool {
@@ -410,7 +402,7 @@ impl IndexTrait for Index {
         collect_fees_before_action(&e, &to, amount as i128);
 
         // Execute the token transfer
-        let share_token = crate::storage::get_token(&e);
+        let share_token = get_token_share(&e);
         SorobanTokenClient::new(&e, &share_token).transfer(&from, &to, &(amount as i128));
 
         // Update fee tracking for both users
@@ -418,7 +410,7 @@ impl IndexTrait for Index {
         initialize_or_update_user_tracking(&e, &to, amount as i128);
     }
 
-    /// Transfer shares from allowance with proper fee handling  
+    /// Transfer shares from allowance with proper fee handling
     fn transfer_shares_from(e: Env, spender: Address, from: Address, to: Address, amount: u128) {
         spender.require_auth();
 
@@ -427,7 +419,7 @@ impl IndexTrait for Index {
         collect_fees_before_action(&e, &to, amount as i128);
 
         // Execute the token transfer from allowance
-        let share_token = crate::storage::get_token(&e);
+        let share_token = get_token_share(&e);
         SorobanTokenClient::new(&e, &share_token).transfer_from(
             &spender,
             &from,
@@ -536,38 +528,10 @@ impl AdminInterface for Index {
         }
         access_control.set_role_address(&Role::Admin, &admin);
 
-        put_token(&e, &token);
+        put_token_share(&e, token);
 
         // No complex registration needed!
         // The token's admin IS this index contract, so fee calls work automatically
-    }
-
-    // Sets the unstaking period.
-    //
-    // # Arguments
-    //
-    // * `admin` - The address of the admin.
-    // * `unstaking_period` - The new unstaking period.
-    fn set_unstaking_period(e: Env, admin: Address, unstaking_period: u64) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        set_unstaking_period(&e, &unstaking_period);
-    }
-
-    // Sets the max shares the Insurance Fund can have.
-    //
-    // # Arguments
-    //
-    // * `admin` - The address of the admin.
-    // * `max_shares` - The max number of shares.
-    fn set_max_shares(e: Env, admin: Address, max_shares: u128) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        set_max_shares(&e, &max_shares);
     }
 
     fn rebalance(e: Env, caller: Address, params: RebalanceParams) {
@@ -1113,7 +1077,7 @@ impl QueryInterface for Index {
     fn get_index_info(e: Env) -> IndexInfo {
         IndexInfo {
             address: e.current_contract_address(),
-            token_address: get_token(&e),
+            token_address: get_token_share(&e),
             total_shares: get_total_shares(&e),
             base_nav: get_base_nav(&e),
             initial_price: get_initial_price(&e),
@@ -1220,7 +1184,7 @@ impl QueryInterface for Index {
         let last_rebalance = get_last_rebalance_ts(&e);
         let threshold = get_rebalance_threshold(&e);
         let can_rebalance =
-            (current_time >= last_rebalance + threshold) && !get_is_killed_rebalance(&e);
+            current_time >= last_rebalance + threshold && !get_is_killed_rebalance(&e);
 
         IndexStatus {
             is_killed_mint: get_is_killed_mint(&e),
@@ -1251,11 +1215,11 @@ impl QueryInterface for Index {
         let last_rebalance = get_last_rebalance_ts(&e);
         let threshold = get_rebalance_threshold(&e);
         let can_rebalance =
-            (current_time >= last_rebalance + threshold) && !get_is_killed_rebalance(&e);
+            current_time >= last_rebalance + threshold && !get_is_killed_rebalance(&e);
         let time_until_next = if can_rebalance {
             0
         } else {
-            (last_rebalance + threshold) - current_time
+            last_rebalance + threshold - current_time
         };
 
         // Get authorized rebalancers for private indexes
@@ -1309,7 +1273,7 @@ impl QueryInterface for Index {
         for (token, component) in components.iter() {
             let current_balance = get_component_balance_safe(&e, token.clone()).unwrap_or(0);
             let target_balance = if current_nav > 0 {
-                (current_nav * component.weight as u128) / 10000
+                (current_nav * (component.weight as u128)) / 10000
             } else {
                 0
             };
@@ -1625,18 +1589,18 @@ impl Index {
         // No auth required - this is called by the trusted token contract
 
         // Collect fees from sender before they transfer/burn tokens
-        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -(amount));
+        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -amount);
 
         // Update tracking based on operation type
         match to {
             Some(recipient) => {
                 // Transfer: update tracking for both users
-                initialize_or_update_user_tracking(&e, &from, -(amount)); // Sender: reduce balance
+                initialize_or_update_user_tracking(&e, &from, -amount); // Sender: reduce balance
                 initialize_or_update_user_tracking(&e, &recipient, amount); // Receiver: increase balance
             }
             None => {
                 // Burn: only update sender's tracking (tokens are destroyed)
-                initialize_or_update_user_tracking(&e, &from, -(amount));
+                initialize_or_update_user_tracking(&e, &from, -amount);
             }
         }
 
