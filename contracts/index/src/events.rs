@@ -1,5 +1,5 @@
-use soroban_sdk::{Address, Env, Map, Symbol, Vec};
 use crate::storage::Component;
+use soroban_sdk::{Address, Env, Map, Symbol, Vec};
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -151,13 +151,7 @@ pub(crate) trait IndexEvents {
         new_fee_fraction: u32,
     );
 
-    fn public_status_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_status: bool,
-        new_status: bool,
-    );
+    fn public_status_updated(&self, ts: u64, admin: Address, old_status: bool, new_status: bool);
 
     fn whitelist_status_updated(
         &self,
@@ -185,21 +179,9 @@ pub(crate) trait IndexEvents {
         new_threshold: u64,
     );
 
-    fn base_nav_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_nav: u128,
-        new_nav: u128,
-    );
+    fn base_nav_updated(&self, ts: u64, admin: Address, old_nav: u128, new_nav: u128);
 
-    fn initial_price_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_price: u128,
-        new_price: u128,
-    );
+    fn initial_price_updated(&self, ts: u64, admin: Address, old_price: u128, new_price: u128);
 
     // Kill switch events
     fn operation_killed(
@@ -530,13 +512,7 @@ impl IndexEvents for Events {
         );
     }
 
-    fn public_status_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_status: bool,
-        new_status: bool,
-    ) {
+    fn public_status_updated(&self, ts: u64, admin: Address, old_status: bool, new_status: bool) {
         self.env().events().publish(
             (
                 Symbol::new(self.env(), "public_status_updated"),
@@ -610,13 +586,7 @@ impl IndexEvents for Events {
         );
     }
 
-    fn base_nav_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_nav: u128,
-        new_nav: u128,
-    ) {
+    fn base_nav_updated(&self, ts: u64, admin: Address, old_nav: u128, new_nav: u128) {
         self.env().events().publish(
             (
                 Symbol::new(self.env(), "base_nav_updated"),
@@ -629,13 +599,7 @@ impl IndexEvents for Events {
         );
     }
 
-    fn initial_price_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_price: u128,
-        new_price: u128,
-    ) {
+    fn initial_price_updated(&self, ts: u64, admin: Address, old_price: u128, new_price: u128) {
         self.env().events().publish(
             (
                 Symbol::new(self.env(), "initial_price_updated"),
@@ -648,12 +612,7 @@ impl IndexEvents for Events {
         );
     }
 
-    fn operation_killed(
-        &self,
-        ts: u64,
-        admin: Address,
-        operation: Symbol,
-    ) {
+    fn operation_killed(&self, ts: u64, admin: Address, operation: Symbol) {
         self.env().events().publish(
             (
                 Symbol::new(self.env(), "operation_killed"),
@@ -665,12 +624,7 @@ impl IndexEvents for Events {
         );
     }
 
-    fn operation_unkilled(
-        &self,
-        ts: u64,
-        admin: Address,
-        operation: Symbol,
-    ) {
+    fn operation_unkilled(&self, ts: u64, admin: Address, operation: Symbol) {
         self.env().events().publish(
             (
                 Symbol::new(self.env(), "operation_unkilled"),
@@ -941,7 +895,11 @@ impl IndexEvents for Events {
         )
     }
 
-    fn protocol_fee_recipient_updated_legacy(&self, old_recipient: Address, new_recipient: Address) {
+    fn protocol_fee_recipient_updated_legacy(
+        &self,
+        old_recipient: Address,
+        new_recipient: Address,
+    ) {
         self.env().events().publish(
             (
                 Symbol::new(self.env(), "protocol_fee_recipient_updated"),

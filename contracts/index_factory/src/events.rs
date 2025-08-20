@@ -35,13 +35,7 @@ pub(crate) trait FactoryEvents {
     );
 
     // Factory configuration events
-    fn protocol_fee_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_fee: u32,
-        new_fee: u32,
-    );
+    fn protocol_fee_updated(&self, ts: u64, admin: Address, old_fee: u32, new_fee: u32);
 
     fn max_management_fee_updated(
         &self,
@@ -51,12 +45,7 @@ pub(crate) trait FactoryEvents {
         new_max_fee: u32,
     );
 
-    fn factory_admin_updated(
-        &self,
-        ts: u64,
-        old_admin: Address,
-        new_admin: Address,
-    );
+    fn factory_admin_updated(&self, ts: u64, old_admin: Address, new_admin: Address);
 
     fn wasm_hash_updated(
         &self,
@@ -66,17 +55,9 @@ pub(crate) trait FactoryEvents {
         new_wasm: BytesN<32>,
     );
 
-    fn factory_paused(
-        &self,
-        ts: u64,
-        admin: Address,
-    );
+    fn factory_paused(&self, ts: u64, admin: Address);
 
-    fn factory_unpaused(
-        &self,
-        ts: u64,
-        admin: Address,
-    );
+    fn factory_unpaused(&self, ts: u64, admin: Address);
 
     // Legacy events for backward compatibility
     fn deploy(
@@ -135,7 +116,7 @@ impl FactoryEvents for Events {
             ),
             (),
         );
-        
+
         // Configuration event
         self.env().events().publish(
             (
@@ -150,7 +131,7 @@ impl FactoryEvents for Events {
             ),
             (),
         );
-        
+
         // Components event
         self.env().events().publish(
             (
@@ -164,13 +145,7 @@ impl FactoryEvents for Events {
         );
     }
 
-    fn protocol_fee_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_fee: u32,
-        new_fee: u32,
-    ) {
+    fn protocol_fee_updated(&self, ts: u64, admin: Address, old_fee: u32, new_fee: u32) {
         self.env().events().publish(
             (
                 Symbol::new(self.env(), "protocol_fee_updated"),
@@ -202,12 +177,7 @@ impl FactoryEvents for Events {
         );
     }
 
-    fn factory_admin_updated(
-        &self,
-        ts: u64,
-        old_admin: Address,
-        new_admin: Address,
-    ) {
+    fn factory_admin_updated(&self, ts: u64, old_admin: Address, new_admin: Address) {
         self.env().events().publish(
             (
                 Symbol::new(self.env(), "factory_admin_updated"),
@@ -238,34 +208,16 @@ impl FactoryEvents for Events {
         );
     }
 
-    fn factory_paused(
-        &self,
-        ts: u64,
-        admin: Address,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "factory_paused"),
-                ts,
-                admin,
-            ),
-            (),
-        );
+    fn factory_paused(&self, ts: u64, admin: Address) {
+        self.env()
+            .events()
+            .publish((Symbol::new(self.env(), "factory_paused"), ts, admin), ());
     }
 
-    fn factory_unpaused(
-        &self,
-        ts: u64,
-        admin: Address,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "factory_unpaused"),
-                ts,
-                admin,
-            ),
-            (),
-        );
+    fn factory_unpaused(&self, ts: u64, admin: Address) {
+        self.env()
+            .events()
+            .publish((Symbol::new(self.env(), "factory_unpaused"), ts, admin), ());
     }
 
     // Legacy event implementation
