@@ -40,11 +40,6 @@ use crate::storage::{
     get_last_updated_ts, get_public, get_rebalance_threshold, get_total_mints,
     get_total_redemptions, set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem,
     Component,
-    get_component_balance, get_component_balance_safe, get_component_registry, get_factory,
-    get_factory_safe, get_initial_price, get_is_killed_mint, get_is_killed_rebalance,
-    get_is_killed_redeem, get_last_rebalance_ts, get_last_updated_ts, get_public,
-    get_rebalance_threshold, get_total_mints, get_total_redemptions, set_is_killed_mint,
-    set_is_killed_rebalance, set_is_killed_redeem, Component,
 };
 use crate::token::create_index_token_contract;
 use access_control::access::{AccessControl, AccessControlTrait};
@@ -71,9 +66,9 @@ use token_share::{
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
+use utils::storage::IndexParams;
 use utils::token::transfer_token;
 use utils::token::validate_token_contracts;
-use utils::types::IndexParams;
 
 #[contract]
 pub struct Index;

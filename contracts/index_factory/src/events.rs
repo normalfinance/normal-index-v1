@@ -1,5 +1,4 @@
 use soroban_sdk::{Address, BytesN, Env, Symbol, Vec};
-use utils::types::IndexParams;
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -15,6 +14,14 @@ impl Events {
         Events(env.clone())
     }
 }
+
+//  ___      ___       __        __    _____  ___
+// |"  \    /"  |     /""\      |" \  (\"   \|"  \
+//  \   \  //   |    /    \     ||  | |.\\   \    |
+//  /\\  \/.    |   /' /\  \    |:  | |: \.   \\  |
+// |: \.        |  //  __'  \   |.  | |.  \    \. |
+// |.  \    /:  | /   /  \\  \  /\  |\|    \    \ |
+// |___|\__/|___|(___/    \___)(__\_|_)\___|\____\)
 
 pub(crate) trait FactoryEvents {
     // Enhanced index deployment event with comprehensive metadata
@@ -48,42 +55,9 @@ pub(crate) trait FactoryEvents {
 
     fn factory_admin_updated(&self, ts: u64, old_admin: Address, new_admin: Address);
 
-    fn wasm_hash_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_wasm: BytesN<32>,
-        new_wasm: BytesN<32>,
-    );
-
     fn factory_paused(&self, ts: u64, admin: Address);
 
     fn factory_unpaused(&self, ts: u64, admin: Address);
-
-    // Legacy events for backward compatibility
-    fn deploy(
-        &self,
-        operator: Address,
-        fee_destination: Address,
-        max_swap_fee_fraction: u32,
-        address: Address,
-    );
-    fn deploy(&self, params: IndexParams, address: Address);
-}
-
-pub(crate) trait FactoryConfigEvents {
-    // Enhanced configuration events
-    fn wasm_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_wasm: BytesN<32>,
-        new_wasm: BytesN<32>,
-        version: u32,
-    );
-
-    // Legacy events
-    fn set_wasm(&self, new_wasm: BytesN<32>);
 }
 
 impl FactoryEvents for Events {
@@ -191,25 +165,6 @@ impl FactoryEvents for Events {
         );
     }
 
-    fn wasm_hash_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_wasm: BytesN<32>,
-        new_wasm: BytesN<32>,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "wasm_hash_updated"),
-                ts,
-                admin,
-                old_wasm,
-                new_wasm,
-            ),
-            (),
-        );
-    }
-
     fn factory_paused(&self, ts: u64, admin: Address) {
         self.env()
             .events()
@@ -221,25 +176,38 @@ impl FactoryEvents for Events {
             .events()
             .publish((Symbol::new(self.env(), "factory_unpaused"), ts, admin), ());
     }
+}
 
-    // Legacy event implementation
-    fn deploy(
+//   ______    ______    _____  ___    _______  __     _______
+//  /" _  "\  /    " \  (\"   \|"  \  /"     "||" \   /" _   "|
+// (: ( \___)// ____  \ |.\\   \    |(: ______)||  | (: ( \___)
+//  \/ \    /  /    ) :)|: \.   \\  | \/    |  |:  |  \/ \
+//  //  \ _(: (____/ // |.  \    \. | // ___)  |.  |  //  \ ___
+// (:   _) \\        /  |    \    \ |(:  (     /\  |\(:   _(  _|
+//  \_______)\"_____/    \___|\____\) \__/    (__\_|_)\_______)
+
+pub(crate) trait FactoryConfigEvents {
+    fn index_wasm_updated(
         &self,
-        operator: Address,
-        fee_destination: Address,
-        max_swap_fee_fraction: u32,
-        address: Address,
-    ) {
-    fn deploy(&self, params: IndexParams, address: Address) {
-        self.env().events().publish(
-            (Symbol::new(self.env(), "deploy"),),
-            (params.admin, address),
-        );
-    }
+        ts: u64,
+        admin: Address,
+        old_wasm: BytesN<32>,
+        new_wasm: BytesN<32>,
+        version: u32,
+    );
+
+    fn token_wasm_updated(
+        &self,
+        ts: u64,
+        admin: Address,
+        old_wasm: BytesN<32>,
+        new_wasm: BytesN<32>,
+        version: u32,
+    );
 }
 
 impl FactoryConfigEvents for Events {
-    fn wasm_updated(
+    fn index_wasm_updated(
         &self,
         ts: u64,
         admin: Address,
@@ -260,9 +228,24 @@ impl FactoryConfigEvents for Events {
         );
     }
 
-    fn set_wasm(&self, new_wasm: BytesN<32>) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "set_wasm"),), (new_wasm,));
+    fn token_wasm_updated(
+        &self,
+        ts: u64,
+        admin: Address,
+        old_wasm: BytesN<32>,
+        new_wasm: BytesN<32>,
+        version: u32,
+    ) {
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "wasm_updated"),
+                ts,
+                admin,
+                old_wasm,
+                new_wasm,
+                version,
+            ),
+            (),
+        );
     }
 }

@@ -67,7 +67,7 @@ generate_instance_storage_getter_and_setter!(
     BytesN<32>
 );
 generate_instance_storage_getter_and_setter!(
-    index_token_contract_wasm,
+    token_contract_wasm,
     DataKey::IndexTokenContractWASM,
     BytesN<32>
 );

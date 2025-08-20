@@ -1,5 +1,5 @@
 use soroban_sdk::{Address, BytesN, Env, Vec};
-use utils::types::IndexParams;
+use utils::storage::IndexParams;
 
 use crate::{contract::FactoryConfig, storage::DexDistribution};
 
@@ -51,7 +51,7 @@ pub trait AdminInterface {
 
     fn get_index_contract_wasm(e: Env) -> BytesN<32>;
 
-    fn get_index_token_contract_wasm(e: Env) -> BytesN<32>;
+    fn get_token_contract_wasm(e: Env) -> BytesN<32>;
 
     fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address>;
 
@@ -71,7 +71,7 @@ pub trait AdminInterface {
 
     fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>);
 
-    fn set_index_token_contract_wasm(e: Env, admin: Address, token_contract_wasm: BytesN<32>);
+    fn set_token_contract_wasm(e: Env, admin: Address, token_contract_wasm: BytesN<32>);
 
     fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32);
 
