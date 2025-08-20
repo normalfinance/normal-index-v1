@@ -37,6 +37,8 @@ pub trait IndexTrait {
 
     fn get_manager_fee_fraction(e: Env) -> u32;
 
+    fn get_fee_collection_enabled(e: Env) -> bool;
+
     fn get_rebalance_threshold(e: Env) -> u64;
 
     fn get_last_rebalance_timestamp(e: Env) -> u64;
@@ -90,6 +92,8 @@ pub trait AdminInterface {
     fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address);
 
     fn set_manager_fee_fraction(e: Env, admin: Address, fee_fraction: u32);
+
+    fn set_fee_collection_enabled(e: Env, admin: Address, enabled: bool);
 
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64);
 
