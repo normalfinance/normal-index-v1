@@ -123,7 +123,7 @@ pub fn calculate_accrued_fees(
     // Calculate manager fee separately
     let manager_fee = if manager_fee_rate_bps > 0 {
         (user_balance_u128 * manager_fee_rate_bps * time_elapsed_u128)
-            / (10_000 * SECONDS_PER_YEAR as u128)
+            / (10_000 * (SECONDS_PER_YEAR as u128))
     } else {
         0
     };
@@ -131,7 +131,7 @@ pub fn calculate_accrued_fees(
     // Calculate protocol fee separately
     let protocol_fee = if protocol_fee_rate_bps > 0 {
         (user_balance_u128 * protocol_fee_rate_bps * time_elapsed_u128)
-            / (10_000 * SECONDS_PER_YEAR as u128)
+            / (10_000 * (SECONDS_PER_YEAR as u128))
     } else {
         0
     };
