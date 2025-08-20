@@ -4,8 +4,9 @@
 use crate::events::{Events, IndexEvents};
 use crate::storage::{
     get_accumulated_manager_fees, get_accumulated_protocol_fees, get_factory_safe,
-    get_fee_collection_enabled, get_manager_fee_fraction, get_total_fees, set_accumulated_manager_fees,
-    set_accumulated_protocol_fees, set_last_fee_collection, set_total_fees,
+    get_fee_collection_enabled, get_manager_fee_fraction, get_total_fees,
+    set_accumulated_manager_fees, set_accumulated_protocol_fees, set_last_fee_collection,
+    set_total_fees,
 };
 use access_control::access::AccessControl;
 use access_control::management::SingleAddressManagementTrait;
