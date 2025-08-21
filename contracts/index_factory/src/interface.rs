@@ -33,9 +33,7 @@ pub trait AdminInterface {
 
     fn get_factory_config(e: Env) -> FactoryConfig;
 
-    fn get_aggregator(e: Env) -> Address;
-
-    fn get_router(e: Env) -> Address;
+    fn get_swap_utility(e: Env) -> Address;
 
     fn get_protocol_fee_fraction(e: Env) -> u32;
 

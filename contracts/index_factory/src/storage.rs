@@ -20,8 +20,7 @@ pub struct DexDistribution {
 #[derive(Clone)]
 #[contracttype]
 enum DataKey {
-    Aggregator, // DEX Aggregator
-    Router,     // DEX Router
+    SwapUtility, // DEX Aggregator
     ProtocolFeeFraction,
     MaxManagerFeeFraction,
     ProtocolFeeRecipient, // Address where protocol fees are sent
@@ -42,8 +41,7 @@ enum DataKey {
     IsKilledCreate,
 }
 
-generate_instance_storage_getter_and_setter!(aggregator, DataKey::Aggregator, Address);
-generate_instance_storage_getter_and_setter!(router, DataKey::Router, Address);
+generate_instance_storage_getter_and_setter!(swap_utility, DataKey::SwapUtility, Address);
 generate_instance_storage_getter_and_setter!(
     protocol_fee_fraction,
     DataKey::ProtocolFeeFraction,

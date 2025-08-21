@@ -5,10 +5,12 @@ use crate::index_utils::get_index_salt;
 use crate::interface::{AdminInterface, IndexFactoryTrait};
 use crate::storage::get_index_contract_wasm;
 use crate::storage::get_index_fee_enabled;
+use crate::storage::get_swap_utility;
 use crate::storage::get_token_contract_wasm;
 use crate::storage::set_index_contract_wasm;
 use crate::storage::set_index_fee_enabled;
 use crate::storage::set_is_killed_create;
+use crate::storage::set_swap_utility;
 use crate::storage::set_token_contract_wasm;
 use crate::storage::{
     add_deployed_index, get_aggregator, get_all_deployed_indexes, get_contract_sequence,
@@ -44,8 +46,7 @@ pub struct IndexFactory;
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FactoryConfig {
-    pub aggregator: Address,
-    pub router: Address,
+    pub swap_utility: Address,
     pub protocol_fee_fraction: u32,
     pub max_manager_fee_fraction: u32,
     pub protocol_fee_recipient: Address,
@@ -63,14 +64,13 @@ impl IndexFactory {
     //   - e: The Soroban environment.
     //   - admin: The address to be assigned the Admin role.
     //   - emergency_admin: The address to be assigned the EmergencyAdmin role.
-    //   - aggregator: The address of the swap aggregator contract.
-    //   - router: The address of the router contract.
+    //   - swap_utility: The address of the swap swap_utility contract.
     //   - index_contract_wasm: The WASM hash (BytesN<32>) for the swap fee contract.
     pub fn __constructor(
         e: Env,
         admin: Address,
         emergency_admin: Address,
-        aggregator: Address,
+        swap_utility: Address,
         router: Address,
         index_contract_wasm: BytesN<32>,
         token_contract_wasm: BytesN<32>,
@@ -84,8 +84,7 @@ impl IndexFactory {
         access_control.commit_transfer_ownership(&Role::EmergencyAdmin, &emergency_admin);
         access_control.apply_transfer_ownership(&Role::EmergencyAdmin);
 
-        set_aggregator(&e, &aggregator);
-        set_router(&e, &router);
+        set_swap_utility(&e, &swap_utility);
         set_index_contract_wasm(&e, &index_contract_wasm);
         set_token_contract_wasm(&e, &token_contract_wasm);
         set_protocol_fee_fraction(&e, &protocol_fee_fraction);
@@ -116,7 +115,11 @@ impl IndexFactoryTrait for IndexFactory {
 
         let address = e.deployer().with_current_contract(salt).deploy_v2(
             get_index_contract_wasm(&e),
-            (get_router(&e), get_token_contract_wasm(&e), params.clone()),
+            (
+                e.current_contract_address(),
+                get_token_contract_wasm(&e),
+                params.clone(),
+            ),
         );
 
         // Add to index registry
@@ -169,8 +172,7 @@ impl AdminInterface for IndexFactory {
     // Query Methods - Factory Configuration
     fn get_factory_config(e: Env) -> FactoryConfig {
         FactoryConfig {
-            aggregator: get_aggregator(&e),
-            router: get_router(&e),
+            swap_utility: get_swap_utility(&e),
             protocol_fee_fraction: get_protocol_fee_fraction(&e),
             max_manager_fee_fraction: get_max_manager_fee_fraction(&e),
             protocol_fee_recipient: get_protocol_fee_recipient(&e),
@@ -181,12 +183,8 @@ impl AdminInterface for IndexFactory {
     }
 
     // Individual getters for factory configuration
-    fn get_aggregator(e: Env) -> Address {
-        get_aggregator(&e)
-    }
-
-    fn get_router(e: Env) -> Address {
-        get_router(&e)
+    fn get_swap_utility(e: Env) -> Address {
+        get_swap_utility(&e)
     }
 
     fn get_protocol_fee_fraction(e: Env) -> u32 {
