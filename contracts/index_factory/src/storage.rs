@@ -27,8 +27,8 @@ enum DataKey {
     ProtocolFeeRecipient, // Address where protocol fees are sent
     MinimumFeeThreshold,  // Universal minimum fee threshold (immutable)
 
-    IndexContractWASM,
-    IndexTokenContractWASM,
+    IndexContractWASM, // wasm of the Index Fund contract
+    TokenContractWASM, // wasm of the Index Token contract
 
     ContractSequence(Address),
     // Index registry storage
@@ -68,7 +68,7 @@ generate_instance_storage_getter_and_setter!(
 );
 generate_instance_storage_getter_and_setter!(
     token_contract_wasm,
-    DataKey::IndexTokenContractWASM,
+    DataKey::TokenContractWASM,
     BytesN<32>
 );
 
