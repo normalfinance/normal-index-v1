@@ -204,6 +204,8 @@ pub(crate) trait FactoryConfigEvents {
         new_wasm: BytesN<32>,
         version: u32,
     );
+
+    fn index_fee_toggled(&self, index_address: Address, enabled: bool);
 }
 
 impl FactoryConfigEvents for Events {
@@ -246,6 +248,13 @@ impl FactoryConfigEvents for Events {
                 version,
             ),
             (),
+        );
+    }
+
+    fn index_fee_toggled(&self, index_address: Address, enabled: bool) {
+        self.env().events().publish(
+            (Symbol::new(self.env(), "index_fee_toggled"),),
+            (index_address, enabled),
         );
     }
 }

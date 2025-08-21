@@ -4,8 +4,10 @@ use crate::events::FactoryEvents;
 use crate::index_utils::get_index_salt;
 use crate::interface::{AdminInterface, IndexFactoryTrait};
 use crate::storage::get_index_contract_wasm;
+use crate::storage::get_index_fee_enabled;
 use crate::storage::get_token_contract_wasm;
 use crate::storage::set_index_contract_wasm;
+use crate::storage::set_index_fee_enabled;
 use crate::storage::set_is_killed_create;
 use crate::storage::set_token_contract_wasm;
 use crate::storage::{
@@ -220,6 +222,10 @@ impl AdminInterface for IndexFactory {
         get_protocol_fee_fraction(&e)
     }
 
+    fn get_index_fee_enabled(e: Env, index_address: Address) -> bool {
+        get_index_fee_enabled(&e, &index_address)
+    }
+
     fn get_max_manager_fee_fraction(e: Env) -> u32 {
         get_max_manager_fee_fraction(&e)
     }
@@ -353,6 +359,52 @@ impl AdminInterface for IndexFactory {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
         set_minimum_fee_threshold(&e, &threshold);
+    }
+
+    // set_index_fee_enabled
+    // Toggle fee collection for a specific index.
+    // Only the factory admin can call this function.
+    //
+    // Arguments:
+    //   - e: The Soroban environment.
+    //   - admin: The admin address (must be authorized).
+    //   - index_address: The address of the index contract.
+    //   - enabled: Whether to enable (true) or disable (false) fees for this index.
+    fn set_index_fee_enabled(e: Env, admin: Address, index_address: Address, enabled: bool) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+
+        let old_status = get_index_fee_enabled(&e, &index_address);
+        set_index_fee_enabled(&e, &index_address, enabled);
+
+        // Emit event if status changed
+        if old_status != enabled {
+            Events::new(&e).index_fee_toggled(index_address, enabled);
+        }
+    }
+
+    // batch_set_index_fee_enabled
+    // Toggle fee collection for multiple indexes at once.
+    // Only the factory admin can call this function.
+    //
+    // Arguments:
+    //   - e: The Soroban environment.
+    //   - admin: The admin address (must be authorized).
+    //   - index_settings: Vec of (index_address, enabled) pairs.
+    fn batch_set_index_fee_enabled(e: Env, admin: Address, index_settings: Vec<(Address, bool)>) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+
+        for setting in index_settings.iter() {
+            let (index_address, enabled) = setting;
+            let old_status = (&e, &index_address);
+            set_index_fee_enabled(&e, &index_address, enabled);
+
+            // Emit event if status changed
+            if old_status != enabled {
+                Events::new(&e).index_fee_toggled(index_address, enabled);
+            }
+        }
     }
 
     //    _______     __       ____  ____   ________  _______  ________

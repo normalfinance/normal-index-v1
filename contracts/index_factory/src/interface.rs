@@ -49,6 +49,8 @@ pub trait AdminInterface {
 
     fn get_minimum_fee_threshold(e: Env) -> u128;
 
+    fn get_index_fee_enabled(e: Env, index_address: Address) -> bool;
+
     fn get_index_contract_wasm(e: Env) -> BytesN<32>;
 
     fn get_token_contract_wasm(e: Env) -> BytesN<32>;
@@ -80,6 +82,10 @@ pub trait AdminInterface {
     fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32);
 
     fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128);
+
+    fn set_index_fee_enabled(e: Env, admin: Address, index_address: Address, enabled: bool);
+
+    fn batch_set_index_fee_enabled(e: Env, admin: Address, index_settings: Vec<(Address, bool)>);
 
     //    _______     __       ____  ____   ________  _______  ________
     //   |   __ "\   /""\     ("  _||_ " | /"       )/"     "||"      "\
