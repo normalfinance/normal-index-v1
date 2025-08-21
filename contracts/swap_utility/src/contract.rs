@@ -202,6 +202,7 @@ impl SwapUtility {
             }
         }
 
+        // FIXME: Soroswap does not have an on-chain quote method
         // Check Soroswap
         if let Some(soroswap_config) = get_provider_config(&env, DexProvider::Soroswap) {
             if soroswap_config.is_active {
