@@ -32,7 +32,7 @@ enum DataKey {
 
     ContractSequence(Address),
     // Index registry storage
-    DeployedIndexes(Address), // operator -> Vec<Address>
+    DeployedIndexes(Address), // manager -> Vec<Address>
     AllDeployedIndexes,       // global registry -> Vec<Address>
 
     // paused
@@ -80,8 +80,8 @@ generate_instance_storage_getter_and_setter_with_default!(
     false
 );
 
-pub(crate) fn get_contract_sequence(env: &Env, operator: Address) -> u32 {
-    let key = DataKey::ContractSequence(operator);
+pub(crate) fn get_contract_sequence(env: &Env, manager: Address) -> u32 {
+    let key = DataKey::ContractSequence(manager);
     match env.storage().persistent().get(&key) {
         Some(sequence) => {
             bump_persistent(env, &key);
@@ -91,25 +91,25 @@ pub(crate) fn get_contract_sequence(env: &Env, operator: Address) -> u32 {
     }
 }
 
-pub(crate) fn set_contract_sequence(env: &Env, operator: Address, sequence: u32) {
-    let key = DataKey::ContractSequence(operator);
+pub(crate) fn set_contract_sequence(env: &Env, manager: Address, sequence: u32) {
+    let key = DataKey::ContractSequence(manager);
     env.storage().persistent().set(&key, &sequence);
     bump_persistent(env, &key);
 }
 
 // Index registry functions
-pub fn add_deployed_index(env: &Env, operator: &Address, index_address: &Address) {
-    // Add to operator's list
-    let operator_key = DataKey::DeployedIndexes(operator.clone());
-    let mut operator_indexes: Vec<Address> = match env.storage().persistent().get(&operator_key) {
+pub fn add_deployed_index(env: &Env, manager: &Address, index_address: &Address) {
+    // Add to manager's list
+    let manager_key: DataKey = DataKey::DeployedIndexes(manager.clone());
+    let mut manager_indexes: Vec<Address> = match env.storage().persistent().get(&manager_key) {
         Some(indexes) => indexes,
         None => Vec::new(env),
     };
-    operator_indexes.push_back(index_address.clone());
+    manager_indexes.push_back(index_address.clone());
     env.storage()
         .persistent()
-        .set(&operator_key, &operator_indexes);
-    bump_persistent(env, &operator_key);
+        .set(&manager_key, &manager_indexes);
+    bump_persistent(env, &manager_key);
 
     // Add to global list
     let global_key = DataKey::AllDeployedIndexes;
@@ -122,8 +122,8 @@ pub fn add_deployed_index(env: &Env, operator: &Address, index_address: &Address
     bump_persistent(env, &global_key);
 }
 
-pub fn get_deployed_indexes(env: &Env, operator: &Address) -> Vec<Address> {
-    let key = DataKey::DeployedIndexes(operator.clone());
+pub fn get_deployed_indexes(env: &Env, manager: &Address) -> Vec<Address> {
+    let key = DataKey::DeployedIndexes(manager.clone());
     match env.storage().persistent().get(&key) {
         Some(indexes) => {
             bump_persistent(env, &key);

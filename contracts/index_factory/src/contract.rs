@@ -108,17 +108,7 @@ impl IndexFactoryTrait for IndexFactory {
         let sequence = get_contract_sequence(&e, params.admin.clone());
         set_contract_sequence(&e, params.admin.clone(), sequence + 1);
 
-        let salt = get_index_salt(
-            &e,
-            params.public.clone(),
-            &params.admin,
-            params.token_symbol.clone(),
-        );
-
-        // Old salt method - sequence is still used
-        // let mut salt = Bytes::new(&e);
-        // salt.append(&operator.clone().to_xdr(&e));
-        // salt.append(&sequence.to_xdr(&e));
+        let salt = get_index_salt(&e, &params.admin, &sequence);
 
         let address = e.deployer().with_current_contract(salt).deploy_v2(
             get_index_contract_wasm(&e),
