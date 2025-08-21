@@ -149,42 +149,42 @@ impl IndexFactoryTrait for IndexFactory {
         address
     }
 
-    fn swap(
-        e: Env,
-        token_in: Address,
-        token_out: Address,
-        amount_in: i128,
-        amount_out_min: i128,
-        distribution: Vec<DexDistribution>,
-        to: Address,
-        deadline: u64,
-    ) -> Vec<Vec<i128>> {
-        // Auto-derive fee status from centralized factory toggle
-        // Use the 'to' address as the calling contract (index contract address)
-        // Defaults to enabled for non-index callers (safe fallback)
-        let fee_enabled = get_index_fee_enabled(&e, &to);
+    // fn swap(
+    //     e: Env,
+    //     token_in: Address,
+    //     token_out: Address,
+    //     amount_in: i128,
+    //     amount_out_min: i128,
+    //     distribution: Vec<DexDistribution>,
+    //     to: Address,
+    //     deadline: u64,
+    // ) -> Vec<Vec<i128>> {
+    //     // Auto-derive fee status from centralized factory toggle
+    //     // Use the 'to' address as the calling contract (index contract address)
+    //     // Defaults to enabled for non-index callers (safe fallback)
+    //     let fee_enabled = get_index_fee_enabled(&e, &to);
 
-        let result: Vec<Vec<i128>> = e.invoke_contract(
-            &get_aggregator(&e),
-            &symbol_short!("swap_exct"),
-            Vec::from_array(
-                &e,
-                [
-                    e.current_contract_address().into_val(&e),
-                    token_in.into_val(&e),
-                    token_out.into_val(&e),
-                    amount_in.into_val(&e),
-                    amount_out_min.into_val(&e),
-                    distribution.into_val(&e),
-                    to.into_val(&e),
-                    deadline.into_val(&e),
-                    fee_enabled.into_val(&e),
-                ],
-            ),
-        );
+    //     let result: Vec<Vec<i128>> = e.invoke_contract(
+    //         &get_aggregator(&e),
+    //         &symbol_short!("swap_exct"),
+    //         Vec::from_array(
+    //             &e,
+    //             [
+    //                 e.current_contract_address().into_val(&e),
+    //                 token_in.into_val(&e),
+    //                 token_out.into_val(&e),
+    //                 amount_in.into_val(&e),
+    //                 amount_out_min.into_val(&e),
+    //                 distribution.into_val(&e),
+    //                 to.into_val(&e),
+    //                 deadline.into_val(&e),
+    //                 fee_enabled.into_val(&e),
+    //             ],
+    //         ),
+    //     );
 
-        result
-    }
+    //     result
+    // }
 }
 
 impl AdminInterface for IndexFactory {

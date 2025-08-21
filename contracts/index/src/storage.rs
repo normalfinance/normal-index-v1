@@ -14,6 +14,8 @@ use utils::{
 #[contracttype]
 enum DataKey {
     Factory,
+    SwapUtility, // Address of the SwapUtility contract for cross-contract swaps
+    TokenIndex, //
 
     BaseNAV, // The Net Asset Value (NAV) at the inception of the index - what the creator deposits (e.g. $1,000)
     InitialPrice, // The price assigned to the index at inception (e.g. $100)
@@ -61,6 +63,12 @@ enum DataKey {
 generate_instance_storage_getter_and_setter_with_default!(
     factory,
     DataKey::Factory,
+    Address,
+    Address::from_str(&Env::default(), "")
+);
+generate_instance_storage_getter_and_setter_with_default!(
+    swap_utility,
+    DataKey::SwapUtility,
     Address,
     Address::from_str(&Env::default(), "")
 );
