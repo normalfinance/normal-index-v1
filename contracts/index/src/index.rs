@@ -13,6 +13,7 @@ pub struct SwapUtilityParams {
     pub to: Address,
     pub deadline: u64,
     pub provider: Option<String>, // DexProvider as string
+    pub fee_enabled: bool, // Fee toggle from index contract
 }
 
 #[derive(Clone)]
@@ -25,6 +26,7 @@ pub struct SwapResult {
 
 use crate::errors::IndexError;
 use crate::events::{Events, IndexEvents};
+use crate::fees::get_fee_enabled_from_factory;
 use crate::storage::{
     get_all_components, get_component_balance, get_factory, get_index_vault_amount, get_swap_utility,
 };
@@ -97,6 +99,9 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
     for i in 0..swaps.len() {
         let params = swaps.get(i).unwrap();
 
+        // Get fee enabled status from factory contract
+        let fee_enabled = get_fee_enabled_from_factory(e);
+
         // Map local SwapParams to SwapUtilityParams for the external contract
         let utility_params = SwapUtilityParams {
             token_in: params.token_in.clone(),
@@ -106,6 +111,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
             to: params.to.clone(),
             deadline: params.deadline,
             provider: None, // Use default provider from SwapUtility
+            fee_enabled, // Pass the fee toggle to SwapUtility
         };
 
         // Execute individual swap via cross-contract call to swap utility
