@@ -159,6 +159,11 @@ impl IndexFactoryTrait for IndexFactory {
         to: Address,
         deadline: u64,
     ) -> Vec<Vec<i128>> {
+        // Auto-derive fee status from centralized factory toggle
+        // Use the 'to' address as the calling contract (index contract address)
+        // Defaults to enabled for non-index callers (safe fallback)
+        let fee_enabled = get_index_fee_enabled(&e, &to);
+
         let result: Vec<Vec<i128>> = e.invoke_contract(
             &get_aggregator(&e),
             &symbol_short!("swap_exct"),
@@ -173,6 +178,7 @@ impl IndexFactoryTrait for IndexFactory {
                     distribution.into_val(&e),
                     to.into_val(&e),
                     deadline.into_val(&e),
+                    fee_enabled.into_val(&e),
                 ],
             ),
         );
@@ -397,7 +403,7 @@ impl AdminInterface for IndexFactory {
 
         for setting in index_settings.iter() {
             let (index_address, enabled) = setting;
-            let old_status = (&e, &index_address);
+            let old_status = get_index_fee_enabled(&e, &index_address);
             set_index_fee_enabled(&e, &index_address, enabled);
 
             // Emit event if status changed
