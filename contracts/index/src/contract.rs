@@ -176,7 +176,9 @@ impl IndexTrait for Index {
         // Fee collection now handled at token level during mint_shares() call
 
         // Generate swap parameters for component allocation
-        let swap_params = generate_swap_params(&e, token.clone(), amount_after_fees as i128);
+        // TODO: finish this
+        let amount_after_fees = amount;
+        let swap_params = generate_swap_params(&e, token.clone(), amount_after_fees);
 
         // Deposit the token first
         transfer_token(
