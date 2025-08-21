@@ -21,9 +21,9 @@ pub trait SwapProvider {
         env: &Env,
         token_in: &Address,
         token_out: &Address,
-        amount_in: i128,
+        amount_in: u128,
         config: &ProviderConfig,
-    ) -> Result<i128, SwapError> {
+    ) -> Result<u128, SwapError> {
         // Default implementation returns the input amount (1:1 ratio)
         // Providers can override this for better estimation
         Ok(amount_in)

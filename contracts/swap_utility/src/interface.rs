@@ -16,8 +16,8 @@ pub struct SwapParams {
     pub provider: Option<DexProvider>,
     pub token_in: Address,
     pub token_out: Address,
-    pub amount_in: i128,
-    pub amount_out_min: i128,
+    pub amount_in: u128,
+    pub amount_out_min: u128,
     pub to: Address,
 }
 
@@ -38,8 +38,8 @@ impl Default for DexProvider {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SwapResult {
     pub provider_used: DexProvider,
-    pub amount_in: i128,
-    pub amount_out: i128,
+    pub amount_in: u128,
+    pub amount_out: u128,
     pub success: bool,
 }
 

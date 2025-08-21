@@ -177,12 +177,12 @@ impl SwapUtility {
         env: Env,
         token_in: Address,
         token_out: Address,
-        amount_in: i128,
-    ) -> Result<(DexProvider, i128), SwapError> {
+        amount_in: u128,
+    ) -> Result<(DexProvider, u128), SwapError> {
         require_initialized(&env);
 
         let mut best_provider = DexProvider::Normal;
-        let mut best_amount = 0i128;
+        let mut best_amount = 0u128;
 
         // Check Normal DEX
         if let Some(normal_config) = get_provider_config(&env, DexProvider::Normal) {

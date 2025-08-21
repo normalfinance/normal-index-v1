@@ -12,8 +12,8 @@ pub(crate) trait SwapEvents {
         provider: DexProvider,
         token_in: Address,
         token_out: Address,
-        amount_in: i128,
-        amount_out: i128,
+        amount_in: u128,
+        amount_out: u128,
         user: Address,
     );
 
@@ -22,7 +22,7 @@ pub(crate) trait SwapEvents {
         provider: DexProvider,
         token_in: Address,
         token_out: Address,
-        amount_in: i128,
+        amount_in: u128,
         error_code: u32,
     );
 
@@ -45,8 +45,8 @@ impl SwapEvents for Events {
         provider: DexProvider,
         token_in: Address,
         token_out: Address,
-        amount_in: i128,
-        amount_out: i128,
+        amount_in: u128,
+        amount_out: u128,
         user: Address,
     ) {
         let topics = (SWAP_EXECUTED, provider, token_in, token_out);
@@ -59,7 +59,7 @@ impl SwapEvents for Events {
         provider: DexProvider,
         token_in: Address,
         token_out: Address,
-        amount_in: i128,
+        amount_in: u128,
         error_code: u32,
     ) {
         let topics = (SWAP_FAILED, provider, token_in, token_out);

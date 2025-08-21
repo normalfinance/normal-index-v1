@@ -49,7 +49,7 @@ impl SwapProvider for SoroswapProvider {
             Ok(amounts) => {
                 // Soroswap returns a vector of amounts for each step in the path
                 // For a simple two-token swap, the output amount is the last element
-                let amount_out = amounts.last().unwrap_or(0);
+                let amount_out = amounts.last().unwrap_or(0) as u128;
 
                 Ok(SwapResult {
                     provider_used: DexProvider::Soroswap,
@@ -85,9 +85,9 @@ impl SwapProvider for SoroswapProvider {
         env: &Env,
         token_in: &Address,
         token_out: &Address,
-        amount_in: i128,
+        amount_in: u128,
         config: &ProviderConfig,
-    ) -> Result<i128, SwapError> {
+    ) -> Result<u128, SwapError> {
         if !config.is_active {
             return Err(SwapError::ProviderNotConfigured);
         }
@@ -104,7 +104,7 @@ impl SwapProvider for SoroswapProvider {
 
         match quote_result {
             Ok(amounts) => {
-                let estimated_amount = amounts.last().unwrap_or(0);
+                let estimated_amount = amounts.last().unwrap_or(0) as u128;
                 Ok(estimated_amount)
             }
             Err(_) => {

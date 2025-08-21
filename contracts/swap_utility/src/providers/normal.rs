@@ -87,9 +87,9 @@ impl SwapProvider for NormalProvider {
         env: &Env,
         token_in: &Address,
         token_out: &Address,
-        amount_in: i128,
+        amount_in: u128,
         config: &ProviderConfig,
-    ) -> Result<i128, SwapError> {
+    ) -> Result<u128, SwapError> {
         if !config.is_active {
             return Err(SwapError::ProviderNotConfigured);
         }
