@@ -7,6 +7,7 @@ mod fees;
 mod index;
 mod interface;
 mod storage;
+pub mod token;
 // mod test;
 // mod test_math;
 // mod test_permissions;

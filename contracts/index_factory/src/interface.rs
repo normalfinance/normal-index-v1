@@ -1,4 +1,5 @@
 use soroban_sdk::{Address, BytesN, Env, Vec};
+use utils::storage::IndexParams;
 
 use crate::{contract::FactoryConfig, storage::DexDistribution};
 
@@ -11,12 +12,7 @@ pub trait IndexFactoryTrait {
     // |.  \    /:  | /   /  \\  \  /\  |\|    \    \ |
     // |___|\__/|___|(___/    \___)(__\_|_)\___|\____\)
 
-    fn deploy_index_contract(
-        e: Env,
-        operator: Address,
-        fee_destination: Address,
-        max_max_swap_fee_fraction: u32,
-    ) -> Address;
+    fn deploy_index_contract(e: Env, params: IndexParams) -> Address;
 
     fn swap(
         e: Env,
@@ -55,6 +51,8 @@ pub trait AdminInterface {
 
     fn get_index_contract_wasm(e: Env) -> BytesN<32>;
 
+    fn get_token_contract_wasm(e: Env) -> BytesN<32>;
+
     fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address>;
 
     fn get_all_deployed_indexes(e: Env) -> Vec<Address>;
@@ -72,6 +70,8 @@ pub trait AdminInterface {
     // (_______/  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
 
     fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>);
+
+    fn set_token_contract_wasm(e: Env, admin: Address, token_contract_wasm: BytesN<32>);
 
     fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32);
 
