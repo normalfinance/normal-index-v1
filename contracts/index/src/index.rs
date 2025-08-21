@@ -48,7 +48,7 @@ impl Default for DexProvider {
 pub fn generate_swap_params(
     e: &Env,
     deposit_token: Address,
-    deposit_amount: i128,
+    deposit_amount: u128,
 ) -> Vec<SwapParams> {
     // Validate inputs
     validate!(e, deposit_amount > 0, IndexError::PathIsEmpty);
@@ -61,7 +61,7 @@ pub fn generate_swap_params(
         return swaps;
     }
 
-    let total_deposit = deposit_amount as u128;
+    let total_deposit = deposit_amount;
 
     for (component_address, component) in components.iter() {
         // Calculate target allocation based on component weight
