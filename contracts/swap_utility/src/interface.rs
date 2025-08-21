@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Env, String, Vec};
+use soroban_sdk::{contracttype, Address, Env, String, Symbol, Vec};
 
 use crate::errors::SwapError;
 
@@ -11,6 +11,19 @@ pub struct DexDistribution {
 }
 
 #[contracttype]
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum SwapDirection {
+    Buy,
+    Sell,
+}
+
+impl Default for SwapDirection {
+    fn default() -> Self {
+        Self::Buy
+    }
+}
+
+#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SwapParams {
     pub provider: Option<DexProvider>,
@@ -19,6 +32,9 @@ pub struct SwapParams {
     pub amount_in: u128,
     pub amount_out_min: u128,
     pub to: Address,
+    // normal
+    pub asset: Symbol,
+    pub direction: SwapDirection,
 }
 
 #[contracttype]
