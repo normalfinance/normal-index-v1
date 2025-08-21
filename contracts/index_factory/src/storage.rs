@@ -31,6 +31,9 @@ enum DataKey {
     // Index registry storage
     DeployedIndexes(Address), // operator -> Vec<Address>
     AllDeployedIndexes,       // global registry -> Vec<Address>
+    
+    // Fee control per index
+    IndexFeeEnabled(Address), // index_address -> bool (fee enabled status)
 
     // paused
     IsKilledCreate,
@@ -134,4 +137,25 @@ pub fn get_all_deployed_indexes(env: &Env) -> Vec<Address> {
         }
         None => Vec::new(env),
     }
+}
+
+// Index fee control functions
+/// Gets fee enabled status for a specific index
+/// Returns true if fees are enabled, defaults to true for new indexes
+pub fn get_index_fee_enabled(env: &Env, index_address: &Address) -> bool {
+    let key = DataKey::IndexFeeEnabled(index_address.clone());
+    match env.storage().persistent().get::<DataKey, bool>(&key) {
+        Some(enabled) => {
+            bump_persistent(env, &key);
+            enabled
+        }
+        None => true, // Default to enabled for new indexes
+    }
+}
+
+/// Sets fee enabled status for a specific index
+pub fn set_index_fee_enabled(env: &Env, index_address: &Address, enabled: bool) {
+    let key = DataKey::IndexFeeEnabled(index_address.clone());
+    env.storage().persistent().set(&key, &enabled);
+    bump_persistent(env, &key);
 }

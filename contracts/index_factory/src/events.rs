@@ -27,6 +27,7 @@ pub(crate) trait FactoryEvents {
 
 pub(crate) trait FactoryConfigEvents {
     fn set_wasm(&self, new_wasm: BytesN<32>);
+    fn index_fee_toggled(&self, index_address: Address, enabled: bool);
 }
 
 impl FactoryEvents for Events {
@@ -49,5 +50,12 @@ impl FactoryConfigEvents for Events {
         self.env()
             .events()
             .publish((Symbol::new(self.env(), "set_wasm"),), (new_wasm,));
+    }
+
+    fn index_fee_toggled(&self, index_address: Address, enabled: bool) {
+        self.env().events().publish(
+            (Symbol::new(self.env(), "index_fee_toggled"),),
+            (index_address, enabled),
+        );
     }
 }

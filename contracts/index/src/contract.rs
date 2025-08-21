@@ -29,9 +29,9 @@ use crate::storage::set_rebalance_authority_status;
 use crate::storage::set_total_mints;
 use crate::storage::update_component_weight;
 use crate::storage::{
-    get_accumulated_manager_fees, get_accumulated_protocol_fees, get_fee_collection_enabled,
+    get_accumulated_manager_fees, get_accumulated_protocol_fees,
     get_manager_address, get_manager_fee_fraction, get_protocol_fee_recipient, get_total_fees,
-    set_accumulated_manager_fees, set_accumulated_protocol_fees, set_fee_collection_enabled,
+    set_accumulated_manager_fees, set_accumulated_protocol_fees,
     set_last_fee_collection, set_manager_address, set_protocol_fee_recipient, set_total_fees,
 };
 use crate::storage::{
@@ -310,10 +310,6 @@ impl IndexTrait for Index {
 
     fn get_manager_fee_fraction(e: Env) -> u32 {
         crate::storage::get_manager_fee_fraction(&e)
-    }
-
-    fn get_fee_collection_enabled(e: Env) -> bool {
-        crate::storage::get_fee_collection_enabled(&e)
     }
 
     fn get_rebalance_threshold(e: Env) -> u64 {
@@ -804,20 +800,6 @@ impl AdminInterface for Index {
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
         crate::storage::set_manager_fee_fraction(&e, &fee_fraction);
-    }
-
-    fn set_fee_collection_enabled(e: Env, admin: Address, enabled: bool) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        let old_status = get_fee_collection_enabled(&e);
-        set_fee_collection_enabled(&e, &enabled);
-
-        // Emit event if status changed
-        if old_status != enabled {
-            Events::new(&e).fee_collection_toggled(enabled);
-        }
     }
 
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64) {
