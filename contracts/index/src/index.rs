@@ -7,13 +7,14 @@ use utils::validate;
 #[derive(Clone)]
 #[contracttype]
 pub struct SwapUtilityParams {
+    pub provider: Option<String>, // DexProvider as string
     pub token_in: Address,
     pub token_out: Address,
     pub amount_in: i128,
     pub amount_out_min: i128,
     pub to: Address,
-    pub deadline: u64,
-    pub provider: Option<String>, // DexProvider as string
+    pub asset: Symbol,
+    pub direction: SwapDirection,
     pub fee_enabled: bool,        // Fee toggle from index contract
 }
 
@@ -33,6 +34,19 @@ pub struct SwapParams {
 }
 
 #[contracttype]
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum SwapDirection {
+    Buy,
+    Sell,
+}
+
+impl Default for SwapDirection {
+    fn default() -> Self {
+        Self::Buy
+    }
+}
+
+#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DexProvider {
     Normal,
@@ -44,6 +58,7 @@ impl Default for DexProvider {
         Self::Normal
     }
 }
+
 
 pub fn generate_swap_params(
     e: &Env,
@@ -79,6 +94,7 @@ pub fn generate_swap_params(
             let min_output = (target_allocation as i128 * 95) / 100;
             validate!(e, min_output > 0, IndexError::PathIsEmpty);
 
+            //Revisit this param generation here
             let swap = SwapParams {
                 provider: None, // Use default provider
                 token_in: deposit_token.clone(),
@@ -86,6 +102,8 @@ pub fn generate_swap_params(
                 amount_in: target_allocation as i128,
                 amount_out_min: min_output,
                 to: e.current_contract_address(),
+                asset: component.symbol.clone(),
+                direction: SwapDirection::Buy,
             };
 
             swaps.push_back(swap);
@@ -109,13 +127,14 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<i128> {
 
         // Map local SwapParams to SwapUtilityParams for the external contract
         let utility_params = SwapUtilityParams {
+            provider: None, // Let the SwapUtility contract decide which provider to use
             token_in: params.token_in.clone(),
             token_out: params.token_out.clone(),
             amount_in: params.amount_in,
             amount_out_min: params.amount_out_min,
             to: params.to.clone(),
-            deadline: params.deadline,
-            provider: None, // Use default provider from SwapUtility
+            asset: params.asset.clone(),
+            direction: params.direction.clone(),
             fee_enabled,    // Pass the fee toggle to SwapUtility
         };
 

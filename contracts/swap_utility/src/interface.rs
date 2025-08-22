@@ -32,9 +32,9 @@ pub struct SwapParams {
     pub amount_in: u128,
     pub amount_out_min: u128,
     pub to: Address,
-    // normal
     pub asset: Symbol,
     pub direction: SwapDirection,
+    pub fee_enabled: bool,  
 }
 
 #[contracttype]
