@@ -3,9 +3,32 @@ use soroban_sdk::{contracttype, panic_with_error, Address, Env, IntoVal, String,
 use token_share::get_token_share;
 use utils::{constant::FIVE_MINUTE, math::safe_math::SafeMath, validate};
 
+// Types to match the SwapUtility contract
+#[derive(Clone)]
+#[contracttype]
+pub struct SwapUtilityParams {
+    pub token_in: Address,
+    pub token_out: Address,
+    pub amount_in: i128,
+    pub amount_out_min: i128,
+    pub to: Address,
+    pub deadline: u64,
+    pub provider: Option<String>, // DexProvider as string
+    pub fee_enabled: bool,        // Fee toggle from index contract
+}
+
+#[derive(Clone)]
+#[contracttype]
+pub struct SwapResult {
+    pub amount_in: i128,
+    pub amount_out: i128,
+    pub provider_used: String,
+}
+
 use crate::errors::IndexError;
 use crate::events::{Events, IndexEvents};
-use crate::storage::{get_all_components, get_factory};
+use crate::fees::get_fee_enabled_from_factory;
+use crate::storage::{get_all_components, get_swap_utility};
 
 #[derive(Clone)]
 #[contracttype]
@@ -61,7 +84,7 @@ pub fn generate_swap_params(e: &Env, now: u64) -> Vec<SwapParams> {
         amount_out_min: 0,
         distribution,
         to: e.current_contract_address(),
-        deadline: now + FIVE_MINUTE as u64,
+        deadline: now + (FIVE_MINUTE as u64),
     };
 
     swaps.push_back(swap);
@@ -75,33 +98,71 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
     for i in 0..swaps.len() {
         let params = swaps.get(i).unwrap();
 
-        // Simplified swap execution - placeholder implementation
-        let swap_result: Vec<Vec<i128>> = e.invoke_contract(
-            &get_factory(&e),
-            &Symbol::new(&e, "swap"),
-            Vec::from_array(
-                &e,
-                [
-                    e.current_contract_address().into_val(e),
-                    params.token_in.into_val(e),
-                    params.token_out.into_val(e),
-                ],
-            ),
+        // Get fee enabled status from factory contract
+        let fee_enabled = get_fee_enabled_from_factory(e);
+
+        // Map local SwapParams to SwapUtilityParams for the external contract
+        let utility_params = SwapUtilityParams {
+            token_in: params.token_in.clone(),
+            token_out: params.token_out.clone(),
+            amount_in: params.amount_in,
+            amount_out_min: params.amount_out_min,
+            to: params.to.clone(),
+            deadline: params.deadline,
+            provider: None, // Use default provider from SwapUtility
+            fee_enabled,    // Pass the fee toggle to SwapUtility
+        };
+
+        // Execute individual swap via cross-contract call to swap utility
+        let swap_result: Result<Result<SwapResult, u32>, u32> = e.try_invoke_contract(
+            &get_swap_utility(&e),
+            &Symbol::new(&e, "execute_swap"),
+            Vec::from_array(&e, [utility_params.into_val(e)]),
         );
 
-        // Placeholder event emission
-        Events::new(&e).swap(
-            Vec::new(&e),
-            e.current_contract_address(),
-            Symbol::new(&e, "pool"),
-            params.token_in,
-            params.token_out,
-            params.amount_in,
-            0i128,
-        );
+        match swap_result {
+            Ok(Ok(swap_result)) => {
+                // Successful swap - SwapResult from utility contract
+                Events::new(&e).swap(
+                    Vec::new(&e),
+                    e.current_contract_address(),
+                    Symbol::from_str(&e, &swap_result.provider_used),
+                    params.token_in,
+                    params.token_out,
+                    swap_result.amount_in,
+                    swap_result.amount_out,
+                );
 
-        // Add result to results vector
-        results.push_back(0u128); // Placeholder result
+                // Add successful result
+                results.push_back(swap_result.amount_out as u128);
+            }
+            Ok(Err(swap_error)) => {
+                // Swap failed but call succeeded - emit failure event
+                Events::new(&e).swap_failed(
+                    e.current_contract_address(),
+                    params.token_in,
+                    params.token_out,
+                    params.amount_in,
+                    swap_error,
+                );
+
+                // Add zero result for failed swap
+                results.push_back(0u128);
+            }
+            Err(contract_error) => {
+                // Contract call failed - emit failure event with generic error
+                Events::new(&e).swap_failed(
+                    e.current_contract_address(),
+                    params.token_in,
+                    params.token_out,
+                    params.amount_in,
+                    contract_error,
+                );
+
+                // Add zero result for failed swap
+                results.push_back(0u128);
+            }
+        }
     }
 
     results
@@ -148,7 +209,7 @@ pub fn generate_rebalance_swaps(
             crate::interface::ComponentAction::Add => {
                 // Calculate target balance for new component
                 let target_balance = if target_nav > 0 {
-                    (target_nav * update.new_weight as u128) / 10000
+                    (target_nav * (update.new_weight as u128)) / 10000
                 } else {
                     0
                 };
@@ -163,7 +224,7 @@ pub fn generate_rebalance_swaps(
             crate::interface::ComponentAction::UpdateWeight => {
                 // Calculate new target balance based on updated weight
                 let target_balance = if target_nav > 0 {
-                    (target_nav * update.new_weight as u128) / 10000
+                    (target_nav * (update.new_weight as u128)) / 10000
                 } else {
                     0
                 };
@@ -200,10 +261,10 @@ fn create_buy_swap(e: &Env, token_out: Address, amount_needed: u128) -> SwapPara
         token_in: base_token,
         token_out,
         amount_in: amount_needed as i128, // Simplified 1:1 ratio
-        amount_out_min: (amount_needed as i128 * 95) / 100, // 5% slippage tolerance
+        amount_out_min: ((amount_needed as i128) * 95) / 100, // 5% slippage tolerance
         distribution: get_default_distribution(e),
         to: e.current_contract_address(),
-        deadline: e.ledger().timestamp() + utils::constant::FIVE_MINUTE as u64,
+        deadline: e.ledger().timestamp() + (utils::constant::FIVE_MINUTE as u64),
     }
 }
 
@@ -214,10 +275,10 @@ fn create_sell_swap(e: &Env, token_in: Address, amount_to_sell: u128) -> SwapPar
         token_in,
         token_out: base_token,
         amount_in: amount_to_sell as i128,
-        amount_out_min: (amount_to_sell as i128 * 95) / 100, // 5% slippage tolerance
+        amount_out_min: ((amount_to_sell as i128) * 95) / 100, // 5% slippage tolerance
         distribution: get_default_distribution(e),
         to: e.current_contract_address(),
-        deadline: e.ledger().timestamp() + utils::constant::FIVE_MINUTE as u64,
+        deadline: e.ledger().timestamp() + (utils::constant::FIVE_MINUTE as u64),
     }
 }
 

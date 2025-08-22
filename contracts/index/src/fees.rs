@@ -4,11 +4,10 @@
 use crate::events::{Events, IndexEvents};
 use crate::storage::{
     get_accumulated_manager_fees, get_accumulated_protocol_fees, get_factory_safe,
-    get_fee_collection_enabled, get_manager_fee_fraction, get_total_fees,
-    set_accumulated_manager_fees, set_accumulated_protocol_fees, set_last_fee_collection,
-    set_total_fees,
+    get_manager_fee_fraction, get_total_fees, set_accumulated_manager_fees,
+    set_accumulated_protocol_fees, set_last_fee_collection, set_total_fees,
 };
-use soroban_sdk::{contracttype, Address, Env, Symbol, Vec};
+use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, Vec};
 use utils::bump::bump_persistent;
 
 /// Get protocol fee fraction from Factory contract
@@ -25,6 +24,22 @@ pub fn get_protocol_fee_fraction_from_factory(e: &Env) -> u32 {
             )
         }
         None => 0, // Return 0 if factory not set
+    }
+}
+
+/// Get fee enabled status from Factory contract
+/// Returns true if fees are enabled, defaults to true if factory not available (backwards compatibility)
+pub fn get_fee_enabled_from_factory(e: &Env) -> bool {
+    match get_factory_safe(e) {
+        Some(factory_address) => {
+            // Call Factory's get_index_fee_enabled() function
+            e.invoke_contract::<bool>(
+                &factory_address,
+                &Symbol::new(e, "get_index_fee_enabled"),
+                Vec::from_array(e, [e.current_contract_address().into_val(e)]),
+            )
+        }
+        None => true, // Default to enabled if factory not available (backwards compatibility)
     }
 }
 
@@ -103,8 +118,8 @@ pub fn calculate_accrued_fees(
     last_update_timestamp: u64,
     current_timestamp: u64,
 ) -> (u128, u128) {
-    // Early return if fee collection is disabled for this index
-    if !get_fee_collection_enabled(e) {
+    // Early return if fee collection is disabled for this index (query factory)
+    if !get_fee_enabled_from_factory(e) {
         return (0, 0);
     }
 
@@ -123,7 +138,7 @@ pub fn calculate_accrued_fees(
     // Calculate manager fee separately
     let manager_fee = if manager_fee_rate_bps > 0 {
         (user_balance_u128 * manager_fee_rate_bps * time_elapsed_u128)
-            / (10_000 * SECONDS_PER_YEAR as u128)
+            / (10_000 * (SECONDS_PER_YEAR as u128))
     } else {
         0
     };
@@ -131,7 +146,7 @@ pub fn calculate_accrued_fees(
     // Calculate protocol fee separately
     let protocol_fee = if protocol_fee_rate_bps > 0 {
         (user_balance_u128 * protocol_fee_rate_bps * time_elapsed_u128)
-            / (10_000 * SECONDS_PER_YEAR as u128)
+            / (10_000 * (SECONDS_PER_YEAR as u128))
     } else {
         0
     };

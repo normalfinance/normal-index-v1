@@ -14,6 +14,8 @@ use utils::{
 #[contracttype]
 enum DataKey {
     Factory,
+    SwapUtility, // Address of the SwapUtility contract for cross-contract swaps
+    TokenIndex,  //
 
     BaseNAV, // The Net Asset Value (NAV) at the inception of the index - what the creator deposits (e.g. $1,000)
     InitialPrice, // The price assigned to the index at inception (e.g. $100)
@@ -31,7 +33,6 @@ enum DataKey {
     AccumulatedManagerFees,  // Total manager fees accumulated but not yet distributed
     AccumulatedProtocolFees, // Total protocol fees accumulated but not yet distributed
     LastFeeCollection,       // Timestamp of last fee collection
-    FeeCollectionEnabled,    // Boolean toggle to enable/disable fee collection for this index
 
     Whitelist(Address), // List of accounts explicitly allowed to mint the index
     Blacklist(Address), // List of accounts blocked from minting the index
@@ -62,6 +63,12 @@ enum DataKey {
 generate_instance_storage_getter_and_setter_with_default!(
     factory,
     DataKey::Factory,
+    Address,
+    Address::from_str(&Env::default(), "")
+);
+generate_instance_storage_getter_and_setter_with_default!(
+    swap_utility,
+    DataKey::SwapUtility,
     Address,
     Address::from_str(&Env::default(), "")
 );
@@ -113,12 +120,6 @@ generate_instance_storage_getter_and_setter_with_default!(
     DataKey::LastFeeCollection,
     u64,
     0
-);
-generate_instance_storage_getter_and_setter_with_default!(
-    fee_collection_enabled,
-    DataKey::FeeCollectionEnabled,
-    bool,
-    true
 );
 
 generate_instance_storage_getter_and_setter_with_default!(public, DataKey::Public, bool, false);

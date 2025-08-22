@@ -81,6 +81,15 @@ pub(crate) trait IndexEvents {
         amount_out: i128,
     );
 
+    fn swap_failed(
+        &self,
+        user: Address,
+        token_in: Address,
+        token_out: Address,
+        amount_in: i128,
+        error_code: u32,
+    );
+
     fn kill_deposit(&self);
 
     fn unkill_deposit(&self);
@@ -807,6 +816,27 @@ impl IndexEvents for Events {
         );
     }
 
+    fn swap_failed(
+        &self,
+        user: Address,
+        token_in: Address,
+        token_out: Address,
+        amount_in: i128,
+        error_code: u32,
+    ) {
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "swap_failed"),
+                user,
+                token_in,
+                token_out,
+                amount_in,
+                error_code,
+            ),
+            (),
+        );
+    }
+
     fn kill_deposit(&self) {
         self.env()
             .events()
@@ -909,13 +939,6 @@ impl IndexEvents for Events {
                 old_recipient,
                 new_recipient,
             ),
-            (),
-        )
-    }
-
-    fn fee_collection_toggled(&self, enabled: bool) {
-        self.env().events().publish(
-            (Symbol::new(self.env(), "fee_collection_toggled"), enabled),
             (),
         )
     }

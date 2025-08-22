@@ -1,7 +1,7 @@
 use soroban_sdk::{Address, BytesN, Env, Vec};
 use utils::storage::IndexParams;
 
-use crate::{contract::FactoryConfig, storage::DexDistribution};
+use crate::contract::FactoryConfig;
 
 pub trait IndexFactoryTrait {
     //  ___      ___       __        __    _____  ___
@@ -12,18 +12,12 @@ pub trait IndexFactoryTrait {
     // |.  \    /:  | /   /  \\  \  /\  |\|    \    \ |
     // |___|\__/|___|(___/    \___)(__\_|_)\___|\____\)
 
-    fn deploy_index_contract(e: Env, params: IndexParams) -> Address;
-
-    fn swap(
+    fn deploy_index_contract(
         e: Env,
-        token_in: Address,
-        token_out: Address,
-        amount_in: i128,
-        amount_out_min: i128,
-        distribution: Vec<DexDistribution>,
-        to: Address,
-        deadline: u64,
-    ) -> Vec<Vec<i128>>;
+        operator: Address,
+        fee_destination: Address,
+        max_max_swap_fee_fraction: u32,
+    ) -> Address;
 }
 
 pub trait AdminInterface {
@@ -48,6 +42,8 @@ pub trait AdminInterface {
     fn get_max_manager_fee_fraction(e: Env) -> u32;
 
     fn get_minimum_fee_threshold(e: Env) -> u128;
+
+    fn get_index_fee_enabled(e: Env, index_address: Address) -> bool;
 
     fn get_index_contract_wasm(e: Env) -> BytesN<32>;
 
@@ -80,6 +76,10 @@ pub trait AdminInterface {
     fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32);
 
     fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128);
+
+    fn set_index_fee_enabled(e: Env, admin: Address, index_address: Address, enabled: bool);
+
+    fn batch_set_index_fee_enabled(e: Env, admin: Address, index_settings: Vec<(Address, bool)>);
 
     //    _______     __       ____  ____   ________  _______  ________
     //   |   __ "\   /""\     ("  _||_ " | /"       )/"     "||"      "\
