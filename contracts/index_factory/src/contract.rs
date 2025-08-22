@@ -416,7 +416,7 @@ impl UpgradeableContract for IndexFactory {
     // Returns:
     //   - A u32 representing the version.
     fn version() -> u32 {
-        150
+        100
     }
 
     // commit_upgrade
