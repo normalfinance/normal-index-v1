@@ -113,8 +113,8 @@ pub fn generate_swap_params(
     swaps
 }
 
-pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<i128> {
-    let mut results: Vec<i128> = Vec::new(e);
+pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
+    let mut results: Vec<u128> = Vec::new(e);
 
     // Get swap utility contract address
     let swap_utility_address = get_swap_utility_address(e);
@@ -151,7 +151,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<i128> {
                 Events::new(&e).swap(
                     Vec::new(&e),
                     e.current_contract_address(),
-                    Symbol::from_str(&e, &swap_result.provider_used),
+                    swap_result.provider_used,
                     params.token_in,
                     params.token_out,
                     swap_result.amount_in,
@@ -167,7 +167,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<i128> {
                     e.current_contract_address(),
                     params.token_in,
                     params.token_out,
-                    params.amount_in,
+                    params.amount_in.try_into().unwrap(),
                     swap_error,
                 );
 
@@ -180,7 +180,8 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<i128> {
                     e.current_contract_address(),
                     params.token_in,
                     params.token_out,
-                    params.amount_in,
+                    params.amount_in.try_into().unwrap(),
+
                     contract_error,
                 );
 
@@ -197,8 +198,8 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<i128> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SwapResult {
     pub provider_used: DexProvider,
-    pub amount_in: i128,
-    pub amount_out: i128,
+    pub amount_in: u128,
+    pub amount_out: u128,
     pub success: bool,
 }
 

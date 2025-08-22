@@ -1,5 +1,6 @@
 use crate::storage::Component;
 use soroban_sdk::{Address, Env, Map, Symbol, Vec};
+use crate::index::DexProvider;
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -74,11 +75,11 @@ pub(crate) trait IndexEvents {
         &self,
         tokens: Vec<Address>,
         user: Address,
-        pool_id: Symbol,
+        provider: DexProvider,
         token_in: Address,
         token_out: Address,
-        amount_in: i128,
-        amount_out: i128,
+        amount_in: u128,
+        amount_out: u128,
     );
 
     fn swap_failed(
@@ -86,7 +87,7 @@ pub(crate) trait IndexEvents {
         user: Address,
         token_in: Address,
         token_out: Address,
-        amount_in: i128,
+        amount_in: u128,
         error_code: u32,
     );
 
@@ -798,8 +799,8 @@ impl IndexEvents for Events {
         pool_id: Symbol,
         token_in: Address,
         token_out: Address,
-        amount_in: i128,
-        amount_out: i128,
+        amount_in: u128,
+        amount_out: u128,
     ) {
         self.env().events().publish(
             (
@@ -821,7 +822,7 @@ impl IndexEvents for Events {
         user: Address,
         token_in: Address,
         token_out: Address,
-        amount_in: i128,
+        amount_in: u128,
         error_code: u32,
     ) {
         self.env().events().publish(
