@@ -15,7 +15,7 @@ use utils::{
 enum DataKey {
     Factory,
     SwapUtility, // Address of the SwapUtility contract for cross-contract swaps
-    TokenIndex, //
+    TokenIndex,  //
 
     BaseNAV, // The Net Asset Value (NAV) at the inception of the index - what the creator deposits (e.g. $1,000)
     InitialPrice, // The price assigned to the index at inception (e.g. $100)

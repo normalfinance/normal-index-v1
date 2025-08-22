@@ -1,7 +1,7 @@
 use soroban_sdk::{Address, BytesN, Env, Vec};
 use utils::storage::IndexParams;
 
-use crate::{contract::FactoryConfig, storage::DexDistribution};
+use crate::contract::FactoryConfig;
 
 pub trait IndexFactoryTrait {
     //  ___      ___       __        __    _____  ___
@@ -12,18 +12,12 @@ pub trait IndexFactoryTrait {
     // |.  \    /:  | /   /  \\  \  /\  |\|    \    \ |
     // |___|\__/|___|(___/    \___)(__\_|_)\___|\____\)
 
-    fn deploy_index_contract(e: Env, params: IndexParams) -> Address;
-
-    fn swap(
+    fn deploy_index_contract(
         e: Env,
-        token_in: Address,
-        token_out: Address,
-        amount_in: i128,
-        amount_out_min: i128,
-        distribution: Vec<DexDistribution>,
-        to: Address,
-        deadline: u64,
-    ) -> Vec<Vec<i128>>;
+        operator: Address,
+        fee_destination: Address,
+        max_max_swap_fee_fraction: u32,
+    ) -> Address;
 }
 
 pub trait AdminInterface {
