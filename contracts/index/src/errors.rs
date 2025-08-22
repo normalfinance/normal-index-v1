@@ -5,8 +5,6 @@ use soroban_sdk::contracterror;
 #[repr(u32)]
 pub enum IndexError {
     #[doc = "IndexError"]
-    MaxIFWithdrawReached = 0,
-
     PathIsEmpty = 29,
     IndexMintKilled = 30,
     IndexRedeemKilled = 31,
@@ -16,9 +14,7 @@ pub enum IndexError {
     ManagerNotSet = 33,
     ProtocolRecipientNotSet = 34,
 
-    // Insurance Fund Errors
-    InvalidIFForNewStakes = 35,
-    InvalidIFSharesDetected = 36,
+    InvalidSharesDetected = 35,
 
     // Rebalancing Errors
     RebalanceTooSoon = 37,

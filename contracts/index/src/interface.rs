@@ -1,6 +1,5 @@
 use soroban_sdk::{contracttype, Address, Env, Map, Vec};
 
-use crate::stake::Stake;
 use crate::storage::Component;
 
 pub trait IndexTrait {
@@ -36,6 +35,8 @@ pub trait IndexTrait {
     fn get_blacklist_status(e: Env, address: Address) -> bool;
 
     fn get_manager_fee_fraction(e: Env) -> u32;
+
+    fn get_fee_collection_enabled(e: Env) -> bool;
 
     fn get_rebalance_threshold(e: Env) -> u64;
 
@@ -91,11 +92,9 @@ pub trait AdminInterface {
 
     fn set_manager_fee_fraction(e: Env, admin: Address, fee_fraction: u32);
 
+    fn set_fee_collection_enabled(e: Env, admin: Address, enabled: bool);
+
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64);
-
-    fn set_unstaking_period(e: Env, admin: Address, unstaking_period: u64);
-
-    fn set_max_shares(e: Env, admin: Address, max_shares: u128);
 
     //    _______     __       ____  ____   ________  _______  ________
     //   |   __ "\   /""\     ("  _||_ " | /"       )/"     "||"      "\

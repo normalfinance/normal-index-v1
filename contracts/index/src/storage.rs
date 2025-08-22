@@ -17,8 +17,6 @@ enum DataKey {
     SwapUtility, // Address of the SwapUtility contract for cross-contract swaps
     TokenIndex,  //
 
-    TotalShares,
-
     BaseNAV, // The Net Asset Value (NAV) at the inception of the index - what the creator deposits (e.g. $1,000)
     InitialPrice, // The price assigned to the index at inception (e.g. $100)
 
@@ -35,6 +33,7 @@ enum DataKey {
     AccumulatedManagerFees,  // Total manager fees accumulated but not yet distributed
     AccumulatedProtocolFees, // Total protocol fees accumulated but not yet distributed
     LastFeeCollection,       // Timestamp of last fee collection
+    FeeCollectionEnabled,    // Boolean toggle to enable/disable fee collection for this index
 
     Whitelist(Address), // List of accounts explicitly allowed to mint the index
     Blacklist(Address), // List of accounts blocked from minting the index
@@ -86,12 +85,6 @@ generate_instance_storage_getter_and_setter_with_default!(
 
 // State
 generate_instance_storage_getter_and_setter_with_default!(
-    total_shares,
-    DataKey::TotalShares,
-    u128,
-    0
-);
-generate_instance_storage_getter_and_setter_with_default!(
     manager_fee_fraction,
     DataKey::ManagerFeeFraction,
     u32,
@@ -128,6 +121,12 @@ generate_instance_storage_getter_and_setter_with_default!(
     DataKey::LastFeeCollection,
     u64,
     0
+);
+generate_instance_storage_getter_and_setter_with_default!(
+    fee_collection_enabled,
+    DataKey::FeeCollectionEnabled,
+    bool,
+    true
 );
 
 generate_instance_storage_getter_and_setter_with_default!(public, DataKey::Public, bool, false);
@@ -532,63 +531,4 @@ generate_instance_storage_getter_and_setter_with_default!(
 
 pub fn get_index_vault_amount(e: &Env, token: &Address) -> u128 {
     SorobanTokenClient::new(e, token).balance(&e.current_contract_address()) as u128
-}
-
-pub fn get_insurance_vault_amount(e: &Env) -> u128 {
-    // Placeholder implementation - return 0 for now
-    0
-}
-
-pub fn get_token(e: &Env) -> Address {
-    bump_instance(e);
-    match e.storage().instance().get(&DataKey::TokenIndex) {
-        Some(token) => {
-            bump_instance(e);
-            token
-        }
-        None => panic_with_error!(e, StorageError::ValueNotInitialized),
-    }
-}
-
-pub fn put_token(e: &Env, token: &Address) {
-    bump_instance(e);
-    e.storage().instance().set(&DataKey::TokenIndex, token);
-}
-
-pub fn get_max_shares(e: &Env) -> u128 {
-    bump_instance(e);
-    e.storage()
-        .instance()
-        .get(&DataKey::TotalShares)
-        .unwrap_or(0)
-}
-
-pub fn set_max_shares(e: &Env, max_shares: &u128) {
-    bump_instance(e);
-    e.storage()
-        .instance()
-        .set(&DataKey::TotalShares, max_shares);
-}
-
-pub fn get_unstaking_period(e: &Env) -> u64 {
-    bump_instance(e);
-    e.storage()
-        .instance()
-        .get(&DataKey::LastRebalanceTs)
-        .unwrap_or(0)
-}
-
-pub fn set_unstaking_period(e: &Env, period: &u64) {
-    bump_instance(e);
-    e.storage()
-        .instance()
-        .set(&DataKey::LastRebalanceTs, period);
-}
-
-pub fn get_shares_base(e: &Env) -> u128 {
-    bump_instance(e);
-    e.storage()
-        .instance()
-        .get(&DataKey::TotalShares)
-        .unwrap_or(0)
 }

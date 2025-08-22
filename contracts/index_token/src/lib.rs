@@ -7,7 +7,6 @@ mod contract;
 pub mod errors;
 mod interface;
 mod metadata;
-mod pool;
 mod test;
 mod test_permissions;
 mod testutils;

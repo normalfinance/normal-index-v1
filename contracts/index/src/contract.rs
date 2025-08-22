@@ -9,10 +9,9 @@ use crate::fees::{
 
 use crate::index::vault_amount_to_shares;
 use crate::interface::{
-    AdminInterface, ComponentAction, ComponentAllocation, ComponentUpdate, IndexInfo, IndexMetrics,
-    IndexStatus, IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus,
+    AdminInterface, ComponentAction, ComponentAllocation, IndexInfo, IndexMetrics, IndexStatus,
+    IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus,
 };
-use crate::stake::Stake;
 use crate::storage::get_all_rebalance_authorities;
 use crate::storage::get_blacklist_status;
 use crate::storage::get_index_vault_amount;
@@ -29,21 +28,20 @@ use crate::storage::set_rebalance_authority_status;
 use crate::storage::set_total_mints;
 use crate::storage::update_component_weight;
 use crate::storage::{
-    get_accumulated_manager_fees, get_accumulated_protocol_fees, get_manager_address,
-    get_manager_fee_fraction, get_protocol_fee_recipient, get_total_fees,
-    set_accumulated_manager_fees, set_accumulated_protocol_fees, set_last_fee_collection,
-    set_manager_address, set_protocol_fee_recipient, set_total_fees,
+    get_accumulated_manager_fees, get_accumulated_protocol_fees, get_fee_collection_enabled,
+    get_manager_address, get_manager_fee_fraction, get_protocol_fee_recipient, get_total_fees,
+    set_accumulated_manager_fees, set_accumulated_protocol_fees, set_fee_collection_enabled,
+    set_last_fee_collection, set_manager_address, set_protocol_fee_recipient,
 };
 use crate::storage::{
     get_all_component_balances, get_all_components, get_base_nav, get_component,
-    get_component_balance, get_component_balance_safe, get_component_registry, get_factory,
-    get_factory_safe, get_initial_price, get_insurance_vault_amount, get_is_killed_mint,
-    get_is_killed_rebalance, get_is_killed_redeem, get_last_rebalance_ts, get_last_updated_ts,
-    get_max_shares, get_public, get_rebalance_threshold, get_shares_base, get_token,
-    get_total_mints, get_total_redemptions, get_total_shares, get_unstaking_period, put_token,
-    set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem, set_max_shares,
-    set_total_shares, set_unstaking_period, Component,
+    get_component_balance_safe, get_component_registry, get_factory_safe, get_initial_price,
+    get_is_killed_mint, get_is_killed_rebalance, get_is_killed_redeem, get_last_rebalance_ts,
+    get_last_updated_ts, get_public, get_rebalance_threshold, get_total_mints,
+    get_total_redemptions, set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem,
+    Component,
 };
+use crate::token::create_index_token_contract;
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use access_control::errors::AccessControlError;
@@ -56,24 +54,21 @@ use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::{
     require_pause_admin_or_owner, require_pause_or_emergency_pause_admin_or_owner,
 };
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation};
+use soroban_sdk::IntoVal;
 use soroban_sdk::String;
 use soroban_sdk::{
-    contract, contractimpl, log, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
-    Address, BytesN, Env, IntoVal, Map, Symbol, Vec,
+    contract, contractimpl, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
+    Address, BytesN, Env, Map, Symbol, Vec,
 };
-use token_share::mint_shares;
-use token_share::put_token_share;
-use token_share::Client as LPTokenClient;
+use token_share::{
+    get_token_share, get_total_shares, mint_shares, put_token_share, Client as ShareTokenClient,
+};
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
-use utils::bump::bump_instance;
-use utils::math::safe_math::SafeMath;
+use utils::storage::IndexParams;
 use utils::token::transfer_token;
 use utils::token::validate_token_contracts;
-use utils::validate;
 
 #[contract]
 pub struct Index;
@@ -85,39 +80,36 @@ impl Index {
     // Arguments:
     //   - e: The Soroban environment.
     //   - factory: The address of the factory contract.
-    //   - operator: The address authorized to claim funds.
-    //   - fee_destination: The address where fees are sent.
-    //   - max_swap_fee_fraction: The maximum fee in basis points (bps).
+    //   - params: The address authorized to claim funds.
     pub fn __constructor(
         e: Env,
-        admin: Address,
         factory: Address,
-        name: String,
-        token_symbol: String,
-        description: String,
-        public: bool,
-        manager_fee_fraction: u32,
-        initial_price: i128,
-        initial_deposit: i128,
-        components: Vec<Address>,
-        rebalance_authorities: Vec<Address>, // New parameter for private index authorities
+        index_token_wasm_hash: BytesN<32>,
+        params: IndexParams,
     ) {
         // set admin
         set_factory(&e, &factory);
 
-        // deploy and initialize index token contract - placeholder implementation
-        let share_contract = Address::from_str(&e, "placeholder");
+        // deploy and initialize index token contract
+        let share_contract =
+            create_index_token_contract(&e, index_token_wasm_hash, &params.token_symbol);
+        ShareTokenClient::new(&e, &share_contract).initialize(
+            &e.current_contract_address(),
+            &7u32,
+            &params.name.into_val(&e),
+            &params.token_symbol.into_val(&e),
+        );
         put_token_share(&e, share_contract);
 
-        set_manager_fee_fraction(&e, &manager_fee_fraction);
-        set_public(&e, &public);
+        set_manager_fee_fraction(&e, &params.manager_fee_fraction);
+        set_public(&e, &params.public);
 
         // Set the admin as the initial manager who will receive fees
-        set_manager_address(&e, &admin);
+        set_manager_address(&e, &params.admin);
 
         // Set up rebalance authorities for private indexes
-        if !public {
-            for authority in rebalance_authorities.iter() {
+        if !params.public {
+            for authority in params.rebalance_authorities.iter() {
                 set_rebalance_authority_status(&e, &authority, true);
             }
         }
@@ -168,13 +160,12 @@ impl IndexTrait for Index {
         let total_shares = get_total_shares(&e);
 
         let vault_amount = get_index_vault_amount(&e, &token);
-        let insurance_vault_amount = get_insurance_vault_amount(&e);
 
-        validate!(
-            &e,
-            !(insurance_vault_amount == 0 && total_shares != 0),
-            IndexError::InvalidIFForNewStakes
-        );
+        // validate!(
+        //     &e,
+        //     !(insurance_vault_amount == 0 && total_shares != 0),
+        //     IndexError::InvalidIFForNewStakes
+        // );
 
         let n_shares = vault_amount_to_shares(&e, amount, total_shares, vault_amount);
 
@@ -204,8 +195,8 @@ impl IndexTrait for Index {
         // execute swaps
 
         // Mint share tokens
-        let value = match destination {
-            Some(v) => v,
+        let value = match &destination {
+            Some(v) => v.clone(),
             None => user.clone(),
         };
         mint_shares(&e, &value, n_shares as i128);
@@ -215,6 +206,30 @@ impl IndexTrait for Index {
 
         // Metrics
         set_total_mints(&e, &n_shares);
+
+        // Emit enhanced mint event
+        let current_time = e.ledger().timestamp();
+        let nav_after = Self::get_nav(e.clone()) as u128;
+        let total_shares_after = get_total_shares(&e);
+        let share_price = Self::get_price(e.clone()) as u128;
+
+        Events::new(&e).mint_executed(
+            current_time,
+            user.clone(),
+            token,
+            amount,
+            n_shares,
+            share_price,
+            nav_after - amount, // Approximation of nav_before
+            nav_after,
+            total_shares,
+            total_shares_after,
+            0, // TODO: Calculate actual fees collected during mint
+            destination,
+        );
+
+        // Also emit legacy event for backward compatibility
+        Events::new(&e).mint(current_time, user);
     }
 
     fn redeem(e: Env, user: Address, share_amount: u128) {
@@ -253,10 +268,35 @@ impl IndexTrait for Index {
                 panic_with_error!(e, IndexError::NotWhitelisted);
             }
         }
+
+        // Emit enhanced redemption event
+        let current_time = e.ledger().timestamp();
+        let nav_before = Self::get_nav(e.clone()) as u128;
+        let total_shares_before = get_total_shares(&e);
+        let share_price = Self::get_price(e.clone()) as u128;
+
+        // TODO: Implement actual redemption logic to get accurate values
+        let component_payouts = Map::new(&e); // Empty map for now
+
+        Events::new(&e).redemption_executed(
+            current_time,
+            user.clone(),
+            share_amount,
+            share_price,
+            nav_before,
+            nav_before, // TODO: Calculate nav_after after redemption
+            total_shares_before,
+            total_shares_before - share_amount, // Approximation
+            component_payouts,
+            manager_fees + protocol_fees,
+        );
+
+        // Also emit legacy event for backward compatibility
+        Events::new(&e).redeem(current_time, user);
     }
 
     fn get_token(e: Env) -> Address {
-        crate::storage::get_token(&e)
+        get_token_share(&e)
     }
 
     fn get_factory(e: Env) -> Address {
@@ -273,19 +313,19 @@ impl IndexTrait for Index {
 
     fn get_nav(e: Env) -> i128 {
         let base_nav = crate::storage::get_base_nav(&e) as i128;
-        let total_shares = crate::storage::get_total_shares(&e);
+        let total_shares = get_total_shares(&e);
         if total_shares == 0 {
             return base_nav;
         }
 
-        let token = crate::storage::get_token(&e);
+        let token = get_token_share(&e);
         let vault_amount = crate::storage::get_index_vault_amount(&e, &token) as i128;
         vault_amount
     }
 
     fn get_price(e: Env) -> i128 {
         let nav = Self::get_nav(e.clone());
-        let total_shares = crate::storage::get_total_shares(&e);
+        let total_shares = get_total_shares(&e);
         if total_shares == 0 {
             return crate::storage::get_initial_price(&e) as i128;
         }
@@ -293,7 +333,7 @@ impl IndexTrait for Index {
     }
 
     fn get_total_shares(e: Env) -> u128 {
-        crate::storage::get_total_shares(&e)
+        get_total_shares(&e)
     }
 
     fn get_public_status(e: Env) -> bool {
@@ -310,6 +350,10 @@ impl IndexTrait for Index {
 
     fn get_manager_fee_fraction(e: Env) -> u32 {
         crate::storage::get_manager_fee_fraction(&e)
+    }
+
+    fn get_fee_collection_enabled(e: Env) -> bool {
+        crate::storage::get_fee_collection_enabled(&e)
     }
 
     fn get_rebalance_threshold(e: Env) -> u64 {
@@ -357,7 +401,7 @@ impl IndexTrait for Index {
         collect_fees_before_action(&e, &to, amount as i128);
 
         // Execute the token transfer
-        let share_token = crate::storage::get_token(&e);
+        let share_token = get_token_share(&e);
         SorobanTokenClient::new(&e, &share_token).transfer(&from, &to, &(amount as i128));
 
         // Update fee tracking for both users
@@ -365,7 +409,7 @@ impl IndexTrait for Index {
         initialize_or_update_user_tracking(&e, &to, amount as i128);
     }
 
-    /// Transfer shares from allowance with proper fee handling  
+    /// Transfer shares from allowance with proper fee handling
     fn transfer_shares_from(e: Env, spender: Address, from: Address, to: Address, amount: u128) {
         spender.require_auth();
 
@@ -374,7 +418,7 @@ impl IndexTrait for Index {
         collect_fees_before_action(&e, &to, amount as i128);
 
         // Execute the token transfer from allowance
-        let share_token = crate::storage::get_token(&e);
+        let share_token = get_token_share(&e);
         SorobanTokenClient::new(&e, &share_token).transfer_from(
             &spender,
             &from,
@@ -483,38 +527,10 @@ impl AdminInterface for Index {
         }
         access_control.set_role_address(&Role::Admin, &admin);
 
-        put_token(&e, &token);
+        put_token_share(&e, token);
 
         // No complex registration needed!
         // The token's admin IS this index contract, so fee calls work automatically
-    }
-
-    // Sets the unstaking period.
-    //
-    // # Arguments
-    //
-    // * `admin` - The address of the admin.
-    // * `unstaking_period` - The new unstaking period.
-    fn set_unstaking_period(e: Env, admin: Address, unstaking_period: u64) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        set_unstaking_period(&e, &unstaking_period);
-    }
-
-    // Sets the max shares the Insurance Fund can have.
-    //
-    // # Arguments
-    //
-    // * `admin` - The address of the admin.
-    // * `max_shares` - The max number of shares.
-    fn set_max_shares(e: Env, admin: Address, max_shares: u128) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        set_max_shares(&e, &max_shares);
     }
 
     fn rebalance(e: Env, caller: Address, params: RebalanceParams) {
@@ -557,14 +573,35 @@ impl AdminInterface for Index {
             Index::validate_private_rebalance(&e, &caller);
         }
 
+        // Capture pre-rebalancing state
+        let nav_before = Self::get_nav(e.clone()) as u128;
+        let components_before = get_all_components(&e);
+
         // Execute rebalancing logic
-        Index::execute_rebalancing(&e, params.clone());
+        Index::execute_rebalancing(&e, caller.clone(), params.clone());
+
+        // Capture post-rebalancing state
+        let nav_after = Self::get_nav(e.clone()) as u128;
+        let components_after = get_all_components(&e);
 
         // Update timestamps
         set_last_rebalance_ts(&e, &current_time);
         set_last_updated_ts(&e, &current_time);
 
-        // Emit event
+        // Emit enhanced rebalancing event
+        Events::new(&e).rebalance_executed(
+            current_time,
+            caller.clone(),
+            nav_before,
+            nav_after,
+            components_before,
+            components_after,
+            params.component_updates.len() as u32,
+            0,                                          // TODO: Calculate actual gas cost
+            (nav_after as i128) - (nav_before as i128), // Performance impact
+        );
+
+        // Also emit legacy event for backward compatibility
         Events::new(&e).rebalance(current_time, caller);
     }
 
@@ -573,9 +610,21 @@ impl AdminInterface for Index {
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
+        // Get old status before updating
+        let old_status = get_rebalance_authority_status(&e, &authority);
         set_rebalance_authority_status(&e, &authority, status);
 
-        // Emit event
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).rebalance_authority_updated_detailed(
+            current_time,
+            admin.clone(),
+            authority.clone(),
+            old_status,
+            status,
+        );
+
+        // Also emit legacy event for backward compatibility
         Events::new(&e).rebalance_authority_updated(authority, status);
     }
 
@@ -589,6 +638,11 @@ impl AdminInterface for Index {
         require_pause_or_emergency_pause_admin_or_owner(&e, &admin);
 
         set_is_killed_mint(&e, &true);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).operation_killed(current_time, admin.clone(), Symbol::new(&e, "mint"));
+        // Also emit legacy event for backward compatibility
         Events::new(&e).kill_deposit();
     }
 
@@ -602,6 +656,11 @@ impl AdminInterface for Index {
         require_pause_or_emergency_pause_admin_or_owner(&e, &admin);
 
         set_is_killed_redeem(&e, &true);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).operation_killed(current_time, admin.clone(), Symbol::new(&e, "redeem"));
+        // Also emit legacy event for backward compatibility
         Events::new(&e).kill_request_withdraw();
     }
 
@@ -615,6 +674,11 @@ impl AdminInterface for Index {
         require_pause_or_emergency_pause_admin_or_owner(&e, &admin);
 
         set_is_killed_rebalance(&e, &true);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).operation_killed(current_time, admin.clone(), Symbol::new(&e, "rebalance"));
+        // Also emit legacy event for backward compatibility
         Events::new(&e).kill_withdraw();
     }
 
@@ -628,6 +692,11 @@ impl AdminInterface for Index {
         require_pause_admin_or_owner(&e, &admin);
 
         set_is_killed_mint(&e, &false);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).operation_unkilled(current_time, admin.clone(), Symbol::new(&e, "mint"));
+        // Also emit legacy event for backward compatibility
         Events::new(&e).unkill_deposit();
     }
 
@@ -641,6 +710,11 @@ impl AdminInterface for Index {
         require_pause_admin_or_owner(&e, &admin);
 
         set_is_killed_redeem(&e, &false);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).operation_unkilled(current_time, admin.clone(), Symbol::new(&e, "redeem"));
+        // Also emit legacy event for backward compatibility
         Events::new(&e).unkill_request_withdraw();
     }
 
@@ -654,6 +728,15 @@ impl AdminInterface for Index {
         require_pause_admin_or_owner(&e, &admin);
 
         set_is_killed_rebalance(&e, &false);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).operation_unkilled(
+            current_time,
+            admin.clone(),
+            Symbol::new(&e, "rebalance"),
+        );
+        // Also emit legacy event for backward compatibility
         Events::new(&e).unkill_withdraw();
     }
 
@@ -680,7 +763,16 @@ impl AdminInterface for Index {
         let old_manager = get_manager_address(&e);
         set_manager_address(&e, &manager);
 
-        Events::new(&e).manager_address_updated(old_manager, manager);
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).manager_address_updated(
+            current_time,
+            admin.clone(),
+            old_manager.clone(),
+            manager.clone(),
+        );
+        // Also emit legacy event for backward compatibility
+        Events::new(&e).manager_address_updated_legacy(old_manager, manager);
     }
 
     fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
@@ -691,7 +783,16 @@ impl AdminInterface for Index {
         let old_recipient = get_protocol_fee_recipient(&e);
         set_protocol_fee_recipient(&e, &recipient);
 
-        Events::new(&e).protocol_fee_recipient_updated(old_recipient, recipient);
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).protocol_fee_recipient_updated(
+            current_time,
+            admin.clone(),
+            old_recipient.clone(),
+            recipient.clone(),
+        );
+        // Also emit legacy event for backward compatibility
+        Events::new(&e).protocol_fee_recipient_updated_legacy(old_recipient, recipient);
     }
 
     fn distribute_manager_fees(e: Env, admin: Address) {
@@ -711,6 +812,17 @@ impl AdminInterface for Index {
 
         set_accumulated_manager_fees(&e, &0);
 
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).fees_distributed_to_manager(
+            current_time,
+            manager.clone(),
+            accumulated_fees,
+            accumulated_fees, // total_accumulated_before
+            0,                // total_accumulated_after (reset to 0)
+        );
+
+        // Also emit legacy event for backward compatibility
         Events::new(&e).manager_fees_distributed(manager.clone(), accumulated_fees);
 
         //This is a placeholder for the manager to claim their fees
@@ -733,6 +845,17 @@ impl AdminInterface for Index {
 
         set_accumulated_protocol_fees(&e, &0);
 
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).fees_distributed_to_protocol(
+            current_time,
+            protocol_recipient.clone(),
+            accumulated_fees,
+            accumulated_fees, // total_accumulated_before
+            0,                // total_accumulated_after (reset to 0)
+        );
+
+        // Also emit legacy event for backward compatibility
         Events::new(&e).protocol_fees_distributed(protocol_recipient.clone(), accumulated_fees);
 
         //This is a placeholder for the protocol to claim their fees
@@ -759,7 +882,12 @@ impl AdminInterface for Index {
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
+        let old_nav = get_base_nav(&e);
         crate::storage::set_base_nav(&e, &base_nav);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).base_nav_updated(current_time, admin, old_nav, base_nav);
     }
 
     fn set_initial_price(e: Env, admin: Address, initial_price: u128) {
@@ -767,7 +895,12 @@ impl AdminInterface for Index {
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
+        let old_price = get_initial_price(&e);
         crate::storage::set_initial_price(&e, &initial_price);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).initial_price_updated(current_time, admin, old_price, initial_price);
     }
 
     fn set_public_status(e: Env, admin: Address, public: bool) {
@@ -775,7 +908,12 @@ impl AdminInterface for Index {
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
+        let old_status = get_public(&e);
         crate::storage::set_public(&e, &public);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).public_status_updated(current_time, admin, old_status, public);
     }
 
     fn set_whitelist_status(e: Env, admin: Address, address: Address, status: bool) {
@@ -783,7 +921,12 @@ impl AdminInterface for Index {
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
+        let old_status = get_whitelist_status(&e, &address);
         crate::storage::set_whitelist_status(&e, &address, status);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).whitelist_status_updated(current_time, admin, address, old_status, status);
     }
 
     fn set_blacklist_status(e: Env, admin: Address, address: Address, status: bool) {
@@ -791,7 +934,12 @@ impl AdminInterface for Index {
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
+        let old_status = get_blacklist_status(&e, &address);
         crate::storage::set_blacklist_status(&e, &address, status);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).blacklist_status_updated(current_time, admin, address, old_status, status);
     }
 
     fn set_manager_fee_fraction(e: Env, admin: Address, fee_fraction: u32) {
@@ -799,7 +947,31 @@ impl AdminInterface for Index {
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
+        let old_fee_fraction = get_manager_fee_fraction(&e);
         crate::storage::set_manager_fee_fraction(&e, &fee_fraction);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).manager_fee_fraction_updated(
+            current_time,
+            admin,
+            old_fee_fraction,
+            fee_fraction,
+        );
+    }
+
+    fn set_fee_collection_enabled(e: Env, admin: Address, enabled: bool) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        let old_status = get_fee_collection_enabled(&e);
+        set_fee_collection_enabled(&e, &enabled);
+
+        // Emit event if status changed
+        if old_status != enabled {
+            Events::new(&e).fee_collection_toggled(enabled);
+        }
     }
 
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64) {
@@ -807,7 +979,12 @@ impl AdminInterface for Index {
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
+        let old_threshold = get_rebalance_threshold(&e);
         crate::storage::set_rebalance_threshold(&e, &threshold);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).rebalance_threshold_updated(current_time, admin, old_threshold, threshold);
     }
 }
 
@@ -899,7 +1076,7 @@ impl QueryInterface for Index {
     fn get_index_info(e: Env) -> IndexInfo {
         IndexInfo {
             address: e.current_contract_address(),
-            token_address: get_token(&e),
+            token_address: get_token_share(&e),
             total_shares: get_total_shares(&e),
             base_nav: get_base_nav(&e),
             initial_price: get_initial_price(&e),
@@ -1006,7 +1183,7 @@ impl QueryInterface for Index {
         let last_rebalance = get_last_rebalance_ts(&e);
         let threshold = get_rebalance_threshold(&e);
         let can_rebalance =
-            (current_time >= last_rebalance + threshold) && !get_is_killed_rebalance(&e);
+            current_time >= last_rebalance + threshold && !get_is_killed_rebalance(&e);
 
         IndexStatus {
             is_killed_mint: get_is_killed_mint(&e),
@@ -1037,11 +1214,11 @@ impl QueryInterface for Index {
         let last_rebalance = get_last_rebalance_ts(&e);
         let threshold = get_rebalance_threshold(&e);
         let can_rebalance =
-            (current_time >= last_rebalance + threshold) && !get_is_killed_rebalance(&e);
+            current_time >= last_rebalance + threshold && !get_is_killed_rebalance(&e);
         let time_until_next = if can_rebalance {
             0
         } else {
-            (last_rebalance + threshold) - current_time
+            last_rebalance + threshold - current_time
         };
 
         // Get authorized rebalancers for private indexes
@@ -1095,7 +1272,7 @@ impl QueryInterface for Index {
         for (token, component) in components.iter() {
             let current_balance = get_component_balance_safe(&e, token.clone()).unwrap_or(0);
             let target_balance = if current_nav > 0 {
-                (current_nav * component.weight as u128) / 10000
+                (current_nav * (component.weight as u128)) / 10000
             } else {
                 0
             };
@@ -1216,7 +1393,10 @@ impl Index {
         // }
     }
 
-    fn execute_rebalancing(e: &Env, params: RebalanceParams) {
+    fn execute_rebalancing(e: &Env, admin: Address, params: RebalanceParams) {
+        let start_time = e.ledger().timestamp();
+        let nav_before = Self::get_nav(e.clone()) as u128;
+
         let mut total_weight = 0u128;
         let mut components_updated = 0u32;
 
@@ -1233,27 +1413,75 @@ impl Index {
                     total_weight += update.new_weight;
                     components_updated += 1;
 
-                    // Emit event
+                    // Get component balance for NAV impact calculation
+                    let initial_balance =
+                        get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
+                    let current_time = e.ledger().timestamp();
+
+                    // Emit enhanced event
+                    Events::new(e).component_added_detailed(
+                        current_time,
+                        admin.clone(),
+                        update.token.clone(),
+                        update.new_weight,
+                        initial_balance,
+                        0, // TODO: Calculate actual NAV impact
+                    );
+
+                    // Also emit legacy event for backward compatibility
                     Events::new(e).component_added(update.token.clone(), update.new_weight);
                 }
                 ComponentAction::Remove => {
-                    // Verify component exists before removing
-                    let _ = get_component(e, update.token.clone()); // This will panic if not found
+                    // Get component info before removing
+                    let component = get_component(e, update.token.clone()); // This will panic if not found
+                    let final_balance =
+                        get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
+                    let current_time = e.ledger().timestamp();
+
                     remove_component(e, update.token.clone());
                     components_updated += 1;
 
-                    // Emit event
+                    // Emit enhanced event
+                    Events::new(e).component_removed_detailed(
+                        current_time,
+                        admin.clone(),
+                        update.token.clone(),
+                        final_balance,
+                        final_balance, // proceeds_distributed (approximation)
+                        0,             // TODO: Calculate actual NAV impact
+                    );
+
+                    // Also emit legacy event for backward compatibility
                     Events::new(e).component_removed(update.token.clone());
                 }
                 ComponentAction::UpdateWeight => {
-                    // Verify component exists before updating
+                    // Get component info before and after updating
                     let old_component = get_component(e, update.token.clone()); // This will panic if not found
                     let old_weight = old_component.weight;
+                    let balance_before =
+                        get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
+                    let current_time = e.ledger().timestamp();
+
                     update_component_weight(e, update.token.clone(), update.new_weight);
                     total_weight += update.new_weight;
                     components_updated += 1;
 
-                    // Emit event
+                    let balance_after =
+                        get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
+
+                    // Emit enhanced event
+                    Events::new(e).component_weight_updated_detailed(
+                        current_time,
+                        admin.clone(),
+                        update.token.clone(),
+                        old_weight,
+                        update.new_weight,
+                        balance_before,
+                        balance_after,
+                        0, // TODO: Calculate actual NAV impact
+                    );
+
+                    // Also emit legacy event for backward compatibility
                     Events::new(e).component_weight_updated(
                         update.token.clone(),
                         old_weight,
@@ -1283,7 +1511,26 @@ impl Index {
             let _swap_results = crate::index::execute_swaps(e, swaps);
         }
 
-        // Emit completion event
+        // Capture end state for enhanced event
+        let end_time = e.ledger().timestamp();
+        let nav_after = Self::get_nav(e.clone()) as u128;
+        let duration_ms = (end_time - start_time) * 1000; // Convert to milliseconds
+        let performance_delta = (nav_after as i128) - (nav_before as i128);
+
+        // Emit enhanced completion event
+        Events::new(e).rebalance_completed_detailed(
+            end_time,
+            admin,
+            components_updated,
+            total_swaps,
+            0, // TODO: Calculate actual total gas cost
+            performance_delta,
+            nav_before,
+            nav_after,
+            duration_ms,
+        );
+
+        // Also emit legacy event for backward compatibility
         Events::new(e).rebalance_completed(
             e.current_contract_address(),
             components_updated,
@@ -1341,18 +1588,18 @@ impl Index {
         // No auth required - this is called by the trusted token contract
 
         // Collect fees from sender before they transfer/burn tokens
-        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -(amount));
+        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -amount);
 
         // Update tracking based on operation type
         match to {
             Some(recipient) => {
                 // Transfer: update tracking for both users
-                initialize_or_update_user_tracking(&e, &from, -(amount)); // Sender: reduce balance
+                initialize_or_update_user_tracking(&e, &from, -amount); // Sender: reduce balance
                 initialize_or_update_user_tracking(&e, &recipient, amount); // Receiver: increase balance
             }
             None => {
                 // Burn: only update sender's tracking (tokens are destroyed)
-                initialize_or_update_user_tracking(&e, &from, -(amount));
+                initialize_or_update_user_tracking(&e, &from, -amount);
             }
         }
 

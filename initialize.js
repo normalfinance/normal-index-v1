@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { mkdirSync, writeFileSync, rmSync, readFileSync } from "fs";
+import { mkdirSync, rmSync, readFileSync } from "fs";
 import { execSync } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -79,21 +79,11 @@ function filenameNoExtension(filename) {
  * @param {string} wasm path to the compiled Wasm file
  */
 function deploy(wasm) {
-  if (wasm.includes("locker")) {
-    exe(
-      `stellar contract deploy --wasm ${wasm} --ignore-checks --alias ${filenameNoExtension(
-        wasm
-      )} -- --admin=${process.env.PUBLIC_STELLAR_ADMIN} --operations_admin=${
-        process.env.PUBLIC_STELLAR_ADMIN
-      } --emergency_admin=${process.env.PUBLIC_STELLAR_ADMIN}`
-    );
-  } else {
-    exe(
-      `stellar contract deploy --wasm ${wasm} --ignore-checks --alias ${filenameNoExtension(
-        wasm
-      )}`
-    );
-  }
+  exe(
+    `stellar contract deploy --wasm ${wasm} --ignore-checks --alias ${filenameNoExtension(
+      wasm
+    )}`
+  );
 }
 
 /**
@@ -106,9 +96,7 @@ function deployAll() {
   mkdirSync(contractsDir, { recursive: true });
 
   // search for all compiled Wasm files
-  const wasmFiles = glob(
-    `${dirname}/target/wasm32v1-none/release/*.wasm`
-  );
+  const wasmFiles = glob(`${dirname}/target/wasm32v1-none/release/*.wasm`);
 
   // run the `deploy()` function for each compiled Wasm file found
   wasmFiles.forEach(deploy);
@@ -141,64 +129,8 @@ function contracts() {
   );
 }
 
-/**
- * Generate a contract bindings package for the specified contract address,
- * outputs to a directory based on the alias.
- * @param {{alias: string, id: string}} contract the contract to generate bindings for
- */
-function bind({ alias, id }) {
-  exe(
-    `stellar contract bindings typescript --id ${id} --output-dir ${dirname}/packages/${alias} --overwrite`
-  );
-}
-
 function installAndBuild({ alias }) {
   exe(`cd packages/${alias} && pnpm install && pnpm run build && cd ../..`);
-}
-
-/**
- * Iterate through all deployed contracts and run the `bind()` function for
- * each one.
- */
-function bindAll() {
-  contracts().forEach(bind);
-  exe("./scripts/run_prefix_all.sh");
-  contracts().forEach(installAndBuild);
-}
-
-/**
- * Create a library file importing the bindings package(s) for use in frontend
- * code.
- * @param {{ alias: string }} contract the contract address to create a library for
- */
-function importContract({ alias }) {
-  // make sure a directory is ready to store our deployed library file
-  const outputDir = `${dirname}/lib/contracts/`;
-  mkdirSync(outputDir, { recursive: true });
-
-  // the required imports/exports for the library
-  const importContent =
-    `import * as Client from '${alias}';\n` +
-    `import { PUBLIC_STELLAR_RPC_URL } from '$env/static/public';\n\n` +
-    `export default new Client.Client({\n` +
-    `    ...Client.networks.${process.env.STELLAR_NETWORK},\n` +
-    `    rpcUrl: PUBLIC_STELLAR_RPC_URL,\n` +
-    `});\n`;
-
-  // output the file contents to the specified file
-  const outputPath = `${outputDir}/${alias}.ts`;
-  writeFileSync(outputPath, importContent);
-
-  // log a message to the console
-  console.log(`Created import for ${alias}`);
-}
-
-/**
- * Iterate through all deployed contracts and run the `importContract()`
- * function for each one.
- */
-function importAll() {
-  contracts().forEach(importContract);
 }
 
 /* Now, we call the functions we've written in the order we want them to happen: */
@@ -208,7 +140,3 @@ fundAll();
 buildAll();
 // 3. deploy all built contracts
 deployAll();
-// 4. generate bindings for all deployed contracts
-bindAll();
-// 5. create a library file importing each bindings package into the frontend
-importAll();
