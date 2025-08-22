@@ -81,6 +81,6 @@ impl SwapProvider for NormalProvider {
         // TODO: Implement proper quote estimation for Normal DEX
         // For now, return a simple estimate based on input amount
         // This should be replaced with actual Normal DEX quote logic
-        Ok(amount_in * 95 / 100) ///Slippage assumed
+        Ok(amount_in * 95 / 100) // Slippage assumed
     }
 }

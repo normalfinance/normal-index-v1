@@ -195,6 +195,7 @@ impl SwapUtility {
             to: env.current_contract_address(), // placeholder
             asset: asset.clone(),
             direction: crate::interface::SwapDirection::default(),
+            fee_enabled: None,
         };
 
         let selected_provider = select_provider(&env, &params);

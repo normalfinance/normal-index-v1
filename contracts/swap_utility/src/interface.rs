@@ -34,7 +34,7 @@ pub struct SwapParams {
     pub to: Address,
     pub asset: Symbol,
     pub direction: SwapDirection,
-    pub fee_enabled: bool,  
+    pub fee_enabled: Option<bool>,  
 }
 
 #[contracttype]
