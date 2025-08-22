@@ -62,7 +62,7 @@ impl SwapProvider for SoroswapProvider {
         }
     }
 
-    fn validate_params(env: &Env, params: &SwapParams) -> Result<(), SwapError> {
+    fn validate_params(_env: &Env, params: &SwapParams) -> Result<(), SwapError> {
         // Check that tokens are different
         if params.token_in == params.token_out {
             return Err(SwapError::InvalidTokenPair);

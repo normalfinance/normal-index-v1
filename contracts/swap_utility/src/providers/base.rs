@@ -18,11 +18,11 @@ pub trait SwapProvider {
 
     /// Get an estimated output amount for the given input (optional)
     fn get_estimated_output(
-        env: &Env,
-        token_in: &Address,
-        token_out: &Address,
+        _env: &Env,
+        _token_in: &Address,
+        _token_out: &Address,
         amount_in: u128,
-        config: &ProviderConfig,
+        _config: &ProviderConfig,
     ) -> Result<u128, SwapError> {
         // Default implementation returns the input amount (1:1 ratio)
         // Providers can override this for better estimation

@@ -81,7 +81,7 @@ pub trait SwapUtilityTrait {
     fn get_provider_config(env: Env, provider: DexProvider) -> Option<ProviderConfig>;
 
     /// Initialize the contract
-    fn initialize(env: Env, admin: Address, normal_dex_address: Address, soroswap_address: Address);
+    fn initialize(env: Env, admin: Address, normal_dex_address: Address, soroswap_address: Address, xlm_token_address: Address);
 
     /// Check if contract is initialized
     fn is_initialized(env: Env) -> bool;

@@ -48,7 +48,7 @@ impl SwapProvider for NormalProvider {
         }
     }
 
-    fn validate_params(env: &Env, params: &SwapParams) -> Result<(), SwapError> {
+    fn validate_params(_env: &Env, params: &SwapParams) -> Result<(), SwapError> {
         // Check that tokens are different
         if params.token_in == params.token_out {
             return Err(SwapError::InvalidTokenPair);
@@ -68,9 +68,9 @@ impl SwapProvider for NormalProvider {
     }
 
     fn get_estimated_output(
-        env: &Env,
-        token_in: &Address,
-        token_out: &Address,
+        _env: &Env,
+        _token_in: &Address,
+        _token_out: &Address,
         amount_in: u128,
         config: &ProviderConfig,
     ) -> Result<u128, SwapError> {
@@ -78,22 +78,9 @@ impl SwapProvider for NormalProvider {
             return Err(SwapError::ProviderNotConfigured);
         }
 
-        let estimate_swap_result: Result<(u128, i128), soroban_sdk::Error> = env.invoke_contract(
-            &config.contract_address,
-            &Symbol::new(env, "estimate_swap"),
-            Vec::from_array(
-                env,
-                [
-                    asset.clone().into_val(env),
-                    direction.clone().into_val(env),
-                    amount_in.into_val(env),
-                ],
-            ),
-        );
-
-        match estimate_swap_result {
-            Ok((amount_out, delta_a)) => Ok(amount_out),
-            Err(_) => Err(SwapError::NormalDexFailed),
-        }
+        // TODO: Implement proper quote estimation for Normal DEX
+        // For now, return a simple estimate based on input amount
+        // This should be replaced with actual Normal DEX quote logic
+        Ok(amount_in * 95 / 100) ///Slippage assumed
     }
 }

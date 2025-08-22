@@ -13,6 +13,9 @@ pub enum DataKey {
 
     // Provider-specific settings
     DefaultProvider,
+    
+    // Asset addresses
+    XlmTokenAddress,
 }
 
 // Admin and initialization functions
@@ -112,4 +115,15 @@ pub fn require_provider_active(env: &Env, provider: DexProvider) {
     if !is_provider_active(env, provider) {
         panic!("Provider not active");
     }
+}
+
+// XLM token address management
+pub fn set_xlm_token_address(env: &Env, xlm_address: &Address) {
+    bump_instance(env);
+    env.storage().instance().set(&DataKey::XlmTokenAddress, xlm_address);
+}
+
+pub fn get_xlm_token_address(env: &Env) -> Option<Address> {
+    bump_instance(env);
+    env.storage().instance().get(&DataKey::XlmTokenAddress)
 }

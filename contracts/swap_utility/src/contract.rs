@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, Address, Env, Vec};
+use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec};
 
 use crate::{
     errors::SwapError,
@@ -6,8 +6,9 @@ use crate::{
     interface::{DexProvider, ProviderConfig, SwapParams, SwapResult, SwapUtilityTrait},
     providers::{NormalProvider, SoroswapProvider, SwapProvider},
     storage::{
-        get_admin, get_default_provider, get_provider_config, is_initialized, require_admin,
+        get_provider_config, get_xlm_token_address, is_initialized, require_admin,
         require_initialized, set_admin, set_default_provider, set_initialized, set_provider_config,
+        set_xlm_token_address,
     },
 };
 
@@ -21,6 +22,7 @@ impl SwapUtilityTrait for SwapUtility {
         admin: Address,
         normal_dex_address: Address,
         soroswap_address: Address,
+        xlm_token_address: Address,
     ) {
         admin.require_auth();
 
@@ -49,6 +51,9 @@ impl SwapUtilityTrait for SwapUtility {
 
         // Set Normal as default provider
         set_default_provider(&env, DexProvider::Normal);
+        
+        // Store XLM token address for identification
+        set_xlm_token_address(&env, &xlm_token_address);
 
         // Mark as initialized
         set_initialized(&env);
@@ -65,7 +70,7 @@ impl SwapUtilityTrait for SwapUtility {
         let provider = params
             .provider
             .clone()
-            .unwrap_or_else(|| get_default_provider(&env));
+            .unwrap_or_else(|| select_provider(&env, &params));
 
         // Get provider configuration
         let config =
@@ -156,8 +161,8 @@ fn execute_swap_with_fallback(
     match primary_result {
         Ok(result) => Ok(result),
         Err(SwapError::InsufficientLiquidity) | Err(SwapError::SoroswapSwapFailed) => {
-            // Try fallback to Normal DEX if Soroswap fails
-            if matches!(primary_provider, DexProvider::Soroswap) {
+            // Try fallback to Normal DEX if Soroswap fails, but only for Normal tokens
+            if matches!(primary_provider, DexProvider::Soroswap) && is_normal_token(env, &params.asset) {
                 if let Some(fallback_config) = get_provider_config(env, DexProvider::Normal) {
                     if fallback_config.is_active {
                         return NormalProvider::execute_swap(env, params, &fallback_config);
@@ -172,59 +177,48 @@ fn execute_swap_with_fallback(
 
 // Additional helper functions
 impl SwapUtility {
-    /// Get the best quote across all active providers
     pub fn get_best_quote(
         env: Env,
         token_in: Address,
         token_out: Address,
         amount_in: u128,
+        asset: Symbol,
     ) -> Result<(DexProvider, u128), SwapError> {
         require_initialized(&env);
 
-        let mut best_provider = DexProvider::Normal;
-        let mut best_amount = 0u128;
+        let params = SwapParams {
+            provider: None,
+            token_in: token_in.clone(),
+            token_out: token_out.clone(),
+            amount_in,
+            amount_out_min: 0,
+            to: env.current_contract_address(), // placeholder
+            asset: asset.clone(),
+            direction: crate::interface::SwapDirection::default(),
+        };
 
-        // Check Normal DEX
-        if let Some(normal_config) = get_provider_config(&env, DexProvider::Normal) {
-            if normal_config.is_active {
-                if let Ok(amount) = NormalProvider::get_estimated_output(
-                    &env,
-                    &token_in,
-                    &token_out,
-                    amount_in,
-                    &normal_config,
-                ) {
-                    if amount > best_amount {
-                        best_amount = amount;
-                        best_provider = DexProvider::Normal;
+        let selected_provider = select_provider(&env, &params);
+
+        match selected_provider {
+            DexProvider::Normal => {
+                if let Some(normal_config) = get_provider_config(&env, DexProvider::Normal) {
+                    if normal_config.is_active {
+                        if let Ok(amount) = NormalProvider::get_estimated_output(
+                            &env,
+                            &token_in,
+                            &token_out,
+                            amount_in,
+                            &normal_config,
+                        ) {
+                            return Ok((DexProvider::Normal, amount));
+                        }
                     }
                 }
+                Err(SwapError::ProviderNotConfigured)
             }
-        }
-
-        // FIXME: Soroswap does not have an on-chain quote method
-        // Check Soroswap
-        if let Some(soroswap_config) = get_provider_config(&env, DexProvider::Soroswap) {
-            if soroswap_config.is_active {
-                if let Ok(amount) = SoroswapProvider::get_estimated_output(
-                    &env,
-                    &token_in,
-                    &token_out,
-                    amount_in,
-                    &soroswap_config,
-                ) {
-                    if amount > best_amount {
-                        best_amount = amount;
-                        best_provider = DexProvider::Soroswap;
-                    }
-                }
+            DexProvider::Soroswap => {
+                Err(SwapError::SoroswapAggregatorUnavailable)
             }
-        }
-
-        if best_amount > 0 {
-            Ok((best_provider, best_amount))
-        } else {
-            Err(SwapError::ProviderNotConfigured)
         }
     }
 
@@ -245,5 +239,53 @@ impl SwapUtility {
         } else {
             Err(SwapError::ProviderNotConfigured)
         }
+    }
+}
+
+// Token identification utilities
+fn is_normal_token(env: &Env, symbol: &Symbol) -> bool {
+
+    let normal_prefixes = [
+        Symbol::new(&env, "nUSDC"),
+        Symbol::new(&env, "nUSDT"), 
+        Symbol::new(&env, "nBTC"),
+        Symbol::new(&env, "nETH"),
+        Symbol::new(&env, "nXLM"),
+    ];
+    
+    for normal_symbol in normal_prefixes.iter() {
+        if symbol == normal_symbol {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn is_xlm_token(env: &Env, address: &Address) -> bool {
+    
+    match get_xlm_token_address(env) {
+        Some(xlm_address) => *address == xlm_address,
+        None => {
+            false
+        }
+    }
+}
+
+fn select_provider(env: &Env, params: &SwapParams) -> DexProvider {
+
+    
+    let is_normal = is_normal_token(env, &params.asset);
+    
+    if !is_normal {
+        return DexProvider::Soroswap;
+    }
+    
+    let trading_with_xlm = is_xlm_token(env, &params.token_in) || is_xlm_token(env, &params.token_out);
+    
+    if trading_with_xlm {
+        DexProvider::Normal
+    } else {
+        DexProvider::Soroswap
     }
 }
