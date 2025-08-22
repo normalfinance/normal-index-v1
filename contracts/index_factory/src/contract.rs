@@ -28,8 +28,8 @@ use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::require_admin;
 use soroban_sdk::{
-    contract, contractimpl, contracttype, panic_with_error, symbol_short, Address, BytesN, Env,
-    IntoVal, Symbol, Vec,
+    contract, contractimpl, contracttype, panic_with_error, Address, BytesN, Env,
+    Symbol, Vec,
 };
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
@@ -68,7 +68,7 @@ impl IndexFactory {
         admin: Address,
         emergency_admin: Address,
         swap_utility: Address,
-        router: Address,
+        _router: Address,
         index_contract_wasm: BytesN<32>,
         token_contract_wasm: BytesN<32>,
         max_manager_fee_fraction: u32,
@@ -397,7 +397,7 @@ impl AdminInterface for IndexFactory {
         // FactoryEvents::new(&e).unkill_create();
     }
 
-    fn get_is_killed_create(e: Env) -> bool {
+    fn get_is_killed_create(_e: Env) -> bool {
         return false;
         // get_is_killed_create(&e)
     }

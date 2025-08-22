@@ -102,8 +102,6 @@ pub fn generate_swap_params(
                 amount_in: target_allocation as i128,
                 amount_out_min: min_output,
                 to: e.current_contract_address(),
-                asset: component.symbol.clone(),
-                direction: SwapDirection::Buy,
             };
 
             swaps.push_back(swap);
@@ -125,6 +123,9 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
         // Get fee enabled status from factory contract
         let fee_enabled = get_fee_enabled_from_factory(e);
 
+        // Get the component info to extract the asset symbol
+        let component = crate::storage::get_component(e, params.token_out.clone());
+        
         // Map local SwapParams to SwapUtilityParams for the external contract
         let utility_params = SwapUtilityParams {
             provider: None, // Let the SwapUtility contract decide which provider to use
@@ -133,33 +134,33 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
             amount_in: params.amount_in,
             amount_out_min: params.amount_out_min,
             to: params.to.clone(),
-            asset: params.asset.clone(),
-            direction: params.direction.clone(),
+            asset: component.asset.clone(),
+            direction: SwapDirection::Buy, // We're always buying components
             fee_enabled,    // Pass the fee toggle to SwapUtility
         };
 
         // Execute individual swap via cross-contract call to swap utility
-        let swap_result: Result<Result<SwapResult, u32>, u32> = e.try_invoke_contract(
+        let swap_result = e.try_invoke_contract::<SwapResult, soroban_sdk::Error>(
             &get_swap_utility(&e),
             &Symbol::new(&e, "execute_swap"),
             Vec::from_array(&e, [utility_params.into_val(e)]),
         );
 
         match swap_result {
-            Ok(Ok(swap_result)) => {
+            Ok(Ok(result)) => {
                 // Successful swap - SwapResult from utility contract
                 Events::new(&e).swap(
                     Vec::new(&e),
                     e.current_contract_address(),
-                    swap_result.provider_used,
+                    result.provider_used,
                     params.token_in,
                     params.token_out,
-                    swap_result.amount_in,
-                    swap_result.amount_out,
+                    result.amount_in,
+                    result.amount_out,
                 );
 
                 // Add successful result
-                results.push_back(swap_result.amount_out as u128);
+                results.push_back(result.amount_out as u128);
             }
             Ok(Err(swap_error)) => {
                 // Swap failed but call succeeded - emit failure event
@@ -168,7 +169,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
                     params.token_in,
                     params.token_out,
                     params.amount_in.try_into().unwrap(),
-                    swap_error,
+                    1000u32, // Convert error enum to numeric code
                 );
 
                 // Add zero result for failed swap
@@ -181,8 +182,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
                     params.token_in,
                     params.token_out,
                     params.amount_in.try_into().unwrap(),
-
-                    contract_error,
+                    999u32, // Generic contract call failure
                 );
 
                 // Add zero result for failed swap

@@ -47,20 +47,20 @@ use access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use access_control::errors::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
 use access_control::interface::TransferableContract;
-use access_control::management::{MultipleAddressesManagementTrait, SingleAddressManagementTrait};
+use access_control::management::SingleAddressManagementTrait;
 use access_control::role::Role;
 use access_control::role::SymbolRepresentation;
 use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::{
     require_pause_admin_or_owner, require_pause_or_emergency_pause_admin_or_owner,
 };
-use soroban_sdk::IntoVal;
 use soroban_sdk::{
-    contract, contractimpl, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
-    Address, BytesN, Env, Map, Symbol, Vec,
+    contract, contractimpl, panic_with_error, 
+    token::TokenClient as SorobanTokenClient, 
+    vec, Address, BytesN, Env, Map, Symbol, Vec,
 };
 use token_share::{
-    get_token_share, get_total_shares, mint_shares, put_token_share, Client as ShareTokenClient,
+    get_token_share, get_total_shares, mint_shares, put_token_share,
 };
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
@@ -92,12 +92,13 @@ impl Index {
         // deploy and initialize index token contract
         let share_contract =
             create_index_token_contract(&e, index_token_wasm_hash, &params.token_symbol);
-        ShareTokenClient::new(&e, &share_contract).initialize(
-            &e.current_contract_address(),
-            &7u32,
-            &params.name.into_val(&e),
-            &params.token_symbol.into_val(&e),
-        );
+        // Token initialization should be handled by the index_token contract itself
+        // SorobanTokenAdminClient::new(&e, &share_contract).initialize(
+        //     &e.current_contract_address(),
+        //     &7u32,
+        //     &params.name.into_val(&e),
+        //     &params.token_symbol.into_val(&e),
+        // );
         put_token_share(&e, share_contract);
 
         set_manager_fee_fraction(&e, &params.manager_fee_fraction);
@@ -129,7 +130,7 @@ impl IndexTrait for Index {
         token: Address,
         amount: u128,
         destination: Option<Address>,
-        max_slippage: Option<u64>,
+        _max_slippage: Option<u64>,
     ) {
         user.require_auth();
 
@@ -169,7 +170,7 @@ impl IndexTrait for Index {
         let n_shares = vault_amount_to_shares(&e, amount, total_shares, vault_amount);
 
         // Collect any accrued fees before minting new shares
-        let destination_user = match destination {
+        let _destination_user = match destination {
             Some(ref v) => v.clone(),
             None => user.clone(),
         };
@@ -1413,7 +1414,7 @@ impl Index {
                 }
                 ComponentAction::Remove => {
                     // Get component info before removing
-                    let component = get_component(e, update.token.clone()); // This will panic if not found
+                    let _component = get_component(e, update.token.clone()); // This will panic if not found
                     let final_balance =
                         get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
                     let current_time = e.ledger().timestamp();

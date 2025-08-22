@@ -796,7 +796,7 @@ impl IndexEvents for Events {
         &self,
         tokens: Vec<Address>,
         user: Address,
-        pool_id: Symbol,
+        pool_id: DexProvider,
         token_in: Address,
         token_out: Address,
         amount_in: u128,
@@ -940,6 +940,13 @@ impl IndexEvents for Events {
                 old_recipient,
                 new_recipient,
             ),
+            (),
+        )
+    }
+
+    fn fee_collection_toggled(&self, enabled: bool) {
+        self.env().events().publish(
+            (Symbol::new(self.env(), "fee_collection_toggled"), enabled),
             (),
         )
     }

@@ -247,7 +247,7 @@ pub fn add_rebalance_authority_to_registry(e: &Env, address: Address) {
 
 pub fn remove_rebalance_authority_from_registry(e: &Env, address: Address) {
     let key = DataKey::RebalanceAuthorityRegistry;
-    let mut registry: Vec<Address> = match e.storage().persistent().get(&key) {
+    let registry: Vec<Address> = match e.storage().persistent().get(&key) {
         Some(reg) => reg,
         None => return,
     };
@@ -455,7 +455,7 @@ pub fn add_component_to_registry(env: &Env, token: Address) {
 
 pub fn remove_component_from_registry(env: &Env, token: Address) {
     let key = DataKey::ComponentRegistry;
-    let mut registry: Vec<Address> = match env.storage().persistent().get(&key) {
+    let registry: Vec<Address> = match env.storage().persistent().get(&key) {
         Some(reg) => reg,
         None => return, // No registry exists
     };
