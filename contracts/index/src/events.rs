@@ -64,6 +64,15 @@ pub(crate) trait IndexEvents {
         performance_impact: i128, // Can be negative if rebalancing reduced NAV
     );
 
+    fn refactor_executed(
+        &self,
+        ts: u64,
+        caller: Address,
+        components_before: Map<Address, Component>,
+        components_after: Map<Address, Component>,
+        components_updated: u32,
+    );
+
     // Legacy events for backward compatibility
     fn mint(&self, ts: u64, user: Address);
 
@@ -389,6 +398,27 @@ impl IndexEvents for Events {
                 total_swaps,
                 gas_cost,
                 performance_impact,
+            ),
+            (),
+        );
+    }
+
+    fn refactor_executed(
+        &self,
+        ts: u64,
+        caller: Address,
+        components_before: Map<Address, Component>,
+        components_after: Map<Address, Component>,
+        components_updated: u32,
+    ) {
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "refactor_executed"),
+                ts,
+                caller,
+                components_before,
+                components_after,
+                components_updated,
             ),
             (),
         );

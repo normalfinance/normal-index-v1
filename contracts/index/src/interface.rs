@@ -77,6 +77,8 @@ pub trait IndexTrait {
 pub trait AdminInterface {
     fn initialize(e: Env, admin: Address, token: Address);
 
+    fn refactor(e: Env, caller: Address, params: RefactorParams);
+
     fn rebalance(e: Env, caller: Address, params: RebalanceParams);
 
     fn set_rebalance_authority(e: Env, admin: Address, authority: Address, status: bool);
@@ -198,9 +200,14 @@ pub struct ComponentUpdate {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RebalanceParams {
+pub struct RefactorParams {
     pub component_updates: Vec<ComponentUpdate>,
-    pub target_nav: Option<i128>, // Optional NAV target
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RebalanceParams {
+    pub target_nav: Option<i128>, // Optional NAV target for rebalancing
 }
 
 #[contracttype]
