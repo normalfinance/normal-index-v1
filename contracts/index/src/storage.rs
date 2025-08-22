@@ -15,7 +15,7 @@ use utils::{
 enum DataKey {
     Factory,
     SwapUtility, // Address of the SwapUtility contract for cross-contract swaps
-    TokenIndex, //
+    TokenIndex,  //
 
     TotalShares,
 

@@ -13,7 +13,7 @@ pub struct SwapUtilityParams {
     pub to: Address,
     pub deadline: u64,
     pub provider: Option<String>, // DexProvider as string
-    pub fee_enabled: bool, // Fee toggle from index contract
+    pub fee_enabled: bool,        // Fee toggle from index contract
 }
 
 #[derive(Clone)]
@@ -27,9 +27,7 @@ pub struct SwapResult {
 use crate::errors::IndexError;
 use crate::events::{Events, IndexEvents};
 use crate::fees::get_fee_enabled_from_factory;
-use crate::storage::{
-    get_all_components, get_component_balance, get_factory, get_index_vault_amount, get_swap_utility,
-};
+use crate::storage::{get_all_components, get_swap_utility};
 
 #[derive(Clone)]
 #[contracttype]
@@ -85,7 +83,7 @@ pub fn generate_swap_params(e: &Env, now: u64) -> Vec<SwapParams> {
         amount_out_min: 0,
         distribution,
         to: e.current_contract_address(),
-        deadline: now + FIVE_MINUTE as u64,
+        deadline: now + (FIVE_MINUTE as u64),
     };
 
     swaps.push_back(swap);
@@ -111,17 +109,14 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
             to: params.to.clone(),
             deadline: params.deadline,
             provider: None, // Use default provider from SwapUtility
-            fee_enabled, // Pass the fee toggle to SwapUtility
+            fee_enabled,    // Pass the fee toggle to SwapUtility
         };
 
         // Execute individual swap via cross-contract call to swap utility
         let swap_result: Result<Result<SwapResult, u32>, u32> = e.try_invoke_contract(
             &get_swap_utility(&e),
             &Symbol::new(&e, "execute_swap"),
-            Vec::from_array(
-                &e,
-                [utility_params.into_val(e)],
-            ),
+            Vec::from_array(&e, [utility_params.into_val(e)]),
         );
 
         match swap_result {
@@ -213,7 +208,7 @@ pub fn generate_rebalance_swaps(
             crate::interface::ComponentAction::Add => {
                 // Calculate target balance for new component
                 let target_balance = if target_nav > 0 {
-                    (target_nav * update.new_weight as u128) / 10000
+                    (target_nav * (update.new_weight as u128)) / 10000
                 } else {
                     0
                 };
@@ -228,7 +223,7 @@ pub fn generate_rebalance_swaps(
             crate::interface::ComponentAction::UpdateWeight => {
                 // Calculate new target balance based on updated weight
                 let target_balance = if target_nav > 0 {
-                    (target_nav * update.new_weight as u128) / 10000
+                    (target_nav * (update.new_weight as u128)) / 10000
                 } else {
                     0
                 };
@@ -265,10 +260,10 @@ fn create_buy_swap(e: &Env, token_out: Address, amount_needed: u128) -> SwapPara
         token_in: base_token,
         token_out,
         amount_in: amount_needed as i128, // Simplified 1:1 ratio
-        amount_out_min: (amount_needed as i128 * 95) / 100, // 5% slippage tolerance
+        amount_out_min: ((amount_needed as i128) * 95) / 100, // 5% slippage tolerance
         distribution: get_default_distribution(e),
         to: e.current_contract_address(),
-        deadline: e.ledger().timestamp() + utils::constant::FIVE_MINUTE as u64,
+        deadline: e.ledger().timestamp() + (utils::constant::FIVE_MINUTE as u64),
     }
 }
 
@@ -279,10 +274,10 @@ fn create_sell_swap(e: &Env, token_in: Address, amount_to_sell: u128) -> SwapPar
         token_in,
         token_out: base_token,
         amount_in: amount_to_sell as i128,
-        amount_out_min: (amount_to_sell as i128 * 95) / 100, // 5% slippage tolerance
+        amount_out_min: ((amount_to_sell as i128) * 95) / 100, // 5% slippage tolerance
         distribution: get_default_distribution(e),
         to: e.current_contract_address(),
-        deadline: e.ledger().timestamp() + utils::constant::FIVE_MINUTE as u64,
+        deadline: e.ledger().timestamp() + (utils::constant::FIVE_MINUTE as u64),
     }
 }
 

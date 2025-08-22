@@ -5,9 +5,10 @@ use crate::interface::{AdminInterface, IndexFactoryTrait};
 use crate::storage::set_is_killed_create;
 use crate::storage::{
     add_deployed_index, get_aggregator, get_all_deployed_indexes, get_contract_sequence,
-    get_deployed_indexes, get_fee_contract_wasm, get_index_fee_enabled, get_max_manager_fee_fraction,
-    get_minimum_fee_threshold, get_protocol_fee_fraction, get_protocol_fee_recipient, get_router,
-    set_aggregator, set_contract_sequence, set_fee_contract_wasm, set_index_fee_enabled, set_max_manager_fee_fraction,
+    get_deployed_indexes, get_fee_contract_wasm, get_index_fee_enabled,
+    get_max_manager_fee_fraction, get_minimum_fee_threshold, get_protocol_fee_fraction,
+    get_protocol_fee_recipient, get_router, set_aggregator, set_contract_sequence,
+    set_fee_contract_wasm, set_index_fee_enabled, set_max_manager_fee_fraction,
     set_minimum_fee_threshold, set_protocol_fee_fraction, set_protocol_fee_recipient, set_router,
     DexDistribution,
 };
@@ -133,43 +134,6 @@ impl IndexFactoryTrait for IndexFactory {
         );
         address
     }
-
-    // fn swap(
-    //     e: Env,
-    //     token_in: Address,
-    //     token_out: Address,
-    //     amount_in: i128,
-    //     amount_out_min: i128,
-    //     distribution: Vec<DexDistribution>,
-    //     to: Address,
-    //     deadline: u64,
-    // ) -> Vec<Vec<i128>> {
-    //     // Auto-derive fee status from centralized factory toggle
-    //     // Use the 'to' address as the calling contract (index contract address)
-    //     // Defaults to enabled for non-index callers (safe fallback)
-    //     let fee_enabled = get_index_fee_enabled(&e, &to);
-
-    //     let result: Vec<Vec<i128>> = e.invoke_contract(
-    //         &get_aggregator(&e),
-    //         &symbol_short!("swap_exct"),
-    //         Vec::from_array(
-    //             &e,
-    //             [
-    //                 e.current_contract_address().into_val(&e),
-    //                 token_in.into_val(&e),
-    //                 token_out.into_val(&e),
-    //                 amount_in.into_val(&e),
-    //                 amount_out_min.into_val(&e),
-    //                 distribution.into_val(&e),
-    //                 to.into_val(&e),
-    //                 deadline.into_val(&e),
-    //                 fee_enabled.into_val(&e),
-    //             ],
-    //         ),
-    //     );
-
-    //     result
-    // }
 }
 
 impl AdminInterface for IndexFactory {
@@ -320,10 +284,10 @@ impl AdminInterface for IndexFactory {
     fn set_index_fee_enabled(e: Env, admin: Address, index_address: Address, enabled: bool) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        
+
         let old_status = get_index_fee_enabled(&e, &index_address);
         set_index_fee_enabled(&e, &index_address, enabled);
-        
+
         // Emit event if status changed
         if old_status != enabled {
             Events::new(&e).index_fee_toggled(index_address, enabled);
@@ -341,12 +305,12 @@ impl AdminInterface for IndexFactory {
     fn batch_set_index_fee_enabled(e: Env, admin: Address, index_settings: Vec<(Address, bool)>) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        
+
         for setting in index_settings.iter() {
             let (index_address, enabled) = setting;
             let old_status = get_index_fee_enabled(&e, &index_address);
             set_index_fee_enabled(&e, &index_address, enabled);
-            
+
             // Emit event if status changed
             if old_status != enabled {
                 Events::new(&e).index_fee_toggled(index_address, enabled);

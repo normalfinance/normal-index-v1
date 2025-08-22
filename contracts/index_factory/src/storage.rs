@@ -31,7 +31,7 @@ enum DataKey {
     // Index registry storage
     DeployedIndexes(Address), // operator -> Vec<Address>
     AllDeployedIndexes,       // global registry -> Vec<Address>
-    
+
     // Fee control per index
     IndexFeeEnabled(Address), // index_address -> bool (fee enabled status)
 

@@ -29,10 +29,10 @@ use crate::storage::set_rebalance_authority_status;
 use crate::storage::set_total_mints;
 use crate::storage::update_component_weight;
 use crate::storage::{
-    get_accumulated_manager_fees, get_accumulated_protocol_fees,
-    get_manager_address, get_manager_fee_fraction, get_protocol_fee_recipient, get_total_fees,
-    set_accumulated_manager_fees, set_accumulated_protocol_fees,
-    set_last_fee_collection, set_manager_address, set_protocol_fee_recipient, set_total_fees,
+    get_accumulated_manager_fees, get_accumulated_protocol_fees, get_manager_address,
+    get_manager_fee_fraction, get_protocol_fee_recipient, get_total_fees,
+    set_accumulated_manager_fees, set_accumulated_protocol_fees, set_last_fee_collection,
+    set_manager_address, set_protocol_fee_recipient, set_total_fees,
 };
 use crate::storage::{
     get_all_component_balances, get_all_components, get_base_nav, get_component,
