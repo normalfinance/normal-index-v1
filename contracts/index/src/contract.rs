@@ -1583,13 +1583,13 @@ impl Index {
                 } else {
                     // Need to swap deposited token for component token
                     let swap = crate::index::SwapParams {
+                        provider: None,
                         token_in: deposited_token.clone(),
                         token_out: component_token.clone(),
                         amount_in: target_amount as i128,
                         amount_out_min: ((target_amount as i128) * 95) / 100, // 5% slippage tolerance
-                        distribution: crate::index::get_default_distribution(e),
                         to: e.current_contract_address(),
-                        deadline: e.ledger().timestamp() + (utils::constant::FIVE_MINUTE as u64),
+
                     };
                     swaps.push_back(swap);
                 }
