@@ -1409,6 +1409,11 @@ impl Index {
         let start_time = e.ledger().timestamp();
         let nav_before = Self::get_nav(e.clone()) as u128;
 
+        let can_rebalance = Index::can_rebalance(e.clone());
+        if !can_rebalance {
+            panic_with_error!(e, IndexError::RebalanceNotAllowed);
+        }
+
         // Generate and execute swap transactions to align current balances with target weights
         let swaps = crate::index::generate_rebalance_swaps(e, &params);
         let total_swaps = swaps.len() as u32;
