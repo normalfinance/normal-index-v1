@@ -51,7 +51,7 @@ impl SwapUtilityTrait for SwapUtility {
 
         // Set Normal as default provider
         set_default_provider(&env, DexProvider::Normal);
-        
+
         // Store XLM token address for identification
         set_xlm_token_address(&env, &xlm_token_address);
 
@@ -162,7 +162,9 @@ fn execute_swap_with_fallback(
         Ok(result) => Ok(result),
         Err(SwapError::InsufficientLiquidity) | Err(SwapError::SoroswapSwapFailed) => {
             // Try fallback to Normal DEX if Soroswap fails, but only for Normal tokens
-            if matches!(primary_provider, DexProvider::Soroswap) && is_normal_token(env, &params.asset) {
+            if matches!(primary_provider, DexProvider::Soroswap)
+                && is_normal_token(env, &params.asset)
+            {
                 if let Some(fallback_config) = get_provider_config(env, DexProvider::Normal) {
                     if fallback_config.is_active {
                         return NormalProvider::execute_swap(env, params, &fallback_config);
@@ -217,9 +219,7 @@ impl SwapUtility {
                 }
                 Err(SwapError::ProviderNotConfigured)
             }
-            DexProvider::Soroswap => {
-                Err(SwapError::SoroswapAggregatorUnavailable)
-            }
+            DexProvider::Soroswap => Err(SwapError::SoroswapAggregatorUnavailable),
         }
     }
 
@@ -245,15 +245,14 @@ impl SwapUtility {
 
 // Token identification utilities
 fn is_normal_token(env: &Env, symbol: &Symbol) -> bool {
-
     let normal_prefixes = [
         Symbol::new(&env, "nUSDC"),
-        Symbol::new(&env, "nUSDT"), 
+        Symbol::new(&env, "nUSDT"),
         Symbol::new(&env, "nBTC"),
         Symbol::new(&env, "nETH"),
         Symbol::new(&env, "nXLM"),
     ];
-    
+
     for normal_symbol in normal_prefixes.iter() {
         if symbol == normal_symbol {
             return true;
@@ -264,26 +263,22 @@ fn is_normal_token(env: &Env, symbol: &Symbol) -> bool {
 }
 
 fn is_xlm_token(env: &Env, address: &Address) -> bool {
-    
     match get_xlm_token_address(env) {
         Some(xlm_address) => *address == xlm_address,
-        None => {
-            false
-        }
+        None => false,
     }
 }
 
 fn select_provider(env: &Env, params: &SwapParams) -> DexProvider {
-
-    
     let is_normal = is_normal_token(env, &params.asset);
-    
+
     if !is_normal {
         return DexProvider::Soroswap;
     }
-    
-    let trading_with_xlm = is_xlm_token(env, &params.token_in) || is_xlm_token(env, &params.token_out);
-    
+
+    let trading_with_xlm =
+        is_xlm_token(env, &params.token_in) || is_xlm_token(env, &params.token_out);
+
     if trading_with_xlm {
         DexProvider::Normal
     } else {

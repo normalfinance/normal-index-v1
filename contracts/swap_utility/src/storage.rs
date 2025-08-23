@@ -13,7 +13,7 @@ pub enum DataKey {
 
     // Provider-specific settings
     DefaultProvider,
-    
+
     // Asset addresses
     XlmTokenAddress,
 }
@@ -120,7 +120,9 @@ pub fn require_provider_active(env: &Env, provider: DexProvider) {
 // XLM token address management
 pub fn set_xlm_token_address(env: &Env, xlm_address: &Address) {
     bump_instance(env);
-    env.storage().instance().set(&DataKey::XlmTokenAddress, xlm_address);
+    env.storage()
+        .instance()
+        .set(&DataKey::XlmTokenAddress, xlm_address);
 }
 
 pub fn get_xlm_token_address(env: &Env) -> Option<Address> {

@@ -34,7 +34,7 @@ pub struct SwapParams {
     pub to: Address,
     pub asset: Symbol,
     pub direction: SwapDirection,
-    pub fee_enabled: Option<bool>,  
+    pub fee_enabled: Option<bool>,
 }
 
 #[contracttype]
@@ -81,7 +81,13 @@ pub trait SwapUtilityTrait {
     fn get_provider_config(env: Env, provider: DexProvider) -> Option<ProviderConfig>;
 
     /// Initialize the contract
-    fn initialize(env: Env, admin: Address, normal_dex_address: Address, soroswap_address: Address, xlm_token_address: Address);
+    fn initialize(
+        env: Env,
+        admin: Address,
+        normal_dex_address: Address,
+        soroswap_address: Address,
+        xlm_token_address: Address,
+    );
 
     /// Check if contract is initialized
     fn is_initialized(env: Env) -> bool;

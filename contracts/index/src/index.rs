@@ -15,7 +15,7 @@ pub struct SwapUtilityParams {
     pub to: Address,
     pub asset: Symbol,
     pub direction: SwapDirection,
-    pub fee_enabled: bool,        // Fee toggle from index contract
+    pub fee_enabled: bool, // Fee toggle from index contract
 }
 
 use crate::errors::IndexError;
@@ -58,7 +58,6 @@ impl Default for DexProvider {
         Self::Normal
     }
 }
-
 
 pub fn generate_swap_params(
     e: &Env,
@@ -125,7 +124,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
 
         // Get the component info to extract the asset symbol
         let component = crate::storage::get_component(e, params.token_out.clone());
-        
+
         // Map local SwapParams to SwapUtilityParams for the external contract
         let utility_params = SwapUtilityParams {
             provider: None, // Let the SwapUtility contract decide which provider to use
@@ -136,7 +135,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
             to: params.to.clone(),
             asset: component.asset.clone(),
             direction: SwapDirection::Buy, // We're always buying components
-            fee_enabled,    // Pass the fee toggle to SwapUtility
+            fee_enabled,                   // Pass the fee toggle to SwapUtility
         };
 
         // Execute individual swap via cross-contract call to swap utility
@@ -264,11 +263,12 @@ pub fn generate_rebalance_swaps(
 
     // Get all current components and their weights
     let components = crate::storage::get_all_components(e);
-    
+
     // For each component, check if current balance matches target allocation
     for (token_address, component) in components.iter() {
-        let current_balance = crate::storage::get_component_balance_safe(e, token_address.clone()).unwrap_or(0);
-        
+        let current_balance =
+            crate::storage::get_component_balance_safe(e, token_address.clone()).unwrap_or(0);
+
         // Calculate target balance based on component weight and target NAV
         let target_balance = if target_nav > 0 {
             (target_nav * component.weight) / 10000

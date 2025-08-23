@@ -28,8 +28,7 @@ use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::require_admin;
 use soroban_sdk::{
-    contract, contractimpl, contracttype, panic_with_error, Address, BytesN, Env,
-    Symbol, Vec,
+    contract, contractimpl, contracttype, panic_with_error, Address, BytesN, Env, Symbol, Vec,
 };
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;

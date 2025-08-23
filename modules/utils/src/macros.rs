@@ -1,4 +1,3 @@
-
 #[macro_export]
 macro_rules! generate_instance_storage_setter {
     ($attr_name:ident, $key:expr, $data_type:ty) => {

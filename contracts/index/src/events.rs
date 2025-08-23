@@ -1,6 +1,6 @@
+use crate::index::DexProvider;
 use crate::storage::Component;
 use soroban_sdk::{Address, Env, Map, Symbol, Vec};
-use crate::index::DexProvider;
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);

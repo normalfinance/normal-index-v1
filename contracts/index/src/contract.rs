@@ -55,13 +55,10 @@ use access_control::utils::{
     require_pause_admin_or_owner, require_pause_or_emergency_pause_admin_or_owner,
 };
 use soroban_sdk::{
-    contract, contractimpl, panic_with_error, 
-    token::TokenClient as SorobanTokenClient, 
-    vec, Address, BytesN, Env, Map, Symbol, Vec,
+    contract, contractimpl, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
+    Address, BytesN, Env, Map, Symbol, Vec,
 };
-use token_share::{
-    get_token_share, get_total_shares, mint_shares, put_token_share,
-};
+use token_share::{get_token_share, get_total_shares, mint_shares, put_token_share};
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
@@ -622,8 +619,8 @@ impl AdminInterface for Index {
             nav_after,
             components_before,
             components_after,
-            0,                                          // No swaps counted here - counted in execute_rebalancing
-            0,                                          // TODO: Calculate actual gas cost
+            0, // No swaps counted here - counted in execute_rebalancing
+            0, // TODO: Calculate actual gas cost
             (nav_after as i128) - (nav_before as i128), // Performance impact
         );
 
@@ -1444,7 +1441,7 @@ impl Index {
         // Also emit legacy event for backward compatibility
         Events::new(e).rebalance_completed(
             e.current_contract_address(),
-            0, // components_updated: 0 
+            0, // components_updated: 0
             total_swaps,
         );
     }
@@ -1561,25 +1558,31 @@ impl Index {
     fn execute_weight_based_mint(e: &Env, deposited_token: Address, deposited_amount: u128) {
         // Get all current components and their weights
         let components = crate::storage::get_all_components(e);
-        
+
         if components.len() == 0 {
             // No components defined, just hold the deposited token as-is
             return;
         }
-        
+
         let mut swaps = Vec::new(e);
-        
+
         // For each component, calculate how much of the deposited amount should be allocated
         for (component_token, component) in components.iter() {
             // Calculate target amount based on weight (weight is in basis points, 10000 = 100%)
             let target_amount = (deposited_amount * component.weight) / 10000;
-            
+
             if target_amount > 0 {
                 if component_token == deposited_token {
                     // No swap needed - the deposited token matches this component
                     // Just update the component balance directly
-                    let current_balance = crate::storage::get_component_balance_safe(e, component_token.clone()).unwrap_or(0);
-                    crate::storage::set_component_balance(e, component_token.clone(), current_balance + target_amount);
+                    let current_balance =
+                        crate::storage::get_component_balance_safe(e, component_token.clone())
+                            .unwrap_or(0);
+                    crate::storage::set_component_balance(
+                        e,
+                        component_token.clone(),
+                        current_balance + target_amount,
+                    );
                 } else {
                     // Need to swap deposited token for component token
                     let swap = crate::index::SwapParams {
@@ -1589,28 +1592,33 @@ impl Index {
                         amount_in: target_amount as i128,
                         amount_out_min: ((target_amount as i128) * 95) / 100, // 5% slippage tolerance
                         to: e.current_contract_address(),
-
                     };
                     swaps.push_back(swap);
                 }
             }
         }
-        
+
         // Execute all swaps if any are needed
         if swaps.len() > 0 {
             let swap_results = crate::index::execute_swaps(e, swaps);
-            
+
             // Update component balances based on swap results
             let mut swap_index = 0;
             for (component_token, component) in components.iter() {
                 let target_amount = (deposited_amount * component.weight) / 10000;
-                
+
                 if target_amount > 0 && component_token != deposited_token {
                     // This component required a swap
                     if swap_index < swap_results.len() {
                         let amount_received = swap_results.get(swap_index).unwrap_or(0u128);
-                        let current_balance = crate::storage::get_component_balance_safe(e, component_token.clone()).unwrap_or(0);
-                        crate::storage::set_component_balance(e, component_token.clone(), current_balance + amount_received);
+                        let current_balance =
+                            crate::storage::get_component_balance_safe(e, component_token.clone())
+                                .unwrap_or(0);
+                        crate::storage::set_component_balance(
+                            e,
+                            component_token.clone(),
+                            current_balance + amount_received,
+                        );
                         swap_index += 1;
                     }
                 }
