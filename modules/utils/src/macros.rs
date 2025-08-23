@@ -1,6 +1,3 @@
-use soroban_sdk::{log, panic_with_error};
-
-use crate::errors::math_errors::MathError;
 
 #[macro_export]
 macro_rules! generate_instance_storage_setter {

@@ -12,12 +12,7 @@ pub trait IndexFactoryTrait {
     // |.  \    /:  | /   /  \\  \  /\  |\|    \    \ |
     // |___|\__/|___|(___/    \___)(__\_|_)\___|\____\)
 
-    fn deploy_index_contract(
-        e: Env,
-        operator: Address,
-        fee_destination: Address,
-        max_max_swap_fee_fraction: u32,
-    ) -> Address;
+    fn deploy_index_contract(e: Env, params: IndexParams) -> Address;
 }
 
 pub trait AdminInterface {
@@ -33,9 +28,7 @@ pub trait AdminInterface {
 
     fn get_factory_config(e: Env) -> FactoryConfig;
 
-    fn get_aggregator(e: Env) -> Address;
-
-    fn get_router(e: Env) -> Address;
+    fn get_swap_utility(e: Env) -> Address;
 
     fn get_protocol_fee_fraction(e: Env) -> u32;
 

@@ -1,93 +1,112 @@
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{contracttype, panic_with_error, Address, Env, IntoVal, String, Symbol, Vec};
 use token_share::get_token_share;
-use utils::{constant::FIVE_MINUTE, math::safe_math::SafeMath, validate};
+use utils::validate;
 
 // Types to match the SwapUtility contract
 #[derive(Clone)]
 #[contracttype]
 pub struct SwapUtilityParams {
+    pub provider: Option<String>, // DexProvider as string
     pub token_in: Address,
     pub token_out: Address,
     pub amount_in: i128,
     pub amount_out_min: i128,
     pub to: Address,
-    pub deadline: u64,
-    pub provider: Option<String>, // DexProvider as string
+    pub asset: Symbol,
+    pub direction: SwapDirection,
     pub fee_enabled: bool,        // Fee toggle from index contract
-}
-
-#[derive(Clone)]
-#[contracttype]
-pub struct SwapResult {
-    pub amount_in: i128,
-    pub amount_out: i128,
-    pub provider_used: String,
 }
 
 use crate::errors::IndexError;
 use crate::events::{Events, IndexEvents};
 use crate::fees::get_fee_enabled_from_factory;
-use crate::storage::{get_all_components, get_swap_utility};
-
-#[derive(Clone)]
-#[contracttype]
-pub struct DexDistribution {
-    pub protocol_id: String,
-    pub path: String,
-    pub parts: String,
-}
+use crate::storage::{get_all_components, get_swap_utility, get_swap_utility_address};
 
 #[contracttype]
 pub struct SwapParams {
+    pub provider: Option<DexProvider>,
     pub token_in: Address,
     pub token_out: Address,
     pub amount_in: i128,
     pub amount_out_min: i128,
-    pub distribution: Vec<DexDistribution>,
     pub to: Address,
-    pub deadline: u64,
 }
 
-pub fn generate_swap_params(e: &Env, now: u64) -> Vec<SwapParams> {
-    // diff b/t target state and current state
-    // let baa
+#[contracttype]
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum SwapDirection {
+    Buy,
+    Sell,
+}
 
-    let mut distribution: Vec<DexDistribution> = Vec::new(e);
-    distribution.push_back(DexDistribution {
-        protocol_id: String::from_str(&e, ""),
-        path: String::from_str(&e, ""),
-        parts: String::from_str(&e, ""),
-    });
+impl Default for SwapDirection {
+    fn default() -> Self {
+        Self::Buy
+    }
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DexProvider {
+    Normal,
+    Soroswap,
+}
+
+impl Default for DexProvider {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
+
+pub fn generate_swap_params(
+    e: &Env,
+    deposit_token: Address,
+    deposit_amount: u128,
+) -> Vec<SwapParams> {
+    // Validate inputs
+    validate!(e, deposit_amount > 0, IndexError::PathIsEmpty);
+
     let components = get_all_components(e);
-
     let mut swaps: Vec<SwapParams> = Vec::new(e);
 
-    // Placeholder implementation - skip component iteration for now
-    let current_balance = 0i128;
-    let target_balance = 0_i128;
+    // Return empty if no components are configured
+    if components.is_empty() {
+        return swaps;
+    }
 
-    let delta = target_balance.safe_sub(e, current_balance);
+    let total_deposit = deposit_amount;
 
-    let swap = SwapParams {
-        token_in: if delta > 0 {
-            Address::from_str(&e, "token1")
-        } else {
-            Address::from_str(&e, "token2")
-        },
-        token_out: if delta > 0 {
-            Address::from_str(&e, "token2")
-        } else {
-            Address::from_str(&e, "token1")
-        },
-        amount_in: delta,
-        amount_out_min: 0,
-        distribution,
-        to: e.current_contract_address(),
-        deadline: now + (FIVE_MINUTE as u64),
-    };
+    for (component_address, component) in components.iter() {
+        // Calculate target allocation based on component weight
+        // component.weight is in basis points (10000 = 100%)
+        let target_allocation = (total_deposit * component.weight as u128) / 10000;
 
-    swaps.push_back(swap);
+        // Only create swap if we need to buy this component and allocation > 0
+        if target_allocation > 0 {
+            // Validate that deposit token is different from component token
+            if deposit_token == component_address {
+                continue; // Skip if trying to swap token for itself
+            }
+
+            // Calculate minimum output with 5% slippage tolerance
+            let min_output = (target_allocation as i128 * 95) / 100;
+            validate!(e, min_output > 0, IndexError::PathIsEmpty);
+
+            //Revisit this param generation here
+            let swap = SwapParams {
+                provider: None, // Use default provider
+                token_in: deposit_token.clone(),
+                token_out: component_address.clone(),
+                amount_in: target_allocation as i128,
+                amount_out_min: min_output,
+                to: e.current_contract_address(),
+            };
+
+            swaps.push_back(swap);
+        }
+    }
 
     swaps
 }
@@ -95,46 +114,53 @@ pub fn generate_swap_params(e: &Env, now: u64) -> Vec<SwapParams> {
 pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
     let mut results: Vec<u128> = Vec::new(e);
 
+    // Get swap utility contract address
+    let swap_utility_address = get_swap_utility_address(e);
+
     for i in 0..swaps.len() {
         let params = swaps.get(i).unwrap();
 
         // Get fee enabled status from factory contract
         let fee_enabled = get_fee_enabled_from_factory(e);
 
+        // Get the component info to extract the asset symbol
+        let component = crate::storage::get_component(e, params.token_out.clone());
+        
         // Map local SwapParams to SwapUtilityParams for the external contract
         let utility_params = SwapUtilityParams {
+            provider: None, // Let the SwapUtility contract decide which provider to use
             token_in: params.token_in.clone(),
             token_out: params.token_out.clone(),
             amount_in: params.amount_in,
             amount_out_min: params.amount_out_min,
             to: params.to.clone(),
-            deadline: params.deadline,
-            provider: None, // Use default provider from SwapUtility
+            asset: component.asset.clone(),
+            direction: SwapDirection::Buy, // We're always buying components
             fee_enabled,    // Pass the fee toggle to SwapUtility
         };
 
         // Execute individual swap via cross-contract call to swap utility
-        let swap_result: Result<Result<SwapResult, u32>, u32> = e.try_invoke_contract(
+        let swap_result = e.try_invoke_contract::<SwapResult, soroban_sdk::Error>(
             &get_swap_utility(&e),
             &Symbol::new(&e, "execute_swap"),
             Vec::from_array(&e, [utility_params.into_val(e)]),
         );
 
         match swap_result {
-            Ok(Ok(swap_result)) => {
+            Ok(Ok(result)) => {
                 // Successful swap - SwapResult from utility contract
                 Events::new(&e).swap(
                     Vec::new(&e),
                     e.current_contract_address(),
-                    Symbol::from_str(&e, &swap_result.provider_used),
+                    result.provider_used,
                     params.token_in,
                     params.token_out,
-                    swap_result.amount_in,
-                    swap_result.amount_out,
+                    result.amount_in,
+                    result.amount_out,
                 );
 
                 // Add successful result
-                results.push_back(swap_result.amount_out as u128);
+                results.push_back(result.amount_out as u128);
             }
             Ok(Err(swap_error)) => {
                 // Swap failed but call succeeded - emit failure event
@@ -142,8 +168,8 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
                     e.current_contract_address(),
                     params.token_in,
                     params.token_out,
-                    params.amount_in,
-                    swap_error,
+                    params.amount_in.try_into().unwrap(),
+                    1000u32, // Convert error enum to numeric code
                 );
 
                 // Add zero result for failed swap
@@ -155,8 +181,8 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
                     e.current_contract_address(),
                     params.token_in,
                     params.token_out,
-                    params.amount_in,
-                    contract_error,
+                    params.amount_in.try_into().unwrap(),
+                    999u32, // Generic contract call failure
                 );
 
                 // Add zero result for failed swap
@@ -166,6 +192,41 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
     }
 
     results
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SwapResult {
+    pub provider_used: DexProvider,
+    pub amount_in: u128,
+    pub amount_out: u128,
+    pub success: bool,
+}
+
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum SwapError {
+    ProviderNotSupported = 100,
+    ProviderNotConfigured = 101,
+    InvalidTokenPair = 200,
+    InvalidAmount = 201,
+    InvalidSlippage = 202,
+    InsufficientLiquidity = 300,
+    SlippageExceeded = 301,
+    SwapFailed = 302,
+    NormalDexFailed = 400,
+    SoroswapSwapFailed = 401,
+    SoroswapAggregatorUnavailable = 402,
+    InvalidProviderConfig = 500,
+    UnauthorizedAccess = 501,
+    ContractNotInitialized = 502,
+}
+
+impl From<soroban_sdk::Error> for SwapError {
+    fn from(_: soroban_sdk::Error) -> Self {
+        SwapError::SwapFailed
+    }
 }
 
 pub fn vault_amount_to_shares(
@@ -258,13 +319,12 @@ fn create_buy_swap(e: &Env, token_out: Address, amount_needed: u128) -> SwapPara
     let base_token = get_base_token(e);
 
     SwapParams {
+        provider: None, // Use default provider
         token_in: base_token,
         token_out,
         amount_in: amount_needed as i128, // Simplified 1:1 ratio
-        amount_out_min: ((amount_needed as i128) * 95) / 100, // 5% slippage tolerance
-        distribution: get_default_distribution(e),
+        amount_out_min: (amount_needed as i128 * 95) / 100, // 5% slippage tolerance
         to: e.current_contract_address(),
-        deadline: e.ledger().timestamp() + (utils::constant::FIVE_MINUTE as u64),
     }
 }
 
@@ -272,27 +332,16 @@ fn create_sell_swap(e: &Env, token_in: Address, amount_to_sell: u128) -> SwapPar
     let base_token = get_base_token(e);
 
     SwapParams {
+        provider: None, // Use default provider
         token_in,
         token_out: base_token,
         amount_in: amount_to_sell as i128,
-        amount_out_min: ((amount_to_sell as i128) * 95) / 100, // 5% slippage tolerance
-        distribution: get_default_distribution(e),
+        amount_out_min: (amount_to_sell as i128 * 95) / 100, // 5% slippage tolerance
         to: e.current_contract_address(),
-        deadline: e.ledger().timestamp() + (utils::constant::FIVE_MINUTE as u64),
     }
 }
 
 fn get_base_token(e: &Env) -> Address {
     // Returns the index token as base
     get_token_share(e)
-}
-
-fn get_default_distribution(e: &Env) -> Vec<DexDistribution> {
-    let mut distribution = Vec::new(e);
-    distribution.push_back(DexDistribution {
-        protocol_id: String::from_str(e, "soroswap"),
-        path: String::from_str(e, "direct"),
-        parts: String::from_str(e, "100"),
-    });
-    distribution
 }

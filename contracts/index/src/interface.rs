@@ -2,6 +2,19 @@ use soroban_sdk::{contracttype, Address, Env, Map, Vec};
 
 use crate::storage::Component;
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DexProvider {
+    Normal,
+    Soroswap,
+}
+
+impl Default for DexProvider {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
 pub trait IndexTrait {
     fn mint(
         e: Env,

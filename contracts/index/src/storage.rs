@@ -5,7 +5,7 @@ use utils::bump::{bump_instance, bump_persistent};
 use utils::constant::THIRTY_DAY;
 use utils::errors::storage_errors::StorageError;
 use utils::{
-    generate_instance_storage_getter_and_setter,
+    generate_instance_storage_getter, generate_instance_storage_getter_and_setter,
     generate_instance_storage_getter_and_setter_with_default,
     generate_instance_storage_getter_with_default, generate_instance_storage_setter,
 };
@@ -58,6 +58,9 @@ enum DataKey {
     // Rebalancing authorities (for private indexes)
     RebalanceAuthority(Address), // Address -> bool mapping for rebalance authorities
     RebalanceAuthorityRegistry,  // Vec<Address> - list of all rebalance authority addresses
+
+    // Swap utility contract address
+    SwapUtilityAddress,
 }
 
 generate_instance_storage_getter_and_setter_with_default!(
@@ -244,7 +247,7 @@ pub fn add_rebalance_authority_to_registry(e: &Env, address: Address) {
 
 pub fn remove_rebalance_authority_from_registry(e: &Env, address: Address) {
     let key = DataKey::RebalanceAuthorityRegistry;
-    let mut registry: Vec<Address> = match e.storage().persistent().get(&key) {
+    let registry: Vec<Address> = match e.storage().persistent().get(&key) {
         Some(reg) => reg,
         None => return,
     };
@@ -452,7 +455,7 @@ pub fn add_component_to_registry(env: &Env, token: Address) {
 
 pub fn remove_component_from_registry(env: &Env, token: Address) {
     let key = DataKey::ComponentRegistry;
-    let mut registry: Vec<Address> = match env.storage().persistent().get(&key) {
+    let registry: Vec<Address> = match env.storage().persistent().get(&key) {
         Some(reg) => reg,
         None => return, // No registry exists
     };
@@ -525,3 +528,10 @@ generate_instance_storage_getter_and_setter_with_default!(
 pub fn get_index_vault_amount(e: &Env, token: &Address) -> u128 {
     SorobanTokenClient::new(e, token).balance(&e.current_contract_address()) as u128
 }
+
+// Swap utility contract address management
+generate_instance_storage_getter_and_setter!(
+    swap_utility_address,
+    DataKey::SwapUtilityAddress,
+    Address
+);
