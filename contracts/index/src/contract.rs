@@ -10,7 +10,7 @@ use crate::fees::{
 use crate::index::{execute_swaps, generate_swap_params, vault_amount_to_shares};
 use crate::interface::{
     AdminInterface, ComponentAction, ComponentAllocation, IndexInfo, IndexMetrics, IndexStatus,
-    IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus,
+    IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus, RefactorParams,
 };
 use crate::storage::get_all_rebalance_authorities;
 use crate::storage::get_blacklist_status;
@@ -55,13 +55,10 @@ use access_control::utils::{
     require_pause_admin_or_owner, require_pause_or_emergency_pause_admin_or_owner,
 };
 use soroban_sdk::{
-    contract, contractimpl, panic_with_error, 
-    token::TokenClient as SorobanTokenClient, 
-    vec, Address, BytesN, Env, Map, Symbol, Vec,
+    contract, contractimpl, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
+    Address, BytesN, Env, Map, Symbol, Vec,
 };
-use token_share::{
-    get_token_share, get_total_shares, mint_shares, put_token_share,
-};
+use token_share::{get_token_share, get_total_shares, mint_shares, put_token_share};
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
@@ -176,11 +173,6 @@ impl IndexTrait for Index {
         };
         // Fee collection now handled at token level during mint_shares() call
 
-        // Generate swap parameters for component allocation
-        // TODO: finish this
-        let amount_after_fees = amount;
-        let swap_params = generate_swap_params(&e, token.clone(), amount_after_fees);
-
         // Deposit the token first
         transfer_token(
             &e,
@@ -190,8 +182,8 @@ impl IndexTrait for Index {
             &(amount as i128),
         );
 
-        // Execute swaps to buy index components
-        let _swap_results = execute_swaps(&e, swap_params);
+        // Execute weight-based allocation
+        Index::execute_weight_based_mint(&e, token.clone(), amount);
 
         // Mint share tokens
         let value = match &destination {
@@ -528,6 +520,42 @@ impl AdminInterface for Index {
         // The token's admin IS this index contract, so fee calls work automatically
     }
 
+    fn refactor(e: Env, caller: Address, params: RefactorParams) {
+        caller.require_auth();
+
+        if get_blacklist_status(&e, &caller) {
+            panic_with_error!(e, IndexError::Blacklisted);
+        }
+
+        // Validate permissions - managers (admin) can refactor anytime
+        let access_control = AccessControl::new(&e);
+        if !access_control.address_has_role(&caller, &Role::Admin) {
+            panic_with_error!(e, IndexError::UnauthorizedRefactor);
+        }
+
+        // Capture pre-refactor state
+        let components_before = get_all_components(&e);
+        let current_time = e.ledger().timestamp();
+
+        // Execute component updates without swap operations
+        Index::execute_refactoring(&e, caller.clone(), params.clone());
+
+        // Capture post-refactor state
+        let components_after = get_all_components(&e);
+
+        // Update last updated timestamp (but not rebalance timestamp)
+        set_last_updated_ts(&e, &current_time);
+
+        // Emit refactor event
+        Events::new(&e).refactor_executed(
+            current_time,
+            caller.clone(),
+            components_before,
+            components_after,
+            params.component_updates.len() as u32,
+        );
+    }
+
     fn rebalance(e: Env, caller: Address, params: RebalanceParams) {
         caller.require_auth();
 
@@ -572,7 +600,7 @@ impl AdminInterface for Index {
         let nav_before = Self::get_nav(e.clone()) as u128;
         let components_before = get_all_components(&e);
 
-        // Execute rebalancing logic
+        // Execute rebalancing logic (swaps only)
         Index::execute_rebalancing(&e, caller.clone(), params.clone());
 
         // Capture post-rebalancing state
@@ -591,8 +619,8 @@ impl AdminInterface for Index {
             nav_after,
             components_before,
             components_after,
-            params.component_updates.len() as u32,
-            0,                                          // TODO: Calculate actual gas cost
+            0, // No swaps counted here - counted in execute_rebalancing
+            0, // TODO: Calculate actual gas cost
             (nav_after as i128) - (nav_before as i128), // Performance impact
         );
 
@@ -1378,10 +1406,51 @@ impl Index {
         let start_time = e.ledger().timestamp();
         let nav_before = Self::get_nav(e.clone()) as u128;
 
+        let can_rebalance = Index::can_rebalance(e.clone());
+        if !can_rebalance {
+            panic_with_error!(e, IndexError::RebalanceNotAllowed);
+        }
+
+        // Generate and execute swap transactions to align current balances with target weights
+        let swaps = crate::index::generate_rebalance_swaps(e, &params);
+        let total_swaps = swaps.len() as u32;
+
+        if total_swaps > 0 {
+            let _swap_results = crate::index::execute_swaps(e, swaps);
+        }
+
+        // Capture end state for enhanced event
+        let end_time = e.ledger().timestamp();
+        let nav_after = Self::get_nav(e.clone()) as u128;
+        let duration_ms = (end_time - start_time) * 1000; // Convert to milliseconds
+        let performance_delta = (nav_after as i128) - (nav_before as i128);
+
+        // Emit enhanced completion event (no components updated, only swaps)
+        Events::new(e).rebalance_completed_detailed(
+            end_time,
+            admin,
+            0, // components_updated: 0 since rebalancing doesn't update components anymore
+            total_swaps,
+            0, // TODO: Calculate actual total gas cost
+            performance_delta,
+            nav_before,
+            nav_after,
+            duration_ms,
+        );
+
+        // Also emit legacy event for backward compatibility
+        Events::new(e).rebalance_completed(
+            e.current_contract_address(),
+            0, // components_updated: 0
+            total_swaps,
+        );
+    }
+
+    fn execute_refactoring(e: &Env, admin: Address, params: RefactorParams) {
         let mut total_weight = 0u128;
         let mut components_updated = 0u32;
 
-        // Validate and execute component updates
+        // Validate and execute component updates (without swaps)
         for update in params.component_updates.iter() {
             match update.action {
                 ComponentAction::Add => {
@@ -1391,6 +1460,7 @@ impl Index {
                         weight: update.new_weight,
                     };
                     set_component(e, update.token.clone(), component);
+                    crate::storage::add_component_to_registry(e, update.token.clone());
                     total_weight += update.new_weight;
                     components_updated += 1;
 
@@ -1483,40 +1553,77 @@ impl Index {
         if has_weight_operations && total_weight != 10000 {
             panic_with_error!(e, IndexError::InvalidWeightSum);
         }
+    }
 
-        // Generate and execute swap transactions to reach target allocation
-        let swaps = crate::index::generate_rebalance_swaps(e, &params);
-        let total_swaps = swaps.len() as u32;
+    fn execute_weight_based_mint(e: &Env, deposited_token: Address, deposited_amount: u128) {
+        // Get all current components and their weights
+        let components = crate::storage::get_all_components(e);
 
-        if total_swaps > 0 {
-            let _swap_results = crate::index::execute_swaps(e, swaps);
+        if components.len() == 0 {
+            // No components defined, just hold the deposited token as-is
+            return;
         }
 
-        // Capture end state for enhanced event
-        let end_time = e.ledger().timestamp();
-        let nav_after = Self::get_nav(e.clone()) as u128;
-        let duration_ms = (end_time - start_time) * 1000; // Convert to milliseconds
-        let performance_delta = (nav_after as i128) - (nav_before as i128);
+        let mut swaps = Vec::new(e);
 
-        // Emit enhanced completion event
-        Events::new(e).rebalance_completed_detailed(
-            end_time,
-            admin,
-            components_updated,
-            total_swaps,
-            0, // TODO: Calculate actual total gas cost
-            performance_delta,
-            nav_before,
-            nav_after,
-            duration_ms,
-        );
+        // For each component, calculate how much of the deposited amount should be allocated
+        for (component_token, component) in components.iter() {
+            // Calculate target amount based on weight (weight is in basis points, 10000 = 100%)
+            let target_amount = (deposited_amount * component.weight) / 10000;
 
-        // Also emit legacy event for backward compatibility
-        Events::new(e).rebalance_completed(
-            e.current_contract_address(),
-            components_updated,
-            total_swaps,
-        );
+            if target_amount > 0 {
+                if component_token == deposited_token {
+                    // No swap needed - the deposited token matches this component
+                    // Just update the component balance directly
+                    let current_balance =
+                        crate::storage::get_component_balance_safe(e, component_token.clone())
+                            .unwrap_or(0);
+                    crate::storage::set_component_balance(
+                        e,
+                        component_token.clone(),
+                        current_balance + target_amount,
+                    );
+                } else {
+                    // Need to swap deposited token for component token
+                    let swap = crate::index::SwapParams {
+                        provider: None,
+                        token_in: deposited_token.clone(),
+                        token_out: component_token.clone(),
+                        amount_in: target_amount as i128,
+                        amount_out_min: ((target_amount as i128) * 95) / 100, // 5% slippage tolerance
+                        to: e.current_contract_address(),
+                    };
+                    swaps.push_back(swap);
+                }
+            }
+        }
+
+        // Execute all swaps if any are needed
+        if swaps.len() > 0 {
+            let swap_results = crate::index::execute_swaps(e, swaps);
+
+            // Update component balances based on swap results
+            let mut swap_index = 0;
+            for (component_token, component) in components.iter() {
+                let target_amount = (deposited_amount * component.weight) / 10000;
+
+                if target_amount > 0 && component_token != deposited_token {
+                    // This component required a swap
+                    if swap_index < swap_results.len() {
+                        let amount_received = swap_results.get(swap_index).unwrap_or(0u128);
+                        let current_balance =
+                            crate::storage::get_component_balance_safe(e, component_token.clone())
+                                .unwrap_or(0);
+                        crate::storage::set_component_balance(
+                            e,
+                            component_token.clone(),
+                            current_balance + amount_received,
+                        );
+                        swap_index += 1;
+                    }
+                }
+            }
+        }
     }
 }
 

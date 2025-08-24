@@ -24,6 +24,9 @@ pub enum IndexError {
     ComponentNotFound = 41,
     InvalidComponentAction = 42,
 
+    // Refactoring Errors
+    UnauthorizedRefactor = 45,
+
     NotWhitelisted = 43,
     Blacklisted = 44,
 }

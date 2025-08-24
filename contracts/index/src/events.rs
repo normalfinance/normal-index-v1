@@ -1,6 +1,6 @@
+use crate::index::DexProvider;
 use crate::storage::Component;
 use soroban_sdk::{Address, Env, Map, Symbol, Vec};
-use crate::index::DexProvider;
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -62,6 +62,15 @@ pub(crate) trait IndexEvents {
         total_swaps: u32,
         gas_cost: u128,
         performance_impact: i128, // Can be negative if rebalancing reduced NAV
+    );
+
+    fn refactor_executed(
+        &self,
+        ts: u64,
+        caller: Address,
+        components_before: Map<Address, Component>,
+        components_after: Map<Address, Component>,
+        components_updated: u32,
     );
 
     // Legacy events for backward compatibility
@@ -389,6 +398,27 @@ impl IndexEvents for Events {
                 total_swaps,
                 gas_cost,
                 performance_impact,
+            ),
+            (),
+        );
+    }
+
+    fn refactor_executed(
+        &self,
+        ts: u64,
+        caller: Address,
+        components_before: Map<Address, Component>,
+        components_after: Map<Address, Component>,
+        components_updated: u32,
+    ) {
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "refactor_executed"),
+                ts,
+                caller,
+                components_before,
+                components_after,
+                components_updated,
             ),
             (),
         );
