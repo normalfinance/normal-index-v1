@@ -23,6 +23,7 @@ pub enum IndexError {
     InvalidWeightSum = 40,
     ComponentNotFound = 41,
     InvalidComponentAction = 42,
+    RebalanceNotAllowed = 46,
 
     // Refactoring Errors
     UnauthorizedRefactor = 45,

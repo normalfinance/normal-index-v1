@@ -43,8 +43,8 @@ pub struct IndexFactory;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FactoryConfig {
     pub swap_utility: Address,
-    pub protocol_fee_amount: u32,
-    pub max_manager_fee_amount: u32,
+    pub protocol_fee_amount: u128,
+    pub max_manager_fee_amount: u128,
     pub protocol_fee_recipient: Address,
     pub minimum_fee_threshold: u128,
     pub index_contract_wasm: BytesN<32>,
@@ -70,8 +70,8 @@ impl IndexFactory {
         _router: Address,
         index_contract_wasm: BytesN<32>,
         token_contract_wasm: BytesN<32>,
-        max_manager_fee_amount: u32,
-        protocol_fee_amount: u32,
+        max_manager_fee_amount: u128,
+        protocol_fee_amount: u128,
         protocol_fee_recipient: Address,
         minimum_fee_threshold: u128,
     ) {
@@ -183,7 +183,7 @@ impl AdminInterface for IndexFactory {
         get_swap_utility(&e)
     }
 
-    fn get_protocol_fee_amount(e: Env) -> u32 {
+    fn get_protocol_fee_amount(e: Env) -> u128 {
         get_protocol_fee_amount(&e)
     }
 
@@ -191,7 +191,7 @@ impl AdminInterface for IndexFactory {
         get_index_fee_enabled(&e, &index_address)
     }
 
-    fn get_max_manager_fee_amount(e: Env) -> u32 {
+    fn get_max_manager_fee_amount(e: Env) -> u128 {
         get_max_manager_fee_amount(&e)
     }
 
@@ -275,7 +275,7 @@ impl AdminInterface for IndexFactory {
         );
     }
 
-    fn set_protocol_fee_amount(e: Env, admin: Address, amount: u32) {
+    fn set_protocol_fee_amount(e: Env, admin: Address, amount: u128) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
 
@@ -299,8 +299,8 @@ impl AdminInterface for IndexFactory {
     // Arguments:
     //   - e: The Soroban environment.
     //   - admin: The admin address (must be authorized).
-    //   - amount: The new WASM hash (u32) for the swap fee contract.
-    fn set_max_manager_fee_amount(e: Env, admin: Address, amount: u32) {
+    //   - amount: The new max manager fee amount (u128) in token units.
+    fn set_max_manager_fee_amount(e: Env, admin: Address, amount: u128) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
 
