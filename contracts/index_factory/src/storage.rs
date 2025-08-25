@@ -85,7 +85,7 @@ generate_instance_storage_getter_and_setter_with_default!(
     minimum_shares_for_fee_collection,
     DataKey::MinimumSharesForFeeCollection,
     u128,
-    0
+    25_000_000_000 // 25k tokens
 );
 
 generate_instance_storage_getter_and_setter!(
