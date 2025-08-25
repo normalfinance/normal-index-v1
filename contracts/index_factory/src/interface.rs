@@ -30,9 +30,9 @@ pub trait AdminInterface {
 
     fn get_swap_utility(e: Env) -> Address;
 
-    fn get_protocol_fee_fraction(e: Env) -> u32;
+    fn get_protocol_fee_amount(e: Env) -> u32;
 
-    fn get_max_manager_fee_fraction(e: Env) -> u32;
+    fn get_max_manager_fee_amount(e: Env) -> u32;
 
     fn get_minimum_fee_threshold(e: Env) -> u128;
 
@@ -62,11 +62,11 @@ pub trait AdminInterface {
 
     fn set_token_contract_wasm(e: Env, admin: Address, token_contract_wasm: BytesN<32>);
 
-    fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32);
+    fn set_protocol_fee_amount(e: Env, admin: Address, amount: u32);
 
     fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address);
 
-    fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32);
+    fn set_max_manager_fee_amount(e: Env, admin: Address, amount: u32);
 
     fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128);
 

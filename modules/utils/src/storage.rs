@@ -33,7 +33,7 @@ pub struct IndexParams {
     pub initial_deposit: u128,
 
     // Fees
-    pub manager_fee_fraction: u32,
+    pub manager_fee_amount: u128,
 
     // Assets
     pub components: Vec<Address>,

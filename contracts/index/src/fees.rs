@@ -4,7 +4,7 @@
 use crate::events::{Events, IndexEvents};
 use crate::storage::{
     get_accumulated_manager_fees, get_accumulated_protocol_fees, get_factory_safe,
-    get_manager_fee_fraction, get_total_fees, set_accumulated_manager_fees,
+    get_manager_fee_amount, get_total_fees, set_accumulated_manager_fees,
     set_accumulated_protocol_fees, set_last_fee_collection, set_total_fees,
     get_minimum_shares_for_fee_collection
 };
@@ -200,7 +200,7 @@ pub fn collect_accrued_fees_if_any(e: &Env, user: &Address) -> (u128, u128) {
             set_last_fee_collection(e, &current_time);
 
             // Emit enhanced fee collection event
-            let annual_fee_rate = get_manager_fee_fraction(e); // This gets the annual fee rate
+            let annual_fee_rate = get_manager_fee_amount(e); // This gets the annual fee amount
             Events::new(e).accrued_fees_collected(
                 current_time,
                 user.clone(),
@@ -388,7 +388,7 @@ pub fn force_collect_fees(e: &Env, user: &Address) -> (u128, u128) {
         set_last_fee_collection(e, &current_time);
 
         // Emit enhanced fee collection event
-        let annual_fee_rate = get_manager_fee_fraction(e);
+        let annual_fee_rate = get_manager_fee_amount(e);
         let user_state = get_user_fee_state(e, user);
         Events::new(e).accrued_fees_collected(
             current_time,

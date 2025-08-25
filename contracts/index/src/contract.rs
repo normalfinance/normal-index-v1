@@ -22,14 +22,14 @@ use crate::storage::set_component;
 use crate::storage::set_factory;
 use crate::storage::set_last_rebalance_ts;
 use crate::storage::set_last_updated_ts;
-use crate::storage::set_manager_fee_fraction;
+use crate::storage::set_manager_fee_amount;
 use crate::storage::set_public;
 use crate::storage::set_rebalance_authority_status;
 use crate::storage::set_total_mints;
 use crate::storage::update_component_weight;
 use crate::storage::{
     get_accumulated_manager_fees, get_accumulated_protocol_fees, get_manager_address,
-    get_manager_fee_fraction, get_protocol_fee_recipient, get_total_fees,
+    get_manager_fee_amount, get_protocol_fee_recipient, get_total_fees,
     set_accumulated_manager_fees, set_accumulated_protocol_fees, set_last_fee_collection,
     set_manager_address, set_protocol_fee_recipient,
 };
@@ -98,7 +98,7 @@ impl Index {
         // );
         put_token_share(&e, share_contract);
 
-        set_manager_fee_fraction(&e, &params.manager_fee_fraction);
+        set_manager_fee_amount(&e, &params.manager_fee_amount);
         set_public(&e, &params.public);
 
         // Set the admin as the initial manager who will receive fees
@@ -339,8 +339,8 @@ impl IndexTrait for Index {
         crate::storage::get_blacklist_status(&e, &address)
     }
 
-    fn get_manager_fee_fraction(e: Env) -> u32 {
-        crate::storage::get_manager_fee_fraction(&e)
+    fn get_manager_fee_amount(e: Env) -> u128 {
+        crate::storage::get_manager_fee_amount(&e)
     }
 
     fn get_rebalance_threshold(e: Env) -> u64 {
@@ -965,21 +965,21 @@ impl AdminInterface for Index {
         Events::new(&e).blacklist_status_updated(current_time, admin, address, old_status, status);
     }
 
-    fn set_manager_fee_fraction(e: Env, admin: Address, fee_fraction: u32) {
+    fn set_manager_fee_amount(e: Env, admin: Address, fee_amount: u128) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
-        let old_fee_fraction = get_manager_fee_fraction(&e);
-        crate::storage::set_manager_fee_fraction(&e, &fee_fraction);
+        let old_fee_amount = get_manager_fee_amount(&e);
+        crate::storage::set_manager_fee_amount(&e, &fee_amount);
 
         let current_time = e.ledger().timestamp();
         // Emit enhanced event
-        Events::new(&e).manager_fee_fraction_updated(
+        Events::new(&e).manager_fee_amount_updated(
             current_time,
             admin,
-            old_fee_fraction,
-            fee_fraction,
+            old_fee_amount,
+            fee_amount,
         );
     }
 
@@ -1090,7 +1090,7 @@ impl QueryInterface for Index {
             base_nav: get_base_nav(&e),
             initial_price: get_initial_price(&e),
             is_public: get_public(&e),
-            manager_fee_fraction: get_manager_fee_fraction(&e),
+            manager_fee_amount: get_manager_fee_amount(&e),
             manager_address: get_manager_address(&e),
             protocol_fee_recipient: get_protocol_fee_recipient(&e),
             accumulated_manager_fees: get_accumulated_manager_fees(&e),

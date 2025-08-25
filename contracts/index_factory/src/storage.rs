@@ -21,12 +21,15 @@ pub struct DexDistribution {
 #[contracttype]
 enum DataKey {
     SwapUtility, // DEX Aggregator
+    
+    // Deprecated - kept for backward compatibility during migration
     ProtocolFeeFraction,
     MaxManagerFeeFraction,
+    
     ProtocolFeeRecipient, // Address where protocol fees are sent
     MinimumFeeThreshold,  // Universal minimum fee threshold (immutable)
 
-    // Flat fees
+    // Flat fees (new approach)
     ProtocolFeeAmount,
     MaxManagerFeeAmount,
     MinimumSharesForFeeCollection,
@@ -47,16 +50,17 @@ enum DataKey {
 }
 
 generate_instance_storage_getter_and_setter!(swap_utility, DataKey::SwapUtility, Address);
-generate_instance_storage_getter_and_setter!(
-    protocol_fee_fraction,
-    DataKey::ProtocolFeeFraction,
-    u32
-);
-generate_instance_storage_getter_and_setter!(
-    max_manager_fee_fraction,
-    DataKey::MaxManagerFeeFraction,
-    u32
-);
+// Deprecated - using flat amounts instead of fractions
+// generate_instance_storage_getter_and_setter!(
+//     protocol_fee_fraction,
+//     DataKey::ProtocolFeeFraction,
+//     u32
+// );
+// generate_instance_storage_getter_and_setter!(
+//     max_manager_fee_fraction,
+//     DataKey::MaxManagerFeeFraction,
+//     u32
+// );
 generate_instance_storage_getter_and_setter!(
     protocol_fee_recipient,
     DataKey::ProtocolFeeRecipient,

@@ -162,12 +162,12 @@ pub(crate) trait IndexEvents {
         new_recipient: Address,
     );
 
-    fn manager_fee_fraction_updated(
+    fn manager_fee_amount_updated(
         &self,
         ts: u64,
         admin: Address,
-        old_fee_fraction: u32,
-        new_fee_fraction: u32,
+        old_fee_amount: u128,
+        new_fee_amount: u128,
     );
 
     fn public_status_updated(&self, ts: u64, admin: Address, old_status: bool, new_status: bool);
@@ -536,20 +536,20 @@ impl IndexEvents for Events {
         );
     }
 
-    fn manager_fee_fraction_updated(
+    fn manager_fee_amount_updated(
         &self,
         ts: u64,
         admin: Address,
-        old_fee_fraction: u32,
-        new_fee_fraction: u32,
+        old_fee_amount: u128,
+        new_fee_amount: u128,
     ) {
         self.env().events().publish(
             (
-                Symbol::new(self.env(), "manager_fee_fraction_updated"),
+                Symbol::new(self.env(), "manager_fee_amount_updated"),
                 ts,
                 admin,
-                old_fee_fraction,
-                new_fee_fraction,
+                old_fee_amount,
+                new_fee_amount,
             ),
             (),
         );
