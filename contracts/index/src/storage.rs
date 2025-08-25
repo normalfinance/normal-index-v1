@@ -27,6 +27,12 @@ enum DataKey {
 
     ManagerFeeFraction, // A custom annual fee set by the admin
 
+    // Flat fees
+    ManagerFeeAmount, // The amount of the manager fee to be paid in the token
+    ProtocolFeeAmount, // The amount of the protocol fee to be paid in the token
+    FeePeriodDuration, // The duration of the fee period in seconds
+    MinimumSharesForFeeCollection, // The minimum number of shares that must be held before fees can be collected
+
     // Revenue Share
     ManagerAddress,          // Address of the index manager who receives fees
     ProtocolFeeRecipient,    // Address where protocol fees are sent
@@ -92,6 +98,15 @@ generate_instance_storage_getter_and_setter_with_default!(
     u32,
     0
 );
+
+// manager flat fees
+generate_instance_storage_getter_and_setter_with_default!(
+    manager_fee_amount,
+    DataKey::ManagerFeeAmount,
+    u128,
+    0
+);
+
 
 // Revenue Share storage
 generate_instance_storage_getter_and_setter_with_default!(
