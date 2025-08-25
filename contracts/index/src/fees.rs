@@ -6,20 +6,21 @@ use crate::storage::{
     get_accumulated_manager_fees, get_accumulated_protocol_fees, get_factory_safe,
     get_manager_fee_fraction, get_total_fees, set_accumulated_manager_fees,
     set_accumulated_protocol_fees, set_last_fee_collection, set_total_fees,
+    get_minimum_shares_for_fee_collection
 };
 use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, Vec};
 use utils::bump::bump_persistent;
 
 /// Get protocol fee fraction from Factory contract
 /// Returns 0 if factory is not set or call fails
-pub fn get_protocol_fee_fraction_from_factory(e: &Env) -> u32 {
+pub fn get_protocol_fee_amount_from_factory(e: &Env) -> u32 {
     match get_factory_safe(e) {
         Some(factory_address) => {
             // Call Factory's get_protocol_fee_fraction() function
             // Use invoke_contract directly since we trust the factory contract
             e.invoke_contract::<u32>(
                 &factory_address,
-                &Symbol::new(e, "get_protocol_fee_fraction"),
+                &Symbol::new(e, "get_protocol_fee_amount"),
                 Vec::new(e),
             )
         }
@@ -132,21 +133,21 @@ pub fn calculate_accrued_fees(
     let time_elapsed_u128 = time_elapsed as u128;
 
     // Get separate fee rates
-    let manager_fee_rate_bps = get_manager_fee_fraction(e) as u128; // Manager fee (optional, max 2%)
-    let protocol_fee_rate_bps = get_protocol_fee_fraction_from_factory(e) as u128; // Protocol fee (0.75%, max 2%)
+    let manager_fee_rate_bps = get_manager_fee_amount(e) as u128; // Manager fee (optional, max 2%)
+    let protocol_fee_rate_bps = get_protocol_fee_amount_from_factory(e) as u128; // Protocol fee (0.75%, max 2%)
 
     // Calculate manager fee separately
-    let manager_fee = if manager_fee_rate_bps > 0 {
-        (user_balance_u128 * manager_fee_rate_bps * time_elapsed_u128)
-            / (10_000 * (SECONDS_PER_YEAR as u128))
+    let manager_fee = if manager_fee_rate_bps > 0 && user_balance_u128 > get_minimum_shares_for_fee_collection(e) {
+        //Just calculate the flat fee for the time elapsed
+        manager_fee_rate_bps * (time_elapsed_u128 / (SECONDS_PER_YEAR as u128))
     } else {
         0
     };
 
     // Calculate protocol fee separately
-    let protocol_fee = if protocol_fee_rate_bps > 0 {
-        (user_balance_u128 * protocol_fee_rate_bps * time_elapsed_u128)
-            / (10_000 * (SECONDS_PER_YEAR as u128))
+    let protocol_fee = if protocol_fee_rate_bps > 0 && user_balance_u128 > get_minimum_shares_for_fee_collection(e) {
+        //Just calculate the flat fee for the time elapsed
+        protocol_fee_rate_bps * (time_elapsed_u128 / (SECONDS_PER_YEAR as u128))
     } else {
         0
     };

@@ -30,7 +30,6 @@ enum DataKey {
     // Flat fees
     ManagerFeeAmount, // The amount of the manager fee to be paid in the token
     ProtocolFeeAmount, // The amount of the protocol fee to be paid in the token
-    FeePeriodDuration, // The duration of the fee period in seconds
     MinimumSharesForFeeCollection, // The minimum number of shares that must be held before fees can be collected
 
     // Revenue Share
@@ -105,6 +104,14 @@ generate_instance_storage_getter_and_setter_with_default!(
     DataKey::ManagerFeeAmount,
     u128,
     0
+);
+
+// minimum shares for fee collection
+generate_instance_storage_getter_and_setter_with_default!(
+    minimum_shares_for_fee_collection,
+    DataKey::MinimumSharesForFeeCollection,
+    u128,
+    25_000_000_000 // 25k tokens
 );
 
 
