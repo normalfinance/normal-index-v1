@@ -412,11 +412,7 @@ impl AdminInterface for IndexFactory {
     }
     
     fn get_oracle_registry(e: Env) -> Address {
-        if let Some(oracle_registry) = get_oracle_registry(&e) {
-            oracle_registry
-        } else {
-            panic_with_error!(&e, AccessControlError::Unauthorized);
-        }
+        get_oracle_registry(&e)
     }
     
     fn set_fee_tier_config(e: Env, admin: Address, tier_rates: Map<u128, u32>) {
