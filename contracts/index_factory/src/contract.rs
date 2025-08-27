@@ -6,12 +6,10 @@ use crate::interface::{AdminInterface, IndexFactoryTrait};
 use crate::storage::get_index_contract_wasm;
 use crate::storage::get_index_fee_enabled;
 use crate::storage::get_swap_utility;
-use crate::storage::get_token_contract_wasm;
 use crate::storage::set_index_contract_wasm;
 use crate::storage::set_index_fee_enabled;
 use crate::storage::set_is_killed_create;
 use crate::storage::set_swap_utility;
-use crate::storage::set_token_contract_wasm;
 use crate::storage::{
     add_deployed_index, add_user_volume_entry, get_all_deployed_indexes, get_contract_sequence,
     get_deployed_indexes, get_fee_tier_config_with_default, get_max_manager_fee_amount,
@@ -29,6 +27,7 @@ use access_control::management::SingleAddressManagementTrait;
 use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::require_admin;
+use soroban_sdk::Bytes;
 use soroban_sdk::{
     contract, contractimpl, contracttype, panic_with_error, Address, BytesN, Env, Map, Symbol, Vec,
 };
@@ -50,7 +49,6 @@ pub struct FactoryConfig {
     pub protocol_fee_recipient: Address,
     pub minimum_fee_threshold: u128,
     pub index_contract_wasm: BytesN<32>,
-    pub token_contract_wasm: BytesN<32>,
 }
 
 #[contractimpl]
@@ -69,9 +67,7 @@ impl IndexFactory {
         admin: Address,
         emergency_admin: Address,
         swap_utility: Address,
-        _router: Address,
         index_contract_wasm: BytesN<32>,
-        token_contract_wasm: BytesN<32>,
         max_manager_fee_amount: u128,
         protocol_fee_amount: u128,
         protocol_fee_recipient: Address,
@@ -84,7 +80,6 @@ impl IndexFactory {
 
         set_swap_utility(&e, &swap_utility);
         set_index_contract_wasm(&e, &index_contract_wasm);
-        set_token_contract_wasm(&e, &token_contract_wasm);
         set_protocol_fee_amount(&e, &protocol_fee_amount);
         set_max_manager_fee_amount(&e, &max_manager_fee_amount);
         set_protocol_fee_recipient(&e, &protocol_fee_recipient);
@@ -103,7 +98,7 @@ impl IndexFactoryTrait for IndexFactory {
     //
     // Returns:
     //   - The address of the newly deployed swap fee contract.
-    fn deploy_index_contract(e: Env, params: IndexParams) -> Address {
+    fn deploy_index_contract(e: Env, serialized_asset: Bytes, params: IndexParams) -> Address {
         params.admin.require_auth();
 
         let sequence = get_contract_sequence(&e, params.admin.clone());
@@ -115,7 +110,7 @@ impl IndexFactoryTrait for IndexFactory {
             get_index_contract_wasm(&e),
             (
                 e.current_contract_address(),
-                get_token_contract_wasm(&e),
+                serialized_asset.clone(),
                 params.clone(),
             ),
         );
@@ -176,7 +171,6 @@ impl AdminInterface for IndexFactory {
             protocol_fee_recipient: get_protocol_fee_recipient(&e),
             minimum_fee_threshold: get_minimum_fee_threshold(&e),
             index_contract_wasm: get_index_contract_wasm(&e),
-            token_contract_wasm: get_token_contract_wasm(&e),
         }
     }
 
@@ -203,10 +197,6 @@ impl AdminInterface for IndexFactory {
 
     fn get_index_contract_wasm(e: Env) -> BytesN<32> {
         get_index_contract_wasm(&e)
-    }
-
-    fn get_token_contract_wasm(e: Env) -> BytesN<32> {
-        get_token_contract_wasm(&e)
     }
 
     // Index Registry Query Methods
@@ -256,23 +246,6 @@ impl AdminInterface for IndexFactory {
             admin.clone(),
             old_wasm.clone(),
             index_contract_wasm.clone(),
-            1,
-        );
-    }
-
-    fn set_token_contract_wasm(e: Env, admin: Address, token_contract_wasm: BytesN<32>) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-
-        let old_wasm = get_token_contract_wasm(&e);
-        set_token_contract_wasm(&e, &token_contract_wasm);
-
-        let current_time = e.ledger().timestamp();
-        Events::new(&e).token_wasm_updated(
-            current_time,
-            admin.clone(),
-            old_wasm.clone(),
-            token_contract_wasm.clone(),
             1,
         );
     }
@@ -415,7 +388,7 @@ impl AdminInterface for IndexFactory {
     }
 
     fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128 {
-        crate::oracle::OracleUtils::convert_xlm_to_usd(&e, &token, amount)
+        crate::oracle::OracleUtils::convert_token_to_usd(&e, &token, amount)
     }
 
     fn set_fee_tier_config(e: Env, admin: Address, tier_rates: Map<u128, u32>) {

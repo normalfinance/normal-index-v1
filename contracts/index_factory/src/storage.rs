@@ -66,7 +66,6 @@ enum DataKey {
     MinimumSharesForFeeCollection,
 
     IndexContractWASM, // wasm of the Index Fund contract
-    TokenContractWASM, // wasm of the Index Token contract
 
     ContractSequence(Address),
     // Index registry storage
@@ -241,11 +240,6 @@ generate_instance_storage_getter_and_setter_with_default!(
 generate_instance_storage_getter_and_setter!(
     index_contract_wasm,
     DataKey::IndexContractWASM,
-    BytesN<32>
-);
-generate_instance_storage_getter_and_setter!(
-    token_contract_wasm,
-    DataKey::TokenContractWASM,
     BytesN<32>
 );
 
