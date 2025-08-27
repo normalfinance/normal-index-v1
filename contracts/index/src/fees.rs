@@ -4,13 +4,12 @@
 use crate::events::{Events, IndexEvents};
 use crate::storage::{
     get_accumulated_manager_fees, get_accumulated_protocol_fees, get_factory_safe,
-    get_manager_fee_amount, get_total_fees, set_accumulated_manager_fees,
-    set_accumulated_protocol_fees, set_last_fee_collection, set_total_fees,
-    get_minimum_shares_for_fee_collection
+    get_manager_fee_amount, get_minimum_shares_for_fee_collection, get_total_fees,
+    set_accumulated_manager_fees, set_accumulated_protocol_fees, set_last_fee_collection,
+    set_total_fees,
 };
 use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, Vec};
 use utils::bump::bump_persistent;
-
 
 pub fn get_protocol_fee_amount_from_factory(e: &Env, user: &Address) -> u32 {
     match get_factory_safe(e) {
@@ -21,20 +20,16 @@ pub fn get_protocol_fee_amount_from_factory(e: &Env, user: &Address) -> u32 {
                 Vec::from_array(e, [user.clone().into_val(e)]),
             ) {
                 Ok(Ok(user_fee_rate)) => user_fee_rate,
-                Ok(Err(_)) | Err(_) => {
-                    e.invoke_contract::<u32>(
-                        &factory_address,
-                        &Symbol::new(e, "get_protocol_fee_amount"),
-                        Vec::new(e),
-                    )
-                }
+                Ok(Err(_)) | Err(_) => e.invoke_contract::<u32>(
+                    &factory_address,
+                    &Symbol::new(e, "get_protocol_fee_amount"),
+                    Vec::new(e),
+                ),
             }
         }
         None => 0, // Return 0 if factory not set
     }
 }
-
-
 
 /// Get fee enabled status from Factory contract
 /// Returns true if fees are enabled, defaults to true if factory not available (backwards compatibility)
@@ -146,7 +141,9 @@ pub fn calculate_accrued_fees(
     let protocol_fee_rate_bps = get_protocol_fee_amount_from_factory(e, user) as u128; // User-specific protocol fee based on tier
 
     // Calculate manager fee separately
-    let manager_fee = if manager_fee_rate_bps > 0 && user_balance_u128 > get_minimum_shares_for_fee_collection(e) {
+    let manager_fee = if manager_fee_rate_bps > 0
+        && user_balance_u128 > get_minimum_shares_for_fee_collection(e)
+    {
         //Just calculate the flat fee for the time elapsed
         manager_fee_rate_bps * (time_elapsed_u128 / (SECONDS_PER_YEAR as u128))
     } else {
@@ -154,7 +151,9 @@ pub fn calculate_accrued_fees(
     };
 
     // Calculate protocol fee separately
-    let protocol_fee = if protocol_fee_rate_bps > 0 && user_balance_u128 > get_minimum_shares_for_fee_collection(e) {
+    let protocol_fee = if protocol_fee_rate_bps > 0
+        && user_balance_u128 > get_minimum_shares_for_fee_collection(e)
+    {
         //Just calculate the flat fee for the time elapsed
         protocol_fee_rate_bps * (time_elapsed_u128 / (SECONDS_PER_YEAR as u128))
     } else {
@@ -450,4 +449,49 @@ pub fn set_last_batch_collection(e: &Env, timestamp: u64) {
     let key = FeeDataKey::LastBatchCollection;
     e.storage().persistent().set(&key, &timestamp);
     bump_persistent(e, &key);
+}
+
+// @dev from contract.rs
+
+/// Called by token contract to enforce fee collection for transfers and burns
+/// This ensures fees are collected regardless of where tokens are traded (external DEXes)
+pub fn collect_fees_before_operation(
+    e: Env,
+    from: Address,
+    amount: i128,
+    to: Option<Address>, // Some(address) for transfers, None for burns
+) -> (u128, u128) {
+    // No auth required - this is called by the trusted token contract
+
+    // Collect fees from sender before they transfer/burn tokens
+    let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -amount);
+
+    // Update tracking based on operation type
+    match to {
+        Some(recipient) => {
+            // Transfer: update tracking for both users
+            initialize_or_update_user_tracking(&e, &from, -amount); // Sender: reduce balance
+            initialize_or_update_user_tracking(&e, &recipient, amount); // Receiver: increase balance
+        }
+        None => {
+            // Burn: only update sender's tracking (tokens are destroyed)
+            initialize_or_update_user_tracking(&e, &from, -amount);
+        }
+    }
+
+    (manager_fees, protocol_fees)
+}
+
+/// Called by token contract during external mints to enforce fee collection
+/// This prevents users from bypassing fees by acquiring tokens on external DEXes
+pub fn collect_fees_before_mint(e: &Env, user: Address, amount: u128) -> (u128, u128) {
+    // No auth required - this is called by the trusted token contract
+
+    // Collect any accrued fees on user's existing balance
+    let (manager_fees, protocol_fees) = collect_fees_before_action(e, &user, amount as i128);
+
+    // Update user tracking with the new amount
+    initialize_or_update_user_tracking(e, &user, amount as i128);
+
+    (manager_fees, protocol_fees)
 }

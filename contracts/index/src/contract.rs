@@ -1,6 +1,7 @@
 use crate::errors::IndexError;
 use crate::events::Events;
 use crate::events::IndexEvents;
+use crate::fees::collect_fees_before_mint;
 use crate::fees::{
     batch_collect_fees, collect_fees_before_action, force_collect_fees, get_effective_balance,
     get_last_batch_collection, get_users_with_accrued_fees, initialize_or_update_user_tracking,
@@ -42,7 +43,6 @@ use crate::storage::{
     Component,
 };
 use crate::volume::VolumeTracker;
-use crate::token::create_index_token_contract;
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use access_control::errors::AccessControlError;
@@ -55,6 +55,7 @@ use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::{
     require_pause_admin_or_owner, require_pause_or_emergency_pause_admin_or_owner,
 };
+use soroban_sdk::Bytes;
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
     Address, BytesN, Env, Map, Symbol, Vec,
@@ -78,26 +79,17 @@ impl Index {
     //   - e: The Soroban environment.
     //   - factory: The address of the factory contract.
     //   - params: The address authorized to claim funds.
-    pub fn __constructor(
-        e: Env,
-        factory: Address,
-        index_token_wasm_hash: BytesN<32>,
-        params: IndexParams,
-    ) {
+    pub fn __constructor(e: Env, factory: Address, serialized_asset: Bytes, params: IndexParams) {
         // set admin
         set_factory(&e, &factory);
 
-        // deploy and initialize index token contract
-        let share_contract =
-            create_index_token_contract(&e, index_token_wasm_hash, &params.token_symbol);
-        // Token initialization should be handled by the index_token contract itself
-        // SorobanTokenAdminClient::new(&e, &share_contract).initialize(
-        //     &e.current_contract_address(),
-        //     &7u32,
-        //     &params.name.into_val(&e),
-        //     &params.token_symbol.into_val(&e),
-        // );
-        put_token_share(&e, share_contract);
+        // Create the Deployer with Asset
+        let deployer = e.deployer().with_stellar_asset(serialized_asset);
+        let _ = deployer.deployed_address();
+        // Deploy the Stellar Asset Contract
+        let sac_address = deployer.deploy();
+
+        put_token_share(&e, sac_address);
 
         set_manager_fee_amount(&e, &params.manager_fee_amount);
         set_public(&e, &params.public);
@@ -155,6 +147,9 @@ impl IndexTrait for Index {
 
         // ...
 
+        // Collect fee
+        collect_fees_before_mint(&e, user, amount);
+
         let total_shares = get_total_shares(&e);
 
         let vault_amount = get_index_vault_amount(&e, &token);
@@ -198,7 +193,7 @@ impl IndexTrait for Index {
 
         // Metrics
         set_total_mints(&e, &n_shares);
-        
+
         VolumeTracker::record_mint_volume(&e, &user, &token, amount);
 
         // Emit enhanced mint event
@@ -271,8 +266,9 @@ impl IndexTrait for Index {
 
         // TODO: Implement actual redemption logic to get accurate values
         let component_payouts = Map::new(&e); // Empty map for now
-        
-        let redemption_usd_value = VolumeTracker::calculate_redeem_usd_value(&e, share_amount, share_price);
+
+        let redemption_usd_value =
+            VolumeTracker::calculate_redeem_usd_value(&e, share_amount, share_price);
         VolumeTracker::record_redeem_volume(&e, &user, redemption_usd_value);
 
         Events::new(&e).redemption_executed(
@@ -981,12 +977,7 @@ impl AdminInterface for Index {
 
         let current_time = e.ledger().timestamp();
         // Emit enhanced event
-        Events::new(&e).manager_fee_amount_updated(
-            current_time,
-            admin,
-            old_fee_amount,
-            fee_amount,
-        );
+        Events::new(&e).manager_fee_amount_updated(current_time, admin, old_fee_amount, fee_amount);
     }
 
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64) {
@@ -1669,49 +1660,6 @@ impl Index {
         set_last_batch_collection(&e, e.ledger().timestamp());
 
         result
-    }
-
-    /// Called by token contract to enforce fee collection for transfers and burns
-    /// This ensures fees are collected regardless of where tokens are traded (external DEXes)
-    pub fn collect_fees_before_operation(
-        e: Env,
-        from: Address,
-        amount: i128,
-        to: Option<Address>, // Some(address) for transfers, None for burns
-    ) -> (u128, u128) {
-        // No auth required - this is called by the trusted token contract
-
-        // Collect fees from sender before they transfer/burn tokens
-        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -amount);
-
-        // Update tracking based on operation type
-        match to {
-            Some(recipient) => {
-                // Transfer: update tracking for both users
-                initialize_or_update_user_tracking(&e, &from, -amount); // Sender: reduce balance
-                initialize_or_update_user_tracking(&e, &recipient, amount); // Receiver: increase balance
-            }
-            None => {
-                // Burn: only update sender's tracking (tokens are destroyed)
-                initialize_or_update_user_tracking(&e, &from, -amount);
-            }
-        }
-
-        (manager_fees, protocol_fees)
-    }
-
-    /// Called by token contract during external mints to enforce fee collection
-    /// This prevents users from bypassing fees by acquiring tokens on external DEXes
-    pub fn collect_fees_before_mint(e: Env, user: Address, amount: i128) -> (u128, u128) {
-        // No auth required - this is called by the trusted token contract
-
-        // Collect any accrued fees on user's existing balance
-        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &user, amount);
-
-        // Update user tracking with the new amount
-        initialize_or_update_user_tracking(&e, &user, amount);
-
-        (manager_fees, protocol_fees)
     }
 
     /// Get users with accrued fees above threshold (admin function)
