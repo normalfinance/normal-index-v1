@@ -415,6 +415,10 @@ impl AdminInterface for IndexFactory {
         get_oracle_registry(&e)
     }
     
+    fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128 {
+        crate::oracle::OracleUtils::convert_xlm_to_usd(&e, &token, amount)
+    }
+    
     fn set_fee_tier_config(e: Env, admin: Address, tier_rates: Map<u128, u32>) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);

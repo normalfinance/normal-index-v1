@@ -79,6 +79,8 @@ pub trait AdminInterface {
     
     fn get_oracle_registry(e: Env) -> Address;
     
+    fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128;
+    
     fn set_fee_tier_config(e: Env, admin: Address, tier_rates: Map<u128, u32>);
     
     fn get_fee_tier_config(e: Env) -> crate::storage::FeeTierConfig;
