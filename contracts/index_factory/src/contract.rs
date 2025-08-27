@@ -17,6 +17,8 @@ use crate::storage::{
     get_max_manager_fee_amount, get_minimum_fee_threshold, get_protocol_fee_amount,
     get_protocol_fee_recipient, set_contract_sequence, set_max_manager_fee_amount,
     set_minimum_fee_threshold, set_protocol_fee_amount, set_protocol_fee_recipient,
+    get_oracle_registry, set_oracle_registry, get_fee_tier_config_with_default, set_fee_tier_config,
+    add_user_volume_entry, get_user_30_day_volume,
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -28,7 +30,7 @@ use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::require_admin;
 use soroban_sdk::{
-    contract, contractimpl, contracttype, panic_with_error, Address, BytesN, Env, Symbol, Vec,
+    contract, contractimpl, contracttype, panic_with_error, Address, BytesN, Env, Map, Symbol, Vec,
 };
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
@@ -399,6 +401,59 @@ impl AdminInterface for IndexFactory {
     fn get_is_killed_create(_e: Env) -> bool {
         return false;
         // get_is_killed_create(&e)
+    }
+    
+    
+    fn set_oracle_registry(e: Env, admin: Address, oracle_registry: Address) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        
+        set_oracle_registry(&e, &oracle_registry);    
+    }
+    
+    fn get_oracle_registry(e: Env) -> Address {
+        if let Some(oracle_registry) = get_oracle_registry(&e) {
+            oracle_registry
+        } else {
+            panic_with_error!(&e, AccessControlError::Unauthorized);
+        }
+    }
+    
+    fn set_fee_tier_config(e: Env, admin: Address, tier_rates: Map<u128, u32>) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        
+        if !crate::tiers::TierCalculator::validate_tier_config(&tier_rates) {
+            panic_with_error!(&e, AccessControlError::Unauthorized);
+        }
+        
+        let config = crate::storage::FeeTierConfig {
+            tier_rates,
+        };
+        
+        set_fee_tier_config(&e, &config);
+
+    }
+    
+    fn get_fee_tier_config(e: Env) -> crate::storage::FeeTierConfig {
+        get_fee_tier_config_with_default(&e)
+    }
+    
+    
+    fn record_user_volume(e: Env, user: Address, usd_amount: u128, index_address: Address) {
+        add_user_volume_entry(&e, &user, usd_amount, &index_address);
+    }
+    
+    fn get_user_fee_rate(e: Env, user: Address) -> u32 {
+        crate::tiers::TierCalculator::get_user_fee_rate(&e, &user)
+    }
+    
+    fn get_user_tier_data(e: Env, user: Address) -> crate::storage::UserTierData {
+        crate::tiers::TierCalculator::get_user_tier_data(&e, &user)
+    }
+    
+    fn get_user_30_day_volume(e: Env, user: Address) -> u128 {
+        get_user_30_day_volume(&e, &user)
     }
 }
 

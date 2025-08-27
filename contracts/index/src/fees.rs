@@ -11,22 +11,30 @@ use crate::storage::{
 use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, Vec};
 use utils::bump::bump_persistent;
 
-/// Get protocol fee fraction from Factory contract
-/// Returns 0 if factory is not set or call fails
-pub fn get_protocol_fee_amount_from_factory(e: &Env) -> u32 {
+
+pub fn get_protocol_fee_amount_from_factory(e: &Env, user: &Address) -> u32 {
     match get_factory_safe(e) {
         Some(factory_address) => {
-            // Call Factory's get_protocol_fee_fraction() function
-            // Use invoke_contract directly since we trust the factory contract
-            e.invoke_contract::<u32>(
+            match e.try_invoke_contract::<u32, soroban_sdk::Error>(
                 &factory_address,
-                &Symbol::new(e, "get_protocol_fee_amount"),
-                Vec::new(e),
-            )
+                &Symbol::new(e, "get_user_fee_rate"),
+                Vec::from_array(e, [user.clone().into_val(e)]),
+            ) {
+                Ok(Ok(user_fee_rate)) => user_fee_rate,
+                Ok(Err(_)) | Err(_) => {
+                    e.invoke_contract::<u32>(
+                        &factory_address,
+                        &Symbol::new(e, "get_protocol_fee_amount"),
+                        Vec::new(e),
+                    )
+                }
+            }
         }
         None => 0, // Return 0 if factory not set
     }
 }
+
+
 
 /// Get fee enabled status from Factory contract
 /// Returns true if fees are enabled, defaults to true if factory not available (backwards compatibility)
@@ -115,6 +123,7 @@ pub fn get_minimum_fee_threshold(e: &Env) -> u128 {
 /// Returns (manager_fee, protocol_fee)
 pub fn calculate_accrued_fees(
     e: &Env,
+    user: &Address,
     user_balance: i128,
     last_update_timestamp: u64,
     current_timestamp: u64,
@@ -134,7 +143,7 @@ pub fn calculate_accrued_fees(
 
     // Get separate fee rates
     let manager_fee_rate_bps = get_manager_fee_amount(e) as u128; // Manager fee (optional, max 2%)
-    let protocol_fee_rate_bps = get_protocol_fee_amount_from_factory(e) as u128; // Protocol fee (0.75%, max 2%)
+    let protocol_fee_rate_bps = get_protocol_fee_amount_from_factory(e, user) as u128; // User-specific protocol fee based on tier
 
     // Calculate manager fee separately
     let manager_fee = if manager_fee_rate_bps > 0 && user_balance_u128 > get_minimum_shares_for_fee_collection(e) {
@@ -164,6 +173,7 @@ pub fn collect_accrued_fees_if_any(e: &Env, user: &Address) -> (u128, u128) {
     // Calculate newly accrued fees since last update
     let (new_manager_fee, new_protocol_fee) = calculate_accrued_fees(
         e,
+        user,
         user_state.balance,
         user_state.last_fee_update,
         current_time,
@@ -279,6 +289,7 @@ pub fn get_effective_balance(e: &Env, user: &Address) -> i128 {
     // Calculate newly accrued fees
     let (new_manager_fee, new_protocol_fee) = calculate_accrued_fees(
         e,
+        user,
         user_state.balance,
         user_state.last_fee_update,
         current_time,
@@ -301,6 +312,7 @@ pub fn preview_accrued_fees(e: &Env, user: &Address) -> (u128, u128) {
 
     let (new_manager_fee, new_protocol_fee) = calculate_accrued_fees(
         e,
+        user,
         user_state.balance,
         user_state.last_fee_update,
         current_time,
@@ -351,6 +363,7 @@ pub fn force_collect_fees(e: &Env, user: &Address) -> (u128, u128) {
     // Calculate all accrued fees
     let (new_manager_fee, new_protocol_fee) = calculate_accrued_fees(
         e,
+        user,
         user_state.balance,
         user_state.last_fee_update,
         current_time,
