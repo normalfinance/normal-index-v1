@@ -47,7 +47,7 @@ pub trait IndexTrait {
 
     fn get_blacklist_status(e: Env, address: Address) -> bool;
 
-    fn get_manager_fee_fraction(e: Env) -> u32;
+    fn get_manager_fee_amount(e: Env) -> u128;
 
     fn get_rebalance_threshold(e: Env) -> u64;
 
@@ -103,7 +103,7 @@ pub trait AdminInterface {
 
     fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address);
 
-    fn set_manager_fee_fraction(e: Env, admin: Address, fee_fraction: u32);
+    fn set_manager_fee_amount(e: Env, admin: Address, fee_amount: u128);
 
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64);
 
@@ -141,7 +141,7 @@ pub struct IndexInfo {
     pub base_nav: u128,
     pub initial_price: u128,
     pub is_public: bool,
-    pub manager_fee_fraction: u32,
+    pub manager_fee_amount: u128,
     pub manager_address: Address,
     pub protocol_fee_recipient: Address,
     pub accumulated_manager_fees: u128,

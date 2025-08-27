@@ -328,12 +328,20 @@ fn get_base_token(e: &Env) -> Address {
     get_token_share(e)
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DexDistribution {
+    pub protocol_id: String,
+    pub path: Vec<Address>,
+    pub parts: u32,
+}
+
 pub fn get_default_distribution(e: &Env) -> Vec<DexDistribution> {
     let mut distribution = Vec::new(e);
     distribution.push_back(DexDistribution {
         protocol_id: String::from_str(e, "soroswap"),
-        path: String::from_str(e, "direct"),
-        parts: String::from_str(e, "100"),
+        path: Vec::from_array(&e, [Address::from_str(e, "direct")]),
+        parts: 100,
     });
     distribution
 }

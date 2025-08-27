@@ -14,9 +14,11 @@ use crate::storage::set_swap_utility;
 use crate::storage::set_token_contract_wasm;
 use crate::storage::{
     add_deployed_index, get_all_deployed_indexes, get_contract_sequence, get_deployed_indexes,
-    get_max_manager_fee_fraction, get_minimum_fee_threshold, get_protocol_fee_fraction,
-    get_protocol_fee_recipient, set_contract_sequence, set_max_manager_fee_fraction,
-    set_minimum_fee_threshold, set_protocol_fee_fraction, set_protocol_fee_recipient,
+    get_max_manager_fee_amount, get_minimum_fee_threshold, get_protocol_fee_amount,
+    get_protocol_fee_recipient, set_contract_sequence, set_max_manager_fee_amount,
+    set_minimum_fee_threshold, set_protocol_fee_amount, set_protocol_fee_recipient,
+    get_oracle_registry, set_oracle_registry, get_fee_tier_config_with_default, set_fee_tier_config,
+    add_user_volume_entry, get_user_30_day_volume,
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -28,7 +30,7 @@ use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::require_admin;
 use soroban_sdk::{
-    contract, contractimpl, contracttype, panic_with_error, Address, BytesN, Env, Symbol, Vec,
+    contract, contractimpl, contracttype, panic_with_error, Address, BytesN, Env, Map, Symbol, Vec,
 };
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
@@ -43,8 +45,8 @@ pub struct IndexFactory;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FactoryConfig {
     pub swap_utility: Address,
-    pub protocol_fee_fraction: u32,
-    pub max_manager_fee_fraction: u32,
+    pub protocol_fee_amount: u128,
+    pub max_manager_fee_amount: u128,
     pub protocol_fee_recipient: Address,
     pub minimum_fee_threshold: u128,
     pub index_contract_wasm: BytesN<32>,
@@ -70,8 +72,8 @@ impl IndexFactory {
         _router: Address,
         index_contract_wasm: BytesN<32>,
         token_contract_wasm: BytesN<32>,
-        max_manager_fee_fraction: u32,
-        protocol_fee_fraction: u32,
+        max_manager_fee_amount: u128,
+        protocol_fee_amount: u128,
         protocol_fee_recipient: Address,
         minimum_fee_threshold: u128,
     ) {
@@ -83,8 +85,8 @@ impl IndexFactory {
         set_swap_utility(&e, &swap_utility);
         set_index_contract_wasm(&e, &index_contract_wasm);
         set_token_contract_wasm(&e, &token_contract_wasm);
-        set_protocol_fee_fraction(&e, &protocol_fee_fraction);
-        set_max_manager_fee_fraction(&e, &max_manager_fee_fraction);
+        set_protocol_fee_amount(&e, &protocol_fee_amount);
+        set_max_manager_fee_amount(&e, &max_manager_fee_amount);
         set_protocol_fee_recipient(&e, &protocol_fee_recipient);
         // Set universal minimum fee threshold - IMMUTABLE after initialization
         set_minimum_fee_threshold(&e, &minimum_fee_threshold);
@@ -169,8 +171,8 @@ impl AdminInterface for IndexFactory {
     fn get_factory_config(e: Env) -> FactoryConfig {
         FactoryConfig {
             swap_utility: get_swap_utility(&e),
-            protocol_fee_fraction: get_protocol_fee_fraction(&e),
-            max_manager_fee_fraction: get_max_manager_fee_fraction(&e),
+            protocol_fee_amount: get_protocol_fee_amount(&e),
+            max_manager_fee_amount: get_max_manager_fee_amount(&e),
             protocol_fee_recipient: get_protocol_fee_recipient(&e),
             minimum_fee_threshold: get_minimum_fee_threshold(&e),
             index_contract_wasm: get_index_contract_wasm(&e),
@@ -183,16 +185,16 @@ impl AdminInterface for IndexFactory {
         get_swap_utility(&e)
     }
 
-    fn get_protocol_fee_fraction(e: Env) -> u32 {
-        get_protocol_fee_fraction(&e)
+    fn get_protocol_fee_amount(e: Env) -> u128 {
+        get_protocol_fee_amount(&e)
     }
 
     fn get_index_fee_enabled(e: Env, index_address: Address) -> bool {
         get_index_fee_enabled(&e, &index_address)
     }
 
-    fn get_max_manager_fee_fraction(e: Env) -> u32 {
-        get_max_manager_fee_fraction(&e)
+    fn get_max_manager_fee_amount(e: Env) -> u128 {
+        get_max_manager_fee_amount(&e)
     }
 
     fn get_minimum_fee_threshold(e: Env) -> u128 {
@@ -275,16 +277,16 @@ impl AdminInterface for IndexFactory {
         );
     }
 
-    fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32) {
+    fn set_protocol_fee_amount(e: Env, admin: Address, amount: u128) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
 
-        let old_fee = get_protocol_fee_fraction(&e);
-        set_protocol_fee_fraction(&e, &fraction);
+        let old_fee = get_protocol_fee_amount(&e);
+        set_protocol_fee_amount(&e, &amount);
 
         let current_time = e.ledger().timestamp();
         // Emit enhanced event
-        Events::new(&e).protocol_fee_updated(current_time, admin, old_fee, fraction);
+        Events::new(&e).protocol_fee_updated(current_time, admin, old_fee, amount);
     }
 
     fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
@@ -293,23 +295,23 @@ impl AdminInterface for IndexFactory {
         set_protocol_fee_recipient(&e, &recipient);
     }
 
-    // set_max_manager_fee_fraction
+    // set_max_manager_fee_amount
     // .
     //
     // Arguments:
     //   - e: The Soroban environment.
     //   - admin: The admin address (must be authorized).
-    //   - fraction: The new WASM hash (u32) for the swap fee contract.
-    fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32) {
+    //   - amount: The new max manager fee amount (u128) in token units.
+    fn set_max_manager_fee_amount(e: Env, admin: Address, amount: u128) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
 
-        let old_max_fee = get_max_manager_fee_fraction(&e);
-        set_max_manager_fee_fraction(&e, &fraction);
+        let old_max_fee = get_max_manager_fee_amount(&e);
+        set_max_manager_fee_amount(&e, &amount);
 
         let current_time = e.ledger().timestamp();
         // Emit enhanced event
-        Events::new(&e).max_management_fee_updated(current_time, admin, old_max_fee, fraction);
+        Events::new(&e).max_management_fee_updated(current_time, admin, old_max_fee, amount);
     }
 
     // set_minimum_fee_threshold
@@ -399,6 +401,59 @@ impl AdminInterface for IndexFactory {
     fn get_is_killed_create(_e: Env) -> bool {
         return false;
         // get_is_killed_create(&e)
+    }
+    
+    
+    fn set_oracle_registry(e: Env, admin: Address, oracle_registry: Address) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        
+        set_oracle_registry(&e, &oracle_registry);    
+    }
+    
+    fn get_oracle_registry(e: Env) -> Address {
+        get_oracle_registry(&e)
+    }
+    
+    fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128 {
+        crate::oracle::OracleUtils::convert_xlm_to_usd(&e, &token, amount)
+    }
+    
+    fn set_fee_tier_config(e: Env, admin: Address, tier_rates: Map<u128, u32>) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        
+        if !crate::tiers::TierCalculator::validate_tier_config(&tier_rates) {
+            panic_with_error!(&e, AccessControlError::Unauthorized);
+        }
+        
+        let config = crate::storage::FeeTierConfig {
+            tier_rates,
+        };
+        
+        set_fee_tier_config(&e, &config);
+
+    }
+    
+    fn get_fee_tier_config(e: Env) -> crate::storage::FeeTierConfig {
+        get_fee_tier_config_with_default(&e)
+    }
+    
+    
+    fn record_user_volume(e: Env, user: Address, usd_amount: u128, index_address: Address) {
+        add_user_volume_entry(&e, &user, usd_amount, &index_address);
+    }
+    
+    fn get_user_fee_rate(e: Env, user: Address) -> u32 {
+        crate::tiers::TierCalculator::get_user_fee_rate(&e, &user)
+    }
+    
+    fn get_user_tier_data(e: Env, user: Address) -> crate::storage::UserTierData {
+        crate::tiers::TierCalculator::get_user_tier_data(&e, &user)
+    }
+    
+    fn get_user_30_day_volume(e: Env, user: Address) -> u128 {
+        get_user_30_day_volume(&e, &user)
     }
 }
 

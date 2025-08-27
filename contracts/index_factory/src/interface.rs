@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, BytesN, Env, Vec};
+use soroban_sdk::{Address, BytesN, Env, Map, Vec};
 use utils::storage::IndexParams;
 
 use crate::contract::FactoryConfig;
@@ -30,9 +30,9 @@ pub trait AdminInterface {
 
     fn get_swap_utility(e: Env) -> Address;
 
-    fn get_protocol_fee_fraction(e: Env) -> u32;
+    fn get_protocol_fee_amount(e: Env) -> u128;
 
-    fn get_max_manager_fee_fraction(e: Env) -> u32;
+    fn get_max_manager_fee_amount(e: Env) -> u128;
 
     fn get_minimum_fee_threshold(e: Env) -> u128;
 
@@ -62,17 +62,37 @@ pub trait AdminInterface {
 
     fn set_token_contract_wasm(e: Env, admin: Address, token_contract_wasm: BytesN<32>);
 
-    fn set_protocol_fee_fraction(e: Env, admin: Address, fraction: u32);
+    fn set_protocol_fee_amount(e: Env, admin: Address, amount: u128);
 
     fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address);
 
-    fn set_max_manager_fee_fraction(e: Env, admin: Address, fraction: u32);
+    fn set_max_manager_fee_amount(e: Env, admin: Address, amount: u128);
 
     fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128);
 
     fn set_index_fee_enabled(e: Env, admin: Address, index_address: Address, enabled: bool);
 
     fn batch_set_index_fee_enabled(e: Env, admin: Address, index_settings: Vec<(Address, bool)>);
+    
+    
+    fn set_oracle_registry(e: Env, admin: Address, oracle_registry: Address);
+    
+    fn get_oracle_registry(e: Env) -> Address;
+    
+    fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128;
+    
+    fn set_fee_tier_config(e: Env, admin: Address, tier_rates: Map<u128, u32>);
+    
+    fn get_fee_tier_config(e: Env) -> crate::storage::FeeTierConfig;
+    
+    // User-level tier methods
+    fn record_user_volume(e: Env, user: Address, usd_amount: u128, index_address: Address);
+    
+    fn get_user_fee_rate(e: Env, user: Address) -> u32;
+    
+    fn get_user_tier_data(e: Env, user: Address) -> crate::storage::UserTierData;
+    
+    fn get_user_30_day_volume(e: Env, user: Address) -> u128;
 
     //    _______     __       ____  ____   ________  _______  ________
     //   |   __ "\   /""\     ("  _||_ " | /"       )/"     "||"      "\

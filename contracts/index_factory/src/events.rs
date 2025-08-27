@@ -43,14 +43,14 @@ pub(crate) trait FactoryEvents {
     );
 
     // Factory configuration events
-    fn protocol_fee_updated(&self, ts: u64, admin: Address, old_fee: u32, new_fee: u32);
+    fn protocol_fee_updated(&self, ts: u64, admin: Address, old_fee: u128, new_fee: u128);
 
     fn max_management_fee_updated(
         &self,
         ts: u64,
         admin: Address,
-        old_max_fee: u32,
-        new_max_fee: u32,
+        old_max_fee: u128,
+        new_max_fee: u128,
     );
 
     fn factory_admin_updated(&self, ts: u64, old_admin: Address, new_admin: Address);
@@ -121,7 +121,7 @@ impl FactoryEvents for Events {
         );
     }
 
-    fn protocol_fee_updated(&self, ts: u64, admin: Address, old_fee: u32, new_fee: u32) {
+    fn protocol_fee_updated(&self, ts: u64, admin: Address, old_fee: u128, new_fee: u128) {
         self.env().events().publish(
             (
                 Symbol::new(self.env(), "protocol_fee_updated"),
@@ -138,8 +138,8 @@ impl FactoryEvents for Events {
         &self,
         ts: u64,
         admin: Address,
-        old_max_fee: u32,
-        new_max_fee: u32,
+        old_max_fee: u128,
+        new_max_fee: u128,
     ) {
         self.env().events().publish(
             (
