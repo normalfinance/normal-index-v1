@@ -148,7 +148,7 @@ impl IndexTrait for Index {
         // ...
 
         // Collect fee
-        collect_fees_before_mint(&e, user, amount);
+        collect_fees_before_mint(&e, user.clone(), amount);
 
         let total_shares = get_total_shares(&e);
 
