@@ -124,7 +124,6 @@ pub fn add_user_volume_entry(env: &Env, user: &Address, usd_amount: u128, index_
     let mut history = get_user_volume_history(env, user);
     
     let new_entry = UserVolumeEntry {
-        //TODO:also have the user
         timestamp: current_time,
         usd_amount,
         index_address: index_address.clone(),
