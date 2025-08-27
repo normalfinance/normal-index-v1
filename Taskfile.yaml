@@ -18,7 +18,6 @@ tasks:
 
   build:
     cmds:
-      - task -d contracts/index_token build || exit 1
       - task -d contracts/index build || exit 1
       - task -d contracts/index_factory build || exit 1
       - cp ./target/wasm32v1-none/release/*.wasm ./wasm
@@ -57,7 +56,7 @@ tasks:
   _check_bindings_delayed_upgrade:
     vars:
       WASMS:
-        sh: find ./target/wasm32v1-none/release/ -maxdepth 1 -type f \( -name '*.wasm' -and -not -name 'index_token.wasm' \)
+        sh: find ./target/wasm32v1-none/release/ -maxdepth 1 -type f
     cmds:
       - for: { var: WASMS }
         cmd: echo "Checking bindings for {{ .ITEM }}" &&
@@ -65,17 +64,8 @@ tasks:
           soroban contract info interface --wasm {{ .ITEM }} | grep commit_upgrade
           || exit 1
 
-  _check_bindings_upgrade:
-    vars:
-      WASM: "./target/wasm32v1-none/release/index_token.wasm"
-    cmds:
-      - echo "Checking upgrade bindings for {{ .WASM }}" &&
-        soroban contract info interface --wasm {{ .WASM }} | grep upgrade
-        || exit 1
-
   check_bindings:
     cmds:
       - task build
       - task _check_bindings_tranfer_ownership
       - task _check_bindings_delayed_upgrade
-      - task _check_bindings_upgrade
