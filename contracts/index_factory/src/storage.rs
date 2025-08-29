@@ -28,9 +28,8 @@ pub struct FeeTierConfig {
 pub struct UserVolumeEntry {
     pub timestamp: u64,
     pub usd_amount: u128,
-    pub index_address: Address, 
+    pub index_address: Address,
 }
-
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -46,18 +45,18 @@ pub struct UserTierData {
 #[contracttype]
 enum DataKey {
     SwapUtility, // DEX Aggregator
-    
-    OracleRegistry, 
-    
+
+    OracleRegistry,
+
     FeeTierConfig, // FeeTierConfig struct with thresholds and rates
-    
+
     UserVolumeHistory(Address), // user_address -> Vec<UserVolumeEntry>
     UserTierCache(Address),     // user_address -> UserTierData
-    
+
     // Deprecated - kept for backward compatibility during migration
     ProtocolFeeFraction,
     MaxManagerFeeFraction,
-    
+
     ProtocolFeeRecipient, // Address where protocol fees are sent
     MinimumFeeThreshold,  // Universal minimum fee threshold (immutable)
 
@@ -83,9 +82,7 @@ enum DataKey {
 
 generate_instance_storage_getter_and_setter!(swap_utility, DataKey::SwapUtility, Address);
 
-
 generate_instance_storage_getter_and_setter!(oracle_registry, DataKey::OracleRegistry, Address);
-
 
 generate_instance_storage_getter_and_setter!(
     fee_tier_config,
@@ -95,14 +92,12 @@ generate_instance_storage_getter_and_setter!(
 
 pub fn get_fee_tier_config_with_default(env: &Env) -> FeeTierConfig {
     let mut tier_rates = Map::new(env);
-    tier_rates.set(0u128, 75u32);                    
-    tier_rates.set(10000_0000000u128, 50u32);        
-    tier_rates.set(100000_0000000u128, 25u32);       
-    tier_rates.set(1000000_0000000u128, 10u32); 
-    
-    FeeTierConfig {
-        tier_rates,
-    }
+    tier_rates.set(0u128, 75u32);
+    tier_rates.set(10000_0000000u128, 50u32);
+    tier_rates.set(100000_0000000u128, 25u32);
+    tier_rates.set(1000000_0000000u128, 10u32);
+
+    FeeTierConfig { tier_rates }
 }
 
 pub fn get_user_volume_history(env: &Env, user: &Address) -> Vec<UserVolumeEntry> {
@@ -119,27 +114,27 @@ pub fn get_user_volume_history(env: &Env, user: &Address) -> Vec<UserVolumeEntry
 pub fn add_user_volume_entry(env: &Env, user: &Address, usd_amount: u128, index_address: &Address) {
     let key = DataKey::UserVolumeHistory(user.clone());
     let current_time = env.ledger().timestamp();
-    let cutoff_time = current_time.saturating_sub(30 * 24 * 60 * 60); 
-    
+    let cutoff_time = current_time.saturating_sub(30 * 24 * 60 * 60);
+
     let mut history = get_user_volume_history(env, user);
-    
+
     let new_entry = UserVolumeEntry {
         timestamp: current_time,
         usd_amount,
         index_address: index_address.clone(),
     };
     history.push_back(new_entry);
-    
+
     let mut cleaned_history = Vec::new(env);
     for entry in history.iter() {
         if entry.timestamp >= cutoff_time {
             cleaned_history.push_back(entry);
         }
     }
-    
+
     env.storage().persistent().set(&key, &cleaned_history);
     bump_persistent(env, &key);
-    
+
     let new_total_volume = get_user_30_day_volume(env, user);
     crate::tiers::TierCalculator::invalidate_user_cache(env, user, new_total_volume);
 }
@@ -148,14 +143,14 @@ pub fn get_user_30_day_volume(env: &Env, user: &Address) -> u128 {
     let history = get_user_volume_history(env, user);
     let current_time = env.ledger().timestamp();
     let cutoff_time = current_time.saturating_sub(30 * 24 * 60 * 60); // 30 days ago
-    
+
     let mut total_volume = 0u128;
     for entry in history.iter() {
         if entry.timestamp >= cutoff_time {
             total_volume = total_volume.saturating_add(entry.usd_amount);
         }
     }
-    
+
     total_volume
 }
 
@@ -185,16 +180,16 @@ pub fn cleanup_old_user_volume_entries(env: &Env, user: &Address) {
     let key = DataKey::UserVolumeHistory(user.clone());
     let current_time = env.ledger().timestamp();
     let cutoff_time = current_time.saturating_sub(30 * 24 * 60 * 60); // 30 days ago
-    
+
     let history = get_user_volume_history(env, user);
     let mut cleaned_history = Vec::new(env);
-    
+
     for entry in history.iter() {
         if entry.timestamp >= cutoff_time {
             cleaned_history.push_back(entry);
         }
     }
-    
+
     if cleaned_history.len() != history.len() {
         env.storage().persistent().set(&key, &cleaned_history);
         bump_persistent(env, &key);

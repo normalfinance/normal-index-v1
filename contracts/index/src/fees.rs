@@ -4,13 +4,12 @@
 use crate::events::{Events, IndexEvents};
 use crate::storage::{
     get_accumulated_manager_fees, get_accumulated_protocol_fees, get_factory_safe,
-    get_manager_fee_amount, get_total_fees, set_accumulated_manager_fees,
-    set_accumulated_protocol_fees, set_last_fee_collection, set_total_fees,
-    get_minimum_shares_for_fee_collection
+    get_manager_fee_amount, get_minimum_shares_for_fee_collection, get_total_fees,
+    set_accumulated_manager_fees, set_accumulated_protocol_fees, set_last_fee_collection,
+    set_total_fees,
 };
 use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, Vec};
 use utils::bump::bump_persistent;
-
 
 pub fn get_protocol_fee_amount_from_factory(e: &Env, user: &Address) -> u32 {
     match get_factory_safe(e) {
@@ -21,20 +20,16 @@ pub fn get_protocol_fee_amount_from_factory(e: &Env, user: &Address) -> u32 {
                 Vec::from_array(e, [user.clone().into_val(e)]),
             ) {
                 Ok(Ok(user_fee_rate)) => user_fee_rate,
-                Ok(Err(_)) | Err(_) => {
-                    e.invoke_contract::<u32>(
-                        &factory_address,
-                        &Symbol::new(e, "get_protocol_fee_amount"),
-                        Vec::new(e),
-                    )
-                }
+                Ok(Err(_)) | Err(_) => e.invoke_contract::<u32>(
+                    &factory_address,
+                    &Symbol::new(e, "get_protocol_fee_amount"),
+                    Vec::new(e),
+                ),
             }
         }
         None => 0, // Return 0 if factory not set
     }
 }
-
-
 
 /// Get fee enabled status from Factory contract
 /// Returns true if fees are enabled, defaults to true if factory not available (backwards compatibility)
@@ -146,7 +141,9 @@ pub fn calculate_accrued_fees(
     let protocol_fee_rate_bps = get_protocol_fee_amount_from_factory(e, user) as u128; // User-specific protocol fee based on tier
 
     // Calculate manager fee separately
-    let manager_fee = if manager_fee_rate_bps > 0 && user_balance_u128 > get_minimum_shares_for_fee_collection(e) {
+    let manager_fee = if manager_fee_rate_bps > 0
+        && user_balance_u128 > get_minimum_shares_for_fee_collection(e)
+    {
         //Just calculate the flat fee for the time elapsed
         manager_fee_rate_bps * (time_elapsed_u128 / (SECONDS_PER_YEAR as u128))
     } else {
@@ -154,7 +151,9 @@ pub fn calculate_accrued_fees(
     };
 
     // Calculate protocol fee separately
-    let protocol_fee = if protocol_fee_rate_bps > 0 && user_balance_u128 > get_minimum_shares_for_fee_collection(e) {
+    let protocol_fee = if protocol_fee_rate_bps > 0
+        && user_balance_u128 > get_minimum_shares_for_fee_collection(e)
+    {
         //Just calculate the flat fee for the time elapsed
         protocol_fee_rate_bps * (time_elapsed_u128 / (SECONDS_PER_YEAR as u128))
     } else {

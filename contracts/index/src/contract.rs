@@ -41,8 +41,8 @@ use crate::storage::{
     get_total_redemptions, set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem,
     Component,
 };
-use crate::volume::VolumeTracker;
 use crate::token::create_index_token_contract;
+use crate::volume::VolumeTracker;
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use access_control::errors::AccessControlError;
@@ -198,7 +198,7 @@ impl IndexTrait for Index {
 
         // Metrics
         set_total_mints(&e, &n_shares);
-        
+
         VolumeTracker::record_mint_volume(&e, &user, &token, amount);
 
         // Emit enhanced mint event
@@ -271,8 +271,9 @@ impl IndexTrait for Index {
 
         // TODO: Implement actual redemption logic to get accurate values
         let component_payouts = Map::new(&e); // Empty map for now
-        
-        let redemption_usd_value = VolumeTracker::calculate_redeem_usd_value(&e, share_amount, share_price);
+
+        let redemption_usd_value =
+            VolumeTracker::calculate_redeem_usd_value(&e, share_amount, share_price);
         VolumeTracker::record_redeem_volume(&e, &user, redemption_usd_value);
 
         Events::new(&e).redemption_executed(
@@ -981,12 +982,7 @@ impl AdminInterface for Index {
 
         let current_time = e.ledger().timestamp();
         // Emit enhanced event
-        Events::new(&e).manager_fee_amount_updated(
-            current_time,
-            admin,
-            old_fee_amount,
-            fee_amount,
-        );
+        Events::new(&e).manager_fee_amount_updated(current_time, admin, old_fee_amount, fee_amount);
     }
 
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64) {

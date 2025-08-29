@@ -28,7 +28,7 @@ enum DataKey {
     ManagerFeeFraction, // A custom annual fee set by the admin
 
     // Flat fees
-    ManagerFeeAmount, // The amount of the manager fee to be paid in the token
+    ManagerFeeAmount,  // The amount of the manager fee to be paid in the token
     ProtocolFeeAmount, // The amount of the protocol fee to be paid in the token
     MinimumSharesForFeeCollection, // The minimum number of shares that must be held before fees can be collected
 
@@ -113,7 +113,6 @@ generate_instance_storage_getter_and_setter_with_default!(
     u128,
     25_000_000_000 // 25k tokens
 );
-
 
 // Revenue Share storage
 generate_instance_storage_getter_and_setter_with_default!(
