@@ -16,6 +16,7 @@ access_control = { path = "modules/access_control" }
 token_share = { path = "modules/token_share" }
 upgrade = { path = "modules/upgrade" }
 sep-40-oracle = "1.2.2"
+normal-rust-types = { version = "0.1.4" }
 
 [profile.release]
 opt-level = "z"

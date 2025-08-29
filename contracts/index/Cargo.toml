@@ -16,6 +16,7 @@ utils = { workspace = true }
 upgrade = { workspace = true }
 soroban-fixed-point-math = { workspace = true }
 token_share = { workspace = true }
+normal-rust-types = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

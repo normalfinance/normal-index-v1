@@ -664,6 +664,7 @@ name = "index"
 version = "0.1.0"
 dependencies = [
  "access_control",
+ "normal-rust-types",
  "paste",
  "soroban-fixed-point-math",
  "soroban-sdk",
@@ -677,6 +678,7 @@ name = "index-factory"
 version = "0.1.0"
 dependencies = [
  "access_control",
+ "normal-rust-types",
  "paste",
  "soroban-sdk",
  "upgrade",
@@ -791,6 +793,16 @@ name = "memchr"
 version = "2.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
+
+[[package]]
+name = "normal-rust-types"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7816ef7e008eedce1c8431f2a3dcec124c88f4dfeccf86a570d66d8a8370dadb"
+dependencies = [
+ "soroban-fixed-point-math",
+ "soroban-sdk",
+]
 
 [[package]]
 name = "num-bigint"
@@ -1414,6 +1426,7 @@ name = "swap-utility"
 version = "0.1.0"
 dependencies = [
  "access_control",
+ "normal-rust-types",
  "soroban-sdk",
  "utils",
 ]

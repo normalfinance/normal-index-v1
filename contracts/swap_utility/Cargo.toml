@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 soroban-sdk = { workspace = true }
 utils = { path = "../../modules/utils" }
 access_control = { path = "../../modules/access_control" }
+normal-rust-types = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
