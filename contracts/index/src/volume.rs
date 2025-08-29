@@ -1,4 +1,4 @@
-use crate::errors::IndexError;
+use normal_rust_types::IndexError;
 use crate::storage::get_factory_safe;
 use soroban_sdk::{Address, Env, IntoVal, Symbol};
 

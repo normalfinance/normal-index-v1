@@ -1,7 +1,7 @@
 //! Implementation of the Soroban token interface.
 use crate::allowance::{read_allowance, spend_allowance, write_allowance};
 use crate::balance::{read_balance, receive_balance, spend_balance};
-use crate::errors::TokenError;
+use normal_rust_types::TokenError;
 use crate::interface::UpgradeableContract;
 use crate::metadata::{read_decimal, read_name, read_symbol, write_metadata};
 use access_control::access::{AccessControl, AccessControlTrait};

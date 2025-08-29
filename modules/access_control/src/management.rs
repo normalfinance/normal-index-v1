@@ -1,5 +1,5 @@
 use crate::access::AccessControl;
-use crate::errors::AccessControlError;
+use normal_rust_types::AccessControlError;
 use crate::role::Role;
 use crate::storage::StorageTrait;
 use soroban_sdk::{panic_with_error, Address, Vec};

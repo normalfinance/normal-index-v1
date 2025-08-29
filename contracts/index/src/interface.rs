@@ -1,6 +1,5 @@
 use soroban_sdk::{contracttype, Address, Env, Map, Vec};
-
-use crate::storage::Component;
+use normal_rust_types::{Component, IndexInfo, IndexMetrics, IndexStatus};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -132,54 +131,6 @@ pub trait AdminInterface {
 }
 
 // Query Data Structures
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexInfo {
-    pub address: Address,
-    pub token_address: Address,
-    pub total_shares: u128,
-    pub base_nav: u128,
-    pub initial_price: u128,
-    pub is_public: bool,
-    pub manager_fee_amount: u128,
-    pub manager_address: Address,
-    pub protocol_fee_recipient: Address,
-    pub accumulated_manager_fees: u128,
-    pub accumulated_protocol_fees: u128,
-    pub last_rebalance_ts: u64,
-    pub last_updated_ts: u64,
-    pub total_mints: u128,
-    pub total_redemptions: u128,
-    pub total_fees: u128,
-    pub is_killed_mint: bool,
-    pub is_killed_redeem: bool,
-    pub is_killed_rebalance: bool,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexMetrics {
-    pub total_shares: u128,
-    pub total_mints: u128,
-    pub total_redemptions: u128,
-    pub total_fees: u128,
-    pub accumulated_manager_fees: u128,
-    pub accumulated_protocol_fees: u128,
-    pub current_nav: u128,
-    pub share_price: u128,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexStatus {
-    pub is_killed_mint: bool,
-    pub is_killed_redeem: bool,
-    pub is_killed_rebalance: bool,
-    pub is_public: bool,
-    pub can_rebalance: bool,
-    pub last_rebalance_ts: u64,
-    pub rebalance_threshold: u64,
-}
 
 // Rebalancing Data Structures
 #[contracttype]

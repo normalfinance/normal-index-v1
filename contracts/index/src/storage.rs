@@ -3,7 +3,7 @@ use soroban_sdk::token::TokenClient as SorobanTokenClient;
 use soroban_sdk::{contracttype, panic_with_error, Address, Env, Map, Symbol, Vec};
 use utils::bump::{bump_instance, bump_persistent};
 use utils::constant::THIRTY_DAY;
-use utils::errors::storage_errors::StorageError;
+use normal_rust_types::StorageError;
 use utils::{
     generate_instance_storage_getter, generate_instance_storage_getter_and_setter,
     generate_instance_storage_getter_and_setter_with_default,
@@ -550,3 +550,6 @@ generate_instance_storage_getter_and_setter!(
     DataKey::SwapUtilityAddress,
     Address
 );
+
+// Import Component from normal-rust-types
+pub use normal_rust_types::Component;

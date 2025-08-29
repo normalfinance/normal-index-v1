@@ -12,6 +12,7 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
+normal-rust-types = { workspace = true }
 
 [features]
 default = []

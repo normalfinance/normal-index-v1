@@ -18,7 +18,7 @@ pub struct SwapUtilityParams {
     pub fee_enabled: bool, // Fee toggle from index contract
 }
 
-use crate::errors::IndexError;
+use normal_rust_types::{IndexError, SwapError};
 use crate::events::{Events, IndexEvents};
 use crate::fees::get_fee_enabled_from_factory;
 use crate::storage::{get_all_components, get_swap_utility, get_swap_utility_address};
@@ -202,31 +202,7 @@ pub struct SwapResult {
     pub success: bool,
 }
 
-#[contracttype]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum SwapError {
-    ProviderNotSupported = 100,
-    ProviderNotConfigured = 101,
-    InvalidTokenPair = 200,
-    InvalidAmount = 201,
-    InvalidSlippage = 202,
-    InsufficientLiquidity = 300,
-    SlippageExceeded = 301,
-    SwapFailed = 302,
-    NormalDexFailed = 400,
-    SoroswapSwapFailed = 401,
-    SoroswapAggregatorUnavailable = 402,
-    InvalidProviderConfig = 500,
-    UnauthorizedAccess = 501,
-    ContractNotInitialized = 502,
-}
 
-impl From<soroban_sdk::Error> for SwapError {
-    fn from(_: soroban_sdk::Error) -> Self {
-        SwapError::SwapFailed
-    }
-}
 
 pub fn vault_amount_to_shares(
     e: &Env,

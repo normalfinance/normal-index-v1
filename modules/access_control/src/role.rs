@@ -1,4 +1,4 @@
-use crate::errors::AccessControlError;
+use normal_rust_types::AccessControlError;
 use soroban_sdk::{panic_with_error, Env, Symbol};
 
 #[derive(Clone)]

@@ -7,6 +7,7 @@ pub mod macros;
 pub mod storage;
 pub mod token;
 pub use errors::*;
+pub use normal_rust_types::{StorageError, MathError, ValidationError};
 pub mod math;
 
 #[cfg(any(test, feature = "testutils"))]

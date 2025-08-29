@@ -1,4 +1,4 @@
-use crate::errors::TokenError;
+use normal_rust_types::TokenError;
 use soroban_sdk::{contracttype, panic_with_error, Address, Env};
 use utils::bump::bump_persistent;
 

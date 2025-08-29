@@ -6,6 +6,7 @@ version = 4
 name = "access_control"
 version = "0.1.0"
 dependencies = [
+ "normal-rust-types",
  "soroban-sdk",
  "utils",
 ]
@@ -690,6 +691,7 @@ name = "index-token"
 version = "0.1.0"
 dependencies = [
  "access_control",
+ "normal-rust-types",
  "soroban-sdk",
  "soroban-token-sdk",
  "upgrade",
@@ -796,9 +798,9 @@ checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 
 [[package]]
 name = "normal-rust-types"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7816ef7e008eedce1c8431f2a3dcec124c88f4dfeccf86a570d66d8a8370dadb"
+checksum = "4784705b67ee41319d568f57da233f8a49c70274b4ceba8031bf06ecef3ef030"
 dependencies = [
  "soroban-fixed-point-math",
  "soroban-sdk",
@@ -1508,6 +1510,7 @@ dependencies = [
 name = "token_share"
 version = "0.1.0"
 dependencies = [
+ "normal-rust-types",
  "soroban-sdk",
  "utils",
 ]
@@ -1529,6 +1532,7 @@ name = "upgrade"
 version = "0.1.0"
 dependencies = [
  "access_control",
+ "normal-rust-types",
  "soroban-sdk",
  "utils",
 ]
@@ -1537,6 +1541,7 @@ dependencies = [
 name = "utils"
 version = "0.1.0"
 dependencies = [
+ "normal-rust-types",
  "soroban-sdk",
 ]
 

@@ -1,4 +1,4 @@
-use crate::errors::IndexError;
+use normal_rust_types::IndexError;
 use crate::events::Events;
 use crate::events::IndexEvents;
 use crate::fees::{
@@ -9,9 +9,10 @@ use crate::fees::{
 
 use crate::index::{execute_swaps, generate_swap_params, vault_amount_to_shares};
 use crate::interface::{
-    AdminInterface, ComponentAction, ComponentAllocation, IndexInfo, IndexMetrics, IndexStatus,
+    AdminInterface, ComponentAction, ComponentAllocation, 
     IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus, RefactorParams,
 };
+use normal_rust_types::{IndexInfo, IndexMetrics, IndexStatus};
 use crate::storage::get_all_rebalance_authorities;
 use crate::storage::get_blacklist_status;
 use crate::storage::get_index_vault_amount;
@@ -45,7 +46,7 @@ use crate::token::create_index_token_contract;
 use crate::volume::VolumeTracker;
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
-use access_control::errors::AccessControlError;
+use normal_rust_types::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
 use access_control::interface::TransferableContract;
 use access_control::management::SingleAddressManagementTrait;
