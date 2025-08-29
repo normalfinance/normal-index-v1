@@ -93,6 +93,7 @@ impl IndexFactory {
     }
 }
 
+#[contractimpl]
 impl IndexFactoryTrait for IndexFactory {
     // deploy_index_contract
     // Deploys a new swap fee contract instance.
@@ -153,6 +154,7 @@ impl IndexFactoryTrait for IndexFactory {
     }
 }
 
+#[contractimpl]
 impl AdminInterface for IndexFactory {
     //   _______    _______  ___________  ___________  _______   _______    ________
     //  /" _   "|  /"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
