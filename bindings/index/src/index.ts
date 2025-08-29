@@ -50,6 +50,8 @@ export const IndexError = {
   40: {message:"InvalidWeightSum"},
   41: {message:"ComponentNotFound"},
   42: {message:"InvalidComponentAction"},
+  46: {message:"RebalanceNotAllowed"},
+  45: {message:"UnauthorizedRefactor"},
   43: {message:"NotWhitelisted"},
   44: {message:"Blacklisted"}
 }
@@ -66,22 +68,65 @@ export interface UserFeeState {
 }
 
 
-export interface DexDistribution {
-  parts: string;
-  path: string;
-  protocol_id: string;
+export interface SwapUtilityParams {
+  amount_in: i128;
+  amount_out_min: i128;
+  asset: string;
+  direction: SwapDirection;
+  fee_enabled: boolean;
+  provider: Option<string>;
+  to: string;
+  token_in: string;
+  token_out: string;
 }
 
 
 export interface SwapParams {
   amount_in: i128;
   amount_out_min: i128;
-  deadline: u64;
-  distribution: Array<DexDistribution>;
+  provider: Option<DexProvider>;
   to: string;
   token_in: string;
   token_out: string;
 }
+
+export type SwapDirection = {tag: "Buy", values: void} | {tag: "Sell", values: void};
+
+export type DexProvider = {tag: "Normal", values: void} | {tag: "Soroswap", values: void};
+
+
+export interface SwapResult {
+  amount_in: u128;
+  amount_out: u128;
+  provider_used: DexProvider;
+  success: boolean;
+}
+
+export enum SwapError {
+  ProviderNotSupported = 100,
+  ProviderNotConfigured = 101,
+  InvalidTokenPair = 200,
+  InvalidAmount = 201,
+  InvalidSlippage = 202,
+  InsufficientLiquidity = 300,
+  SlippageExceeded = 301,
+  SwapFailed = 302,
+  NormalDexFailed = 400,
+  SoroswapSwapFailed = 401,
+  SoroswapAggregatorUnavailable = 402,
+  InvalidProviderConfig = 500,
+  UnauthorizedAccess = 501,
+  ContractNotInitialized = 502,
+}
+
+
+export interface DexDistribution {
+  parts: u32;
+  path: Array<string>;
+  protocol_id: string;
+}
+
+export type DexProvider = {tag: "Normal", values: void} | {tag: "Soroswap", values: void};
 
 
 export interface IndexInfo {
@@ -97,7 +142,7 @@ export interface IndexInfo {
   last_rebalance_ts: u64;
   last_updated_ts: u64;
   manager_address: string;
-  manager_fee_fraction: u32;
+  manager_fee_amount: u128;
   protocol_fee_recipient: string;
   token_address: string;
   total_fees: u128;
@@ -139,8 +184,12 @@ export interface ComponentUpdate {
 }
 
 
-export interface RebalanceParams {
+export interface RefactorParams {
   component_updates: Array<ComponentUpdate>;
+}
+
+
+export interface RebalanceParams {
   target_nav: Option<i128>;
 }
 
@@ -214,13 +263,6 @@ export const ValidationError = {
 }
 
 
-export interface TokenInitInfo {
-  name: string;
-  symbol: string;
-  token_wasm_hash: Buffer;
-}
-
-
 export interface PrivilegedAddresses {
   emergency_admin: string;
   emergency_pause_admins: Array<string>;
@@ -230,16 +272,27 @@ export interface PrivilegedAddresses {
 }
 
 
-export interface InitializeParams {
+export interface IndexParams {
   admin: string;
-  privileged_addrs: PrivilegedAddresses;
+  base_nav: u128;
+  blacklist_accounts: Array<string>;
+  components: Array<string>;
+  description: string;
+  initial_deposit: u128;
+  initial_price: u128;
+  manager_fee_amount: u128;
+  name: string;
+  public: boolean;
+  rebalance_authorities: Array<string>;
+  token_symbol: string;
+  whitelist_accounts: Array<string>;
 }
 
 export interface Client {
   /**
    * Construct and simulate a mint transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  mint: ({user, token, amount, destination, max_slippage}: {user: string, token: string, amount: u128, destination: Option<string>, max_slippage: Option<u64>}, options?: {
+  mint: ({user, token, amount, destination, _max_slippage}: {user: string, token: string, amount: u128, destination: Option<string>, _max_slippage: Option<u64>}, options?: {
     /**
      * The fee to pay for the transaction. Default: BASE_FEE
      */
@@ -477,9 +530,9 @@ export interface Client {
   }) => Promise<AssembledTransaction<boolean>>
 
   /**
-   * Construct and simulate a get_manager_fee_fraction transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Construct and simulate a get_manager_fee_amount transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  get_manager_fee_fraction: (options?: {
+  get_manager_fee_amount: (options?: {
     /**
      * The fee to pay for the transaction. Default: BASE_FEE
      */
@@ -494,7 +547,7 @@ export interface Client {
      * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
      */
     simulate?: boolean;
-  }) => Promise<AssembledTransaction<u32>>
+  }) => Promise<AssembledTransaction<u128>>
 
   /**
    * Construct and simulate a get_rebalance_threshold transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -842,6 +895,26 @@ export interface Client {
    * Construct and simulate a initialize transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
   initialize: ({admin, token}: {admin: string, token: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a refactor transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  refactor: ({caller, params}: {caller: string, params: RefactorParams}, options?: {
     /**
      * The fee to pay for the transaction. Default: BASE_FEE
      */
@@ -1319,9 +1392,9 @@ export interface Client {
   }) => Promise<AssembledTransaction<null>>
 
   /**
-   * Construct and simulate a set_manager_fee_fraction transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Construct and simulate a set_manager_fee_amount transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  set_manager_fee_fraction: ({admin, fee_fraction}: {admin: string, fee_fraction: u32}, options?: {
+  set_manager_fee_amount: ({admin, fee_amount}: {admin: string, fee_amount: u128}, options?: {
     /**
      * The fee to pay for the transaction. Default: BASE_FEE
      */
@@ -1803,50 +1876,6 @@ export interface Client {
   }) => Promise<AssembledTransaction<readonly [u128, u128]>>
 
   /**
-   * Construct and simulate a collect_fees_before_operation transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Called by token contract to enforce fee collection for transfers and burns
-   * This ensures fees are collected regardless of where tokens are traded (external DEXes)
-   */
-  collect_fees_before_operation: ({from, amount, to}: {from: string, amount: i128, to: Option<string>}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<readonly [u128, u128]>>
-
-  /**
-   * Construct and simulate a collect_fees_before_mint transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Called by token contract during external mints to enforce fee collection
-   * This prevents users from bypassing fees by acquiring tokens on external DEXes
-   */
-  collect_fees_before_mint: ({user, amount}: {user: string, amount: i128}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<readonly [u128, u128]>>
-
-  /**
    * Construct and simulate a get_users_with_fees transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Get users with accrued fees above threshold (admin function)
    */
@@ -1927,7 +1956,7 @@ export class Client extends ContractClient {
   }
   constructor(public readonly options: ContractClientOptions) {
     super(
-      new ContractSpec([ "AAAAAAAAAAAAAAAEbWludAAAAAUAAAAAAAAABHVzZXIAAAATAAAAAAAAAAV0b2tlbgAAAAAAABMAAAAAAAAABmFtb3VudAAAAAAACgAAAAAAAAALZGVzdGluYXRpb24AAAAD6AAAABMAAAAAAAAADG1heF9zbGlwcGFnZQAAA+gAAAAGAAAAAA==",
+      new ContractSpec([ "AAAAAAAAAAAAAAAEbWludAAAAAUAAAAAAAAABHVzZXIAAAATAAAAAAAAAAV0b2tlbgAAAAAAABMAAAAAAAAABmFtb3VudAAAAAAACgAAAAAAAAALZGVzdGluYXRpb24AAAAD6AAAABMAAAAAAAAADV9tYXhfc2xpcHBhZ2UAAAAAAAPoAAAABgAAAAA=",
         "AAAAAAAAAAAAAAAGcmVkZWVtAAAAAAACAAAAAAAAAAR1c2VyAAAAEwAAAAAAAAAMc2hhcmVfYW1vdW50AAAACgAAAAA=",
         "AAAAAAAAAAAAAAAJZ2V0X3Rva2VuAAAAAAAAAAAAAAEAAAAT",
         "AAAAAAAAAAAAAAALZ2V0X2ZhY3RvcnkAAAAAAAAAAAEAAAAT",
@@ -1939,7 +1968,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAARZ2V0X3B1YmxpY19zdGF0dXMAAAAAAAAAAAAAAQAAAAE=",
         "AAAAAAAAAAAAAAAUZ2V0X3doaXRlbGlzdF9zdGF0dXMAAAABAAAAAAAAAAdhZGRyZXNzAAAAABMAAAABAAAAAQ==",
         "AAAAAAAAAAAAAAAUZ2V0X2JsYWNrbGlzdF9zdGF0dXMAAAABAAAAAAAAAAdhZGRyZXNzAAAAABMAAAABAAAAAQ==",
-        "AAAAAAAAAAAAAAAYZ2V0X21hbmFnZXJfZmVlX2ZyYWN0aW9uAAAAAAAAAAEAAAAE",
+        "AAAAAAAAAAAAAAAWZ2V0X21hbmFnZXJfZmVlX2Ftb3VudAAAAAAAAAAAAAEAAAAK",
         "AAAAAAAAAAAAAAAXZ2V0X3JlYmFsYW5jZV90aHJlc2hvbGQAAAAAAAAAAAEAAAAG",
         "AAAAAAAAAAAAAAAcZ2V0X2xhc3RfcmViYWxhbmNlX3RpbWVzdGFtcAAAAAAAAAABAAAABg==",
         "AAAAAAAAAAAAAAAaZ2V0X2xhc3RfdXBkYXRlZF90aW1lc3RhbXAAAAAAAAAAAAABAAAABg==",
@@ -1958,6 +1987,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAASc2V0X2VtZXJnZW5jeV9tb2RlAAAAAAACAAAAAAAAAA9lbWVyZ2VuY3lfYWRtaW4AAAAAEwAAAAAAAAAFdmFsdWUAAAAAAAABAAAAAA==",
         "AAAAAAAAAAAAAAASZ2V0X2VtZXJnZW5jeV9tb2RlAAAAAAAAAAAAAQAAAAE=",
         "AAAAAAAAAAAAAAAKaW5pdGlhbGl6ZQAAAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAV0b2tlbgAAAAAAABMAAAAA",
+        "AAAAAAAAAAAAAAAIcmVmYWN0b3IAAAACAAAAAAAAAAZjYWxsZXIAAAAAABMAAAAAAAAABnBhcmFtcwAAAAAH0AAAAA5SZWZhY3RvclBhcmFtcwAAAAAAAA==",
         "AAAAAAAAAAAAAAAJcmViYWxhbmNlAAAAAAAAAgAAAAAAAAAGY2FsbGVyAAAAAAATAAAAAAAAAAZwYXJhbXMAAAAAB9AAAAAPUmViYWxhbmNlUGFyYW1zAAAAAAA=",
         "AAAAAAAAAAAAAAAXc2V0X3JlYmFsYW5jZV9hdXRob3JpdHkAAAAAAwAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAlhdXRob3JpdHkAAAAAAAATAAAAAAAAAAZzdGF0dXMAAAAAAAEAAAAA",
         "AAAAAAAAAAAAAAAJa2lsbF9taW50AAAAAAAAAQAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAA==",
@@ -1981,7 +2011,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAARc2V0X3B1YmxpY19zdGF0dXMAAAAAAAACAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAABnB1YmxpYwAAAAAAAQAAAAA=",
         "AAAAAAAAAAAAAAAUc2V0X3doaXRlbGlzdF9zdGF0dXMAAAADAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAAB2FkZHJlc3MAAAAAEwAAAAAAAAAGc3RhdHVzAAAAAAABAAAAAA==",
         "AAAAAAAAAAAAAAAUc2V0X2JsYWNrbGlzdF9zdGF0dXMAAAADAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAAB2FkZHJlc3MAAAAAEwAAAAAAAAAGc3RhdHVzAAAAAAABAAAAAA==",
-        "AAAAAAAAAAAAAAAYc2V0X21hbmFnZXJfZmVlX2ZyYWN0aW9uAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAxmZWVfZnJhY3Rpb24AAAAEAAAAAA==",
+        "AAAAAAAAAAAAAAAWc2V0X21hbmFnZXJfZmVlX2Ftb3VudAAAAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAApmZWVfYW1vdW50AAAAAAAKAAAAAA==",
         "AAAAAAAAAAAAAAAXc2V0X3JlYmFsYW5jZV90aHJlc2hvbGQAAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAl0aHJlc2hvbGQAAAAAAAAGAAAAAA==",
         "AAAAAAAAAAAAAAAZY29tbWl0X3RyYW5zZmVyX293bmVyc2hpcAAAAAAAAAMAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAJcm9sZV9uYW1lAAAAAAAAEQAAAAAAAAALbmV3X2FkZHJlc3MAAAAAEwAAAAA=",
         "AAAAAAAAAAAAAAAYYXBwbHlfdHJhbnNmZXJfb3duZXJzaGlwAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAlyb2xlX25hbWUAAAAAAAARAAAAAA==",
@@ -2005,21 +2035,26 @@ export class Client extends ContractClient {
         "AAAAAAAAADJHZXQgZWZmZWN0aXZlIGJhbGFuY2UgKGJhbGFuY2UgbWludXMgYWNjcnVlZCBmZWVzKQAAAAAAFWdldF9lZmZlY3RpdmVfYmFsYW5jZQAAAAAAAAEAAAAAAAAABHVzZXIAAAATAAAAAQAAAAs=",
         "AAAAAAAAADtNYW51YWxseSB0cmlnZ2VyIGZlZSBjb2xsZWN0aW9uIGZvciBhIHVzZXIgKGFkbWluIGZ1bmN0aW9uKQAAAAAMY29sbGVjdF9mZWVzAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAR1c2VyAAAAEwAAAAEAAAPtAAAAAgAAAAoAAAAK",
         "AAAAAAAAAE9CYXRjaCBjb2xsZWN0IGZlZXMgZnJvbSBtdWx0aXBsZSB1c2VycyAoYWRtaW4gZnVuY3Rpb24gZm9yIHBlcmlvZGljIGNvbGxlY3Rpb24pAAAAABJiYXRjaF9jb2xsZWN0X2ZlZXMAAAAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAFdXNlcnMAAAAAAAPqAAAAEwAAAAEAAAPtAAAAAgAAAAoAAAAK",
-        "AAAAAAAAAKFDYWxsZWQgYnkgdG9rZW4gY29udHJhY3QgdG8gZW5mb3JjZSBmZWUgY29sbGVjdGlvbiBmb3IgdHJhbnNmZXJzIGFuZCBidXJucwpUaGlzIGVuc3VyZXMgZmVlcyBhcmUgY29sbGVjdGVkIHJlZ2FyZGxlc3Mgb2Ygd2hlcmUgdG9rZW5zIGFyZSB0cmFkZWQgKGV4dGVybmFsIERFWGVzKQAAAAAAAB1jb2xsZWN0X2ZlZXNfYmVmb3JlX29wZXJhdGlvbgAAAAAAAAMAAAAAAAAABGZyb20AAAATAAAAAAAAAAZhbW91bnQAAAAAAAsAAAAAAAAAAnRvAAAAAAPoAAAAEwAAAAEAAAPtAAAAAgAAAAoAAAAK",
-        "AAAAAAAAAJZDYWxsZWQgYnkgdG9rZW4gY29udHJhY3QgZHVyaW5nIGV4dGVybmFsIG1pbnRzIHRvIGVuZm9yY2UgZmVlIGNvbGxlY3Rpb24KVGhpcyBwcmV2ZW50cyB1c2VycyBmcm9tIGJ5cGFzc2luZyBmZWVzIGJ5IGFjcXVpcmluZyB0b2tlbnMgb24gZXh0ZXJuYWwgREVYZXMAAAAAABhjb2xsZWN0X2ZlZXNfYmVmb3JlX21pbnQAAAACAAAAAAAAAAR1c2VyAAAAEwAAAAAAAAAGYW1vdW50AAAAAAALAAAAAQAAA+0AAAACAAAACgAAAAo=",
         "AAAAAAAAADxHZXQgdXNlcnMgd2l0aCBhY2NydWVkIGZlZXMgYWJvdmUgdGhyZXNob2xkIChhZG1pbiBmdW5jdGlvbikAAAATZ2V0X3VzZXJzX3dpdGhfZmVlcwAAAAACAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAADnVzZXJfYWRkcmVzc2VzAAAAAAPqAAAAEwAAAAEAAAPqAAAAEw==",
         "AAAAAAAAAFFGb3JjZSBjb2xsZWN0IGZlZXMgZnJvbSBhIHVzZXIgcmVnYXJkbGVzcyBvZiB0aHJlc2hvbGQgKGVtZXJnZW5jeSBhZG1pbiBmdW5jdGlvbikAAAAAAAASZm9yY2VfY29sbGVjdF9mZWVzAAAAAAACAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAABHVzZXIAAAATAAAAAQAAA+0AAAACAAAACgAAAAo=",
         "AAAAAAAAACNHZXQgbGFzdCBiYXRjaCBjb2xsZWN0aW9uIHRpbWVzdGFtcAAAAAAZZ2V0X2xhc3RfYmF0Y2hfY29sbGVjdGlvbgAAAAAAAAAAAAABAAAABg==",
-        "AAAABAAAAAAAAAAAAAAACkluZGV4RXJyb3IAAAAAAA8AAAAKSW5kZXhFcnJvcgAAAAAAC1BhdGhJc0VtcHR5AAAAAB0AAAAAAAAAD0luZGV4TWludEtpbGxlZAAAAAAeAAAAAAAAABFJbmRleFJlZGVlbUtpbGxlZAAAAAAAAB8AAAAAAAAAFEluZGV4UmViYWxhbmNlS2lsbGVkAAAAIAAAAAAAAAANTWFuYWdlck5vdFNldAAAAAAAACEAAAAAAAAAF1Byb3RvY29sUmVjaXBpZW50Tm90U2V0AAAAACIAAAAAAAAAFUludmFsaWRTaGFyZXNEZXRlY3RlZAAAAAAAACMAAAAAAAAAEFJlYmFsYW5jZVRvb1Nvb24AAAAlAAAAAAAAABVVbmF1dGhvcml6ZWRSZWJhbGFuY2UAAAAAAAAmAAAAAAAAAB9QdWJsaWNSZWJhbGFuY2VSZXF1aXJlc1Byb3Bvc2FsAAAAACcAAAAAAAAAEEludmFsaWRXZWlnaHRTdW0AAAAoAAAAAAAAABFDb21wb25lbnROb3RGb3VuZAAAAAAAACkAAAAAAAAAFkludmFsaWRDb21wb25lbnRBY3Rpb24AAAAAACoAAAAAAAAADk5vdFdoaXRlbGlzdGVkAAAAAAArAAAAAAAAAAtCbGFja2xpc3RlZAAAAAAs",
+        "AAAABAAAAAAAAAAAAAAACkluZGV4RXJyb3IAAAAAABEAAAAKSW5kZXhFcnJvcgAAAAAAC1BhdGhJc0VtcHR5AAAAAB0AAAAAAAAAD0luZGV4TWludEtpbGxlZAAAAAAeAAAAAAAAABFJbmRleFJlZGVlbUtpbGxlZAAAAAAAAB8AAAAAAAAAFEluZGV4UmViYWxhbmNlS2lsbGVkAAAAIAAAAAAAAAANTWFuYWdlck5vdFNldAAAAAAAACEAAAAAAAAAF1Byb3RvY29sUmVjaXBpZW50Tm90U2V0AAAAACIAAAAAAAAAFUludmFsaWRTaGFyZXNEZXRlY3RlZAAAAAAAACMAAAAAAAAAEFJlYmFsYW5jZVRvb1Nvb24AAAAlAAAAAAAAABVVbmF1dGhvcml6ZWRSZWJhbGFuY2UAAAAAAAAmAAAAAAAAAB9QdWJsaWNSZWJhbGFuY2VSZXF1aXJlc1Byb3Bvc2FsAAAAACcAAAAAAAAAEEludmFsaWRXZWlnaHRTdW0AAAAoAAAAAAAAABFDb21wb25lbnROb3RGb3VuZAAAAAAAACkAAAAAAAAAFkludmFsaWRDb21wb25lbnRBY3Rpb24AAAAAACoAAAAAAAAAE1JlYmFsYW5jZU5vdEFsbG93ZWQAAAAALgAAAAAAAAAUVW5hdXRob3JpemVkUmVmYWN0b3IAAAAtAAAAAAAAAA5Ob3RXaGl0ZWxpc3RlZAAAAAAAKwAAAAAAAAALQmxhY2tsaXN0ZWQAAAAALA==",
         "AAAAAQAAACFVc2VyIGZlZSBzdGF0ZSB0cmFja2luZyBzdHJ1Y3R1cmUAAAAAAAAAAAAADFVzZXJGZWVTdGF0ZQAAAAQAAAAAAAAAFGFjY3J1ZWRfbWFuYWdlcl9mZWVzAAAACgAAAAAAAAAVYWNjcnVlZF9wcm90b2NvbF9mZWVzAAAAAAAACgAAAAAAAAAHYmFsYW5jZQAAAAALAAAAAAAAAA9sYXN0X2ZlZV91cGRhdGUAAAAABg==",
-        "AAAAAQAAAAAAAAAAAAAAD0RleERpc3RyaWJ1dGlvbgAAAAADAAAAAAAAAAVwYXJ0cwAAAAAAABAAAAAAAAAABHBhdGgAAAAQAAAAAAAAAAtwcm90b2NvbF9pZAAAAAAQ",
-        "AAAAAQAAAAAAAAAAAAAAClN3YXBQYXJhbXMAAAAAAAcAAAAAAAAACWFtb3VudF9pbgAAAAAAAAsAAAAAAAAADmFtb3VudF9vdXRfbWluAAAAAAALAAAAAAAAAAhkZWFkbGluZQAAAAYAAAAAAAAADGRpc3RyaWJ1dGlvbgAAA+oAAAfQAAAAD0RleERpc3RyaWJ1dGlvbgAAAAAAAAAAAnRvAAAAAAATAAAAAAAAAAh0b2tlbl9pbgAAABMAAAAAAAAACXRva2VuX291dAAAAAAAABM=",
-        "AAAAAQAAAAAAAAAAAAAACUluZGV4SW5mbwAAAAAAABMAAAAAAAAAGGFjY3VtdWxhdGVkX21hbmFnZXJfZmVlcwAAAAoAAAAAAAAAGWFjY3VtdWxhdGVkX3Byb3RvY29sX2ZlZXMAAAAAAAAKAAAAAAAAAAdhZGRyZXNzAAAAABMAAAAAAAAACGJhc2VfbmF2AAAACgAAAAAAAAANaW5pdGlhbF9wcmljZQAAAAAAAAoAAAAAAAAADmlzX2tpbGxlZF9taW50AAAAAAABAAAAAAAAABNpc19raWxsZWRfcmViYWxhbmNlAAAAAAEAAAAAAAAAEGlzX2tpbGxlZF9yZWRlZW0AAAABAAAAAAAAAAlpc19wdWJsaWMAAAAAAAABAAAAAAAAABFsYXN0X3JlYmFsYW5jZV90cwAAAAAAAAYAAAAAAAAAD2xhc3RfdXBkYXRlZF90cwAAAAAGAAAAAAAAAA9tYW5hZ2VyX2FkZHJlc3MAAAAAEwAAAAAAAAAUbWFuYWdlcl9mZWVfZnJhY3Rpb24AAAAEAAAAAAAAABZwcm90b2NvbF9mZWVfcmVjaXBpZW50AAAAAAATAAAAAAAAAA10b2tlbl9hZGRyZXNzAAAAAAAAEwAAAAAAAAAKdG90YWxfZmVlcwAAAAAACgAAAAAAAAALdG90YWxfbWludHMAAAAACgAAAAAAAAARdG90YWxfcmVkZW1wdGlvbnMAAAAAAAAKAAAAAAAAAAx0b3RhbF9zaGFyZXMAAAAK",
+        "AAAAAQAAAAAAAAAAAAAAEVN3YXBVdGlsaXR5UGFyYW1zAAAAAAAACQAAAAAAAAAJYW1vdW50X2luAAAAAAAACwAAAAAAAAAOYW1vdW50X291dF9taW4AAAAAAAsAAAAAAAAABWFzc2V0AAAAAAAAEQAAAAAAAAAJZGlyZWN0aW9uAAAAAAAH0AAAAA1Td2FwRGlyZWN0aW9uAAAAAAAAAAAAAAtmZWVfZW5hYmxlZAAAAAABAAAAAAAAAAhwcm92aWRlcgAAA+gAAAAQAAAAAAAAAAJ0bwAAAAAAEwAAAAAAAAAIdG9rZW5faW4AAAATAAAAAAAAAAl0b2tlbl9vdXQAAAAAAAAT",
+        "AAAAAQAAAAAAAAAAAAAAClN3YXBQYXJhbXMAAAAAAAYAAAAAAAAACWFtb3VudF9pbgAAAAAAAAsAAAAAAAAADmFtb3VudF9vdXRfbWluAAAAAAALAAAAAAAAAAhwcm92aWRlcgAAA+gAAAfQAAAAC0RleFByb3ZpZGVyAAAAAAAAAAACdG8AAAAAABMAAAAAAAAACHRva2VuX2luAAAAEwAAAAAAAAAJdG9rZW5fb3V0AAAAAAAAEw==",
+        "AAAAAgAAAAAAAAAAAAAADVN3YXBEaXJlY3Rpb24AAAAAAAACAAAAAAAAAAAAAAADQnV5AAAAAAAAAAAAAAAABFNlbGw=",
+        "AAAAAgAAAAAAAAAAAAAAC0RleFByb3ZpZGVyAAAAAAIAAAAAAAAAAAAAAAZOb3JtYWwAAAAAAAAAAAAAAAAACFNvcm9zd2Fw",
+        "AAAAAQAAAAAAAAAAAAAAClN3YXBSZXN1bHQAAAAAAAQAAAAAAAAACWFtb3VudF9pbgAAAAAAAAoAAAAAAAAACmFtb3VudF9vdXQAAAAAAAoAAAAAAAAADXByb3ZpZGVyX3VzZWQAAAAAAAfQAAAAC0RleFByb3ZpZGVyAAAAAAAAAAAHc3VjY2VzcwAAAAAB",
+        "AAAAAwAAAAAAAAAAAAAACVN3YXBFcnJvcgAAAAAAAA4AAAAAAAAAFFByb3ZpZGVyTm90U3VwcG9ydGVkAAAAZAAAAAAAAAAVUHJvdmlkZXJOb3RDb25maWd1cmVkAAAAAAAAZQAAAAAAAAAQSW52YWxpZFRva2VuUGFpcgAAAMgAAAAAAAAADUludmFsaWRBbW91bnQAAAAAAADJAAAAAAAAAA9JbnZhbGlkU2xpcHBhZ2UAAAAAygAAAAAAAAAVSW5zdWZmaWNpZW50TGlxdWlkaXR5AAAAAAABLAAAAAAAAAAQU2xpcHBhZ2VFeGNlZWRlZAAAAS0AAAAAAAAAClN3YXBGYWlsZWQAAAAAAS4AAAAAAAAAD05vcm1hbERleEZhaWxlZAAAAAGQAAAAAAAAABJTb3Jvc3dhcFN3YXBGYWlsZWQAAAAAAZEAAAAAAAAAHVNvcm9zd2FwQWdncmVnYXRvclVuYXZhaWxhYmxlAAAAAAABkgAAAAAAAAAVSW52YWxpZFByb3ZpZGVyQ29uZmlnAAAAAAAB9AAAAAAAAAASVW5hdXRob3JpemVkQWNjZXNzAAAAAAH1AAAAAAAAABZDb250cmFjdE5vdEluaXRpYWxpemVkAAAAAAH2",
+        "AAAAAQAAAAAAAAAAAAAAD0RleERpc3RyaWJ1dGlvbgAAAAADAAAAAAAAAAVwYXJ0cwAAAAAAAAQAAAAAAAAABHBhdGgAAAPqAAAAEwAAAAAAAAALcHJvdG9jb2xfaWQAAAAAEA==",
+        "AAAAAgAAAAAAAAAAAAAAC0RleFByb3ZpZGVyAAAAAAIAAAAAAAAAAAAAAAZOb3JtYWwAAAAAAAAAAAAAAAAACFNvcm9zd2Fw",
+        "AAAAAQAAAAAAAAAAAAAACUluZGV4SW5mbwAAAAAAABMAAAAAAAAAGGFjY3VtdWxhdGVkX21hbmFnZXJfZmVlcwAAAAoAAAAAAAAAGWFjY3VtdWxhdGVkX3Byb3RvY29sX2ZlZXMAAAAAAAAKAAAAAAAAAAdhZGRyZXNzAAAAABMAAAAAAAAACGJhc2VfbmF2AAAACgAAAAAAAAANaW5pdGlhbF9wcmljZQAAAAAAAAoAAAAAAAAADmlzX2tpbGxlZF9taW50AAAAAAABAAAAAAAAABNpc19raWxsZWRfcmViYWxhbmNlAAAAAAEAAAAAAAAAEGlzX2tpbGxlZF9yZWRlZW0AAAABAAAAAAAAAAlpc19wdWJsaWMAAAAAAAABAAAAAAAAABFsYXN0X3JlYmFsYW5jZV90cwAAAAAAAAYAAAAAAAAAD2xhc3RfdXBkYXRlZF90cwAAAAAGAAAAAAAAAA9tYW5hZ2VyX2FkZHJlc3MAAAAAEwAAAAAAAAASbWFuYWdlcl9mZWVfYW1vdW50AAAAAAAKAAAAAAAAABZwcm90b2NvbF9mZWVfcmVjaXBpZW50AAAAAAATAAAAAAAAAA10b2tlbl9hZGRyZXNzAAAAAAAAEwAAAAAAAAAKdG90YWxfZmVlcwAAAAAACgAAAAAAAAALdG90YWxfbWludHMAAAAACgAAAAAAAAARdG90YWxfcmVkZW1wdGlvbnMAAAAAAAAKAAAAAAAAAAx0b3RhbF9zaGFyZXMAAAAK",
         "AAAAAQAAAAAAAAAAAAAADEluZGV4TWV0cmljcwAAAAgAAAAAAAAAGGFjY3VtdWxhdGVkX21hbmFnZXJfZmVlcwAAAAoAAAAAAAAAGWFjY3VtdWxhdGVkX3Byb3RvY29sX2ZlZXMAAAAAAAAKAAAAAAAAAAtjdXJyZW50X25hdgAAAAAKAAAAAAAAAAtzaGFyZV9wcmljZQAAAAAKAAAAAAAAAAp0b3RhbF9mZWVzAAAAAAAKAAAAAAAAAAt0b3RhbF9taW50cwAAAAAKAAAAAAAAABF0b3RhbF9yZWRlbXB0aW9ucwAAAAAAAAoAAAAAAAAADHRvdGFsX3NoYXJlcwAAAAo=",
         "AAAAAQAAAAAAAAAAAAAAC0luZGV4U3RhdHVzAAAAAAcAAAAAAAAADWNhbl9yZWJhbGFuY2UAAAAAAAABAAAAAAAAAA5pc19raWxsZWRfbWludAAAAAAAAQAAAAAAAAATaXNfa2lsbGVkX3JlYmFsYW5jZQAAAAABAAAAAAAAABBpc19raWxsZWRfcmVkZWVtAAAAAQAAAAAAAAAJaXNfcHVibGljAAAAAAAAAQAAAAAAAAARbGFzdF9yZWJhbGFuY2VfdHMAAAAAAAAGAAAAAAAAABNyZWJhbGFuY2VfdGhyZXNob2xkAAAAAAY=",
         "AAAAAgAAAAAAAAAAAAAAD0NvbXBvbmVudEFjdGlvbgAAAAADAAAAAAAAAAAAAAADQWRkAAAAAAAAAAAAAAAABlJlbW92ZQAAAAAAAAAAAAAAAAAMVXBkYXRlV2VpZ2h0",
         "AAAAAQAAAAAAAAAAAAAAD0NvbXBvbmVudFVwZGF0ZQAAAAADAAAAAAAAAAZhY3Rpb24AAAAAB9AAAAAPQ29tcG9uZW50QWN0aW9uAAAAAAAAAAAKbmV3X3dlaWdodAAAAAAACgAAAAAAAAAFdG9rZW4AAAAAAAAT",
-        "AAAAAQAAAAAAAAAAAAAAD1JlYmFsYW5jZVBhcmFtcwAAAAACAAAAAAAAABFjb21wb25lbnRfdXBkYXRlcwAAAAAAA+oAAAfQAAAAD0NvbXBvbmVudFVwZGF0ZQAAAAAAAAAACnRhcmdldF9uYXYAAAAAA+gAAAAL",
+        "AAAAAQAAAAAAAAAAAAAADlJlZmFjdG9yUGFyYW1zAAAAAAABAAAAAAAAABFjb21wb25lbnRfdXBkYXRlcwAAAAAAA+oAAAfQAAAAD0NvbXBvbmVudFVwZGF0ZQA=",
+        "AAAAAQAAAAAAAAAAAAAAD1JlYmFsYW5jZVBhcmFtcwAAAAABAAAAAAAAAAp0YXJnZXRfbmF2AAAAAAPoAAAACw==",
         "AAAAAQAAAAAAAAAAAAAAE0NvbXBvbmVudEFsbG9jYXRpb24AAAAABAAAAAAAAAAJY29tcG9uZW50AAAAAAAH0AAAAAlDb21wb25lbnQAAAAAAAAAAAAAD2N1cnJlbnRfYmFsYW5jZQAAAAAKAAAAAAAAABFwZXJjZW50YWdlX29mX25hdgAAAAAAAAoAAAAAAAAADnRhcmdldF9iYWxhbmNlAAAAAAAK",
         "AAAAAQAAAAAAAAAAAAAAD1JlYmFsYW5jZVN0YXR1cwAAAAAGAAAAAAAAABZhdXRob3JpemVkX3JlYmFsYW5jZXJzAAAAAAPqAAAAEwAAAAAAAAANY2FuX3JlYmFsYW5jZQAAAAAAAAEAAAAAAAAACWlzX3B1YmxpYwAAAAAAAAEAAAAAAAAAEWxhc3RfcmViYWxhbmNlX3RzAAAAAAAABgAAAAAAAAATcmViYWxhbmNlX3RocmVzaG9sZAAAAAAGAAAAAAAAABl0aW1lX3VudGlsX25leHRfcmViYWxhbmNlAAAAAAAABg==",
         "AAAAAQAAAAAAAAAAAAAACUNvbXBvbmVudAAAAAAAAAIAAAAAAAAABWFzc2V0AAAAAAAAEQAAAAAAAAAGd2VpZ2h0AAAAAAAK",
@@ -2028,9 +2063,8 @@ export class Client extends ContractClient {
         "AAAABAAAAAAAAAAAAAAACU1hdGhFcnJvcgAAAAAAAAIAAAAZTWF0aEVycm9yOiBOdW1iZXJPdmVyZmxvdwAAAAAAAA5OdW1iZXJPdmVyZmxvdwAAAAAB/gAAAAAAAAAJTWF0aEVycm9yAAAAAAAB/w==",
         "AAAABAAAAAAAAAAAAAAADFN0b3JhZ2VFcnJvcgAAAAIAAAAMU3RvcmFnZUVycm9yAAAAE1ZhbHVlTm90SW5pdGlhbGl6ZWQAAAAB9QAAAAAAAAAMVmFsdWVNaXNzaW5nAAAB9g==",
         "AAAABAAAAAAAAAAAAAAAD1ZhbGlkYXRpb25FcnJvcgAAAAABAAAAD1ZhbGlkYXRpb25FcnJvcgAAAAAMSW52YWxpZFRva2VuAAADIQ==",
-        "AAAAAQAAAAAAAAAAAAAADVRva2VuSW5pdEluZm8AAAAAAAADAAAAAAAAAARuYW1lAAAAEAAAAAAAAAAGc3ltYm9sAAAAAAAQAAAAAAAAAA90b2tlbl93YXNtX2hhc2gAAAAD7gAAACA=",
         "AAAAAQAAAAAAAAAAAAAAE1ByaXZpbGVnZWRBZGRyZXNzZXMAAAAABQAAAAAAAAAPZW1lcmdlbmN5X2FkbWluAAAAABMAAAAAAAAAFmVtZXJnZW5jeV9wYXVzZV9hZG1pbnMAAAAAA+oAAAATAAAAAAAAABBvcGVyYXRpb25zX2FkbWluAAAAEwAAAAAAAAALcGF1c2VfYWRtaW4AAAAAEwAAAAAAAAANcmV3YXJkc19hZG1pbgAAAAAAABM=",
-        "AAAAAQAAAAAAAAAAAAAAEEluaXRpYWxpemVQYXJhbXMAAAACAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAAEHByaXZpbGVnZWRfYWRkcnMAAAfQAAAAE1ByaXZpbGVnZWRBZGRyZXNzZXMA" ]),
+        "AAAAAQAAAAAAAAAAAAAAC0luZGV4UGFyYW1zAAAAAA0AAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAIYmFzZV9uYXYAAAAKAAAAAAAAABJibGFja2xpc3RfYWNjb3VudHMAAAAAA+oAAAATAAAAAAAAAApjb21wb25lbnRzAAAAAAPqAAAAEwAAAAAAAAALZGVzY3JpcHRpb24AAAAAEAAAAAAAAAAPaW5pdGlhbF9kZXBvc2l0AAAAAAoAAAAAAAAADWluaXRpYWxfcHJpY2UAAAAAAAAKAAAAAAAAABJtYW5hZ2VyX2ZlZV9hbW91bnQAAAAAAAoAAAAAAAAABG5hbWUAAAAQAAAAAAAAAAZwdWJsaWMAAAAAAAEAAAAAAAAAFXJlYmFsYW5jZV9hdXRob3JpdGllcwAAAAAAA+oAAAATAAAAAAAAAAx0b2tlbl9zeW1ib2wAAAAQAAAAAAAAABJ3aGl0ZWxpc3RfYWNjb3VudHMAAAAAA+oAAAAT" ]),
       options
     )
   }
@@ -2047,7 +2081,7 @@ export class Client extends ContractClient {
         get_public_status: this.txFromJSON<boolean>,
         get_whitelist_status: this.txFromJSON<boolean>,
         get_blacklist_status: this.txFromJSON<boolean>,
-        get_manager_fee_fraction: this.txFromJSON<u32>,
+        get_manager_fee_amount: this.txFromJSON<u128>,
         get_rebalance_threshold: this.txFromJSON<u64>,
         get_last_rebalance_timestamp: this.txFromJSON<u64>,
         get_last_updated_timestamp: this.txFromJSON<u64>,
@@ -2066,6 +2100,7 @@ export class Client extends ContractClient {
         set_emergency_mode: this.txFromJSON<null>,
         get_emergency_mode: this.txFromJSON<boolean>,
         initialize: this.txFromJSON<null>,
+        refactor: this.txFromJSON<null>,
         rebalance: this.txFromJSON<null>,
         set_rebalance_authority: this.txFromJSON<null>,
         kill_mint: this.txFromJSON<null>,
@@ -2089,7 +2124,7 @@ export class Client extends ContractClient {
         set_public_status: this.txFromJSON<null>,
         set_whitelist_status: this.txFromJSON<null>,
         set_blacklist_status: this.txFromJSON<null>,
-        set_manager_fee_fraction: this.txFromJSON<null>,
+        set_manager_fee_amount: this.txFromJSON<null>,
         set_rebalance_threshold: this.txFromJSON<null>,
         commit_transfer_ownership: this.txFromJSON<null>,
         apply_transfer_ownership: this.txFromJSON<null>,
@@ -2113,8 +2148,6 @@ export class Client extends ContractClient {
         get_effective_balance: this.txFromJSON<i128>,
         collect_fees: this.txFromJSON<readonly [u128, u128]>,
         batch_collect_fees: this.txFromJSON<readonly [u128, u128]>,
-        collect_fees_before_operation: this.txFromJSON<readonly [u128, u128]>,
-        collect_fees_before_mint: this.txFromJSON<readonly [u128, u128]>,
         get_users_with_fees: this.txFromJSON<Array<string>>,
         force_collect_fees: this.txFromJSON<readonly [u128, u128]>,
         get_last_batch_collection: this.txFromJSON<u64>
