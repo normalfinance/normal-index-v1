@@ -1,6 +1,6 @@
-use normal_rust_types::AccessControlError;
 use crate::management::{MultipleAddressesManagementTrait, SingleAddressManagementTrait};
 use crate::role::Role;
+use normal_rust_types::AccessControlError;
 use soroban_sdk::{panic_with_error, Address, Env};
 
 #[derive(Clone)]

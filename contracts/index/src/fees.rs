@@ -8,9 +8,9 @@ use crate::storage::{
     set_accumulated_manager_fees, set_accumulated_protocol_fees, set_last_fee_collection,
     set_total_fees,
 };
+use normal_rust_types::{FeeDataKey, UserFeeState};
 use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, Vec};
 use utils::bump::bump_persistent;
-use normal_rust_types::{FeeDataKey, UserFeeState};
 
 pub fn get_protocol_fee_amount_from_factory(e: &Env, user: &Address) -> u32 {
     match get_factory_safe(e) {

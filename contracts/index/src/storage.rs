@@ -1,9 +1,9 @@
+use normal_rust_types::StorageError;
 use paste::paste;
 use soroban_sdk::token::TokenClient as SorobanTokenClient;
 use soroban_sdk::{contracttype, panic_with_error, Address, Env, Map, Symbol, Vec};
 use utils::bump::{bump_instance, bump_persistent};
 use utils::constant::THIRTY_DAY;
-use normal_rust_types::StorageError;
 use utils::{
     generate_instance_storage_getter, generate_instance_storage_getter_and_setter,
     generate_instance_storage_getter_and_setter_with_default,
@@ -325,7 +325,6 @@ pub fn get_component_balance(e: &Env, token: Address) -> u128 {
 }
 
 // Component
-
 
 pub fn get_all_components(e: &Env) -> Map<Address, Component> {
     let mut components_map = Map::new(e);

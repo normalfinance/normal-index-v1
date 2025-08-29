@@ -18,10 +18,10 @@ pub struct SwapUtilityParams {
     pub fee_enabled: bool, // Fee toggle from index contract
 }
 
-use normal_rust_types::{IndexError, SwapError};
 use crate::events::{Events, IndexEvents};
 use crate::fees::get_fee_enabled_from_factory;
 use crate::storage::{get_all_components, get_swap_utility, get_swap_utility_address};
+use normal_rust_types::{IndexError, SwapError};
 
 #[contracttype]
 pub struct SwapParams {
@@ -201,8 +201,6 @@ pub struct SwapResult {
     pub amount_out: u128,
     pub success: bool,
 }
-
-
 
 pub fn vault_amount_to_shares(
     e: &Env,

@@ -1,6 +1,6 @@
 use crate::access::AccessControl;
-use normal_rust_types::AccessControlError;
 use crate::role::Role;
+use normal_rust_types::AccessControlError;
 use soroban_sdk::{contracttype, panic_with_error};
 
 #[derive(Clone)]

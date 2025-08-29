@@ -1,11 +1,11 @@
 use crate::access::AccessControl;
 use crate::constants::ADMIN_ACTIONS_DELAY;
-use normal_rust_types::AccessControlError;
 use crate::role::Role;
 use crate::storage::StorageTrait;
+use normal_rust_types::AccessControlError;
+use normal_rust_types::StorageError;
 use soroban_sdk::{panic_with_error, Address};
 use utils::bump::bump_instance;
-use normal_rust_types::StorageError;
 
 pub trait TransferOwnershipTrait {
     fn get_transfer_ownership_deadline(&self, role: &Role) -> u64;

@@ -1,4 +1,3 @@
-use normal_rust_types::IndexError;
 use crate::events::Events;
 use crate::events::IndexEvents;
 use crate::fees::{
@@ -6,13 +5,13 @@ use crate::fees::{
     get_last_batch_collection, get_users_with_accrued_fees, initialize_or_update_user_tracking,
     preview_accrued_fees, set_last_batch_collection,
 };
+use normal_rust_types::IndexError;
 
 use crate::index::{execute_swaps, generate_swap_params, vault_amount_to_shares};
 use crate::interface::{
-    AdminInterface, ComponentAction, ComponentAllocation, 
-    IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus, RefactorParams,
+    AdminInterface, ComponentAction, ComponentAllocation, IndexTrait, QueryInterface,
+    RebalanceParams, RebalanceStatus, RefactorParams,
 };
-use normal_rust_types::{IndexInfo, IndexMetrics, IndexStatus};
 use crate::storage::get_all_rebalance_authorities;
 use crate::storage::get_blacklist_status;
 use crate::storage::get_index_vault_amount;
@@ -46,7 +45,6 @@ use crate::token::create_index_token_contract;
 use crate::volume::VolumeTracker;
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
-use normal_rust_types::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
 use access_control::interface::TransferableContract;
 use access_control::management::SingleAddressManagementTrait;
@@ -56,6 +54,8 @@ use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::{
     require_pause_admin_or_owner, require_pause_or_emergency_pause_admin_or_owner,
 };
+use normal_rust_types::AccessControlError;
+use normal_rust_types::{IndexInfo, IndexMetrics, IndexStatus};
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
     Address, BytesN, Env, Map, Symbol, Vec,

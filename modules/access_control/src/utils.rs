@@ -1,6 +1,6 @@
 use crate::access::{AccessControl, AccessControlTrait};
-use normal_rust_types::AccessControlError;
 use crate::role::Role;
+use normal_rust_types::AccessControlError;
 use soroban_sdk::{panic_with_error, Address, Env};
 
 pub fn require_admin(e: &Env, address: &Address) {

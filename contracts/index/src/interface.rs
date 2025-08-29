@@ -1,5 +1,5 @@
-use soroban_sdk::{contracttype, Address, Env, Map, Vec};
 use normal_rust_types::{Component, IndexInfo, IndexMetrics, IndexStatus};
+use soroban_sdk::{contracttype, Address, Env, Map, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -2,13 +2,11 @@ use soroban_sdk::{contracttype, Address, Env, String, Symbol, Vec};
 
 use crate::errors::SwapError;
 
-
 impl Default for SwapDirection {
     fn default() -> Self {
         Self::Buy
     }
 }
-
 
 impl Default for DexProvider {
     fn default() -> Self {

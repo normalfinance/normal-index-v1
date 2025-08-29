@@ -1,5 +1,5 @@
-use normal_rust_types::IndexError;
 use crate::storage::get_factory_safe;
+use normal_rust_types::IndexError;
 use soroban_sdk::{Address, Env, IntoVal, Symbol};
 
 pub struct VolumeTracker;
