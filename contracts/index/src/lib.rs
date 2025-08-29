@@ -1,7 +1,6 @@
 #![no_std]
 
 mod contract;
-pub mod errors;
 mod events;
 mod fees;
 mod index;

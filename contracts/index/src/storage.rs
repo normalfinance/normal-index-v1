@@ -326,12 +326,6 @@ pub fn get_component_balance(e: &Env, token: Address) -> u128 {
 
 // Component
 
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Component {
-    pub asset: Symbol,
-    pub weight: u128,
-}
 
 pub fn get_all_components(e: &Env) -> Map<Address, Component> {
     let mut components_map = Map::new(e);

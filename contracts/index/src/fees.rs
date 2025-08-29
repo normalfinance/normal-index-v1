@@ -47,24 +47,6 @@ pub fn get_fee_enabled_from_factory(e: &Env) -> bool {
     }
 }
 
-/// User fee state tracking structure
-#[derive(Clone)]
-#[contracttype]
-pub struct UserFeeState {
-    pub balance: i128,
-    pub last_fee_update: u64, //when was the last time fees were collected for this user
-    pub accrued_manager_fees: u128,
-    pub accrued_protocol_fees: u128,
-}
-
-/// Storage keys for fee system
-#[derive(Clone)]
-#[contracttype]
-enum FeeDataKey {
-    UserFeeState(Address),
-    LastBatchCollection,
-}
-
 /// Minimum fee threshold to avoid dust collection (in tokens)
 const DEFAULT_MINIMUM_FEE_THRESHOLD: u128 = 1_000_000; // 1 token assuming 6 decimals
 

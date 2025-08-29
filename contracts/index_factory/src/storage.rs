@@ -8,38 +8,6 @@ use utils::{
     generate_instance_storage_getter_with_default, generate_instance_storage_setter,
 };
 
-// FROM SOROSWAP
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DexDistribution {
-    pub protocol_id: String,
-    pub path: Vec<Address>,
-    pub parts: u32,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FeeTierConfig {
-    pub tier_rates: Map<u128, u32>, // USD threshold -> fee rate in basis points
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct UserVolumeEntry {
-    pub timestamp: u64,
-    pub usd_amount: u128,
-    pub index_address: Address,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct UserTierData {
-    pub current_tier_threshold: u128,
-    pub current_fee_rate_bps: u32,
-    pub total_30_day_volume: u128,
-    pub last_calculated: u64,
-    pub last_volume_update: u64,
-}
 
 #[derive(Clone)]
 #[contracttype]
