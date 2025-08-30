@@ -1,6 +1,6 @@
 use soroban_sdk::{contracttype, Address, Env, String, Symbol, Vec};
 
-use crate::errors::SwapError;
+use normal_rust_types::{SwapError, ProviderConfig};
 
 impl Default for SwapDirection {
     fn default() -> Self {

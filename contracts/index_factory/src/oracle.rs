@@ -1,5 +1,5 @@
 use crate::storage::get_oracle_registry;
-use access_control::errors::AccessControlError;
+use normal_rust_types::AccessControlError;
 use soroban_sdk::{
     contractclient, contracttype, panic_with_error, Address, Env, IntoVal, Symbol, Vec,
 };

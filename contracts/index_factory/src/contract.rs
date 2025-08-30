@@ -22,7 +22,7 @@ use crate::storage::{
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
-use access_control::errors::AccessControlError;
+use normal_rust_types::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
 use access_control::interface::TransferableContract;
 use access_control::management::SingleAddressManagementTrait;
@@ -428,12 +428,12 @@ impl AdminInterface for IndexFactory {
             panic_with_error!(&e, AccessControlError::Unauthorized);
         }
 
-        let config = crate::storage::FeeTierConfig { tier_rates };
+        let config = normal_rust_types::FeeTierConfig { tier_rates };
 
         set_fee_tier_config(&e, &config);
     }
 
-    fn get_fee_tier_config(e: Env) -> crate::storage::FeeTierConfig {
+    fn get_fee_tier_config(e: Env) -> normal_rust_types::FeeTierConfig {
         get_fee_tier_config_with_default(&e)
     }
 
@@ -445,7 +445,7 @@ impl AdminInterface for IndexFactory {
         crate::tiers::TierCalculator::get_user_fee_rate(&e, &user)
     }
 
-    fn get_user_tier_data(e: Env, user: Address) -> crate::storage::UserTierData {
+    fn get_user_tier_data(e: Env, user: Address) -> normal_rust_types::UserTierData {
         crate::tiers::TierCalculator::get_user_tier_data(&e, &user)
     }
 

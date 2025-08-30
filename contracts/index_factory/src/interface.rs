@@ -82,14 +82,14 @@ pub trait AdminInterface {
 
     fn set_fee_tier_config(e: Env, admin: Address, tier_rates: Map<u128, u32>);
 
-    fn get_fee_tier_config(e: Env) -> crate::storage::FeeTierConfig;
+    fn get_fee_tier_config(e: Env) -> normal_rust_types::FeeTierConfig;
 
     // User-level tier methods
     fn record_user_volume(e: Env, user: Address, usd_amount: u128, index_address: Address);
 
     fn get_user_fee_rate(e: Env, user: Address) -> u32;
 
-    fn get_user_tier_data(e: Env, user: Address) -> crate::storage::UserTierData;
+    fn get_user_tier_data(e: Env, user: Address) -> normal_rust_types::UserTierData;
 
     fn get_user_30_day_volume(e: Env, user: Address) -> u128;
 

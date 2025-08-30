@@ -1,4 +1,4 @@
-use normal_rust_types::StorageError;
+use normal_rust_types::{UserFeeState, UserVolumeEntry, UserTierData, StorageError};
 use paste::paste;
 use soroban_sdk::{contracttype, panic_with_error, Address, BytesN, Env, Map, String, Vec};
 use utils::bump::{bump_instance, bump_persistent};
@@ -7,10 +7,11 @@ use utils::{
     generate_instance_storage_getter_and_setter_with_default,
     generate_instance_storage_getter_with_default, generate_instance_storage_setter,
 };
+use normal_rust_types::FeeTierConfig;
 
 #[derive(Clone)]
 #[contracttype]
-enum DataKey {
+pub enum DataKey {
     SwapUtility, // DEX Aggregator
 
     OracleRegistry,

@@ -1,16 +1,14 @@
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec};
 
-use crate::{
-    errors::SwapError,
-    events::{Events, SwapEvents},
-    interface::{DexProvider, ProviderConfig, SwapParams, SwapResult, SwapUtilityTrait},
-    providers::{NormalProvider, SoroswapProvider, SwapProvider},
-    storage::{
+use normal_rust_types::{SwapError, ProviderConfig, SwapParams, SwapResult};
+use crate::events::{Events, SwapEvents};
+use crate::providers::{NormalProvider, SoroswapProvider, SwapProvider};
+use crate::storage::{
         get_provider_config, get_xlm_token_address, is_initialized, require_admin,
         require_initialized, set_admin, set_default_provider, set_initialized, set_provider_config,
         set_xlm_token_address,
-    },
 };
+use crate::interface::SwapUtilityTrait;
 
 #[contract]
 pub struct SwapUtility;

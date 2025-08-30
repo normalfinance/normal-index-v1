@@ -1,10 +1,8 @@
 use soroban_sdk::{Address, BytesN, Env, IntoVal, Symbol, Vec};
 
-use crate::{
-    errors::SwapError,
-    interface::{DexProvider, ProviderConfig, SwapParams, SwapResult},
-    providers::base::{build_simple_path, SwapProvider},
-};
+use normal_rust_types::{SwapError, ProviderConfig, SwapParams, SwapResult};
+use crate::providers::base::{build_simple_path, SwapProvider};
+
 
 pub struct SoroswapProvider;
 

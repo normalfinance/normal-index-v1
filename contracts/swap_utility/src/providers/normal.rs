@@ -1,10 +1,7 @@
 use soroban_sdk::{Address, Env, IntoVal, Symbol, Vec};
 
-use crate::{
-    errors::SwapError,
-    interface::{DexProvider, ProviderConfig, SwapParams, SwapResult},
-    providers::base::SwapProvider,
-};
+use normal_rust_types::{SwapError, ProviderConfig, SwapParams, SwapResult};
+use crate::providers::base::SwapProvider;
 
 pub struct NormalProvider;
 

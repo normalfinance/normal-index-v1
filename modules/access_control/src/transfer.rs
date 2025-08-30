@@ -1,6 +1,6 @@
 use crate::access::AccessControl;
 use crate::constants::ADMIN_ACTIONS_DELAY;
-use crate::role::Role;
+use crate::role::{Role, RoleExtensions};
 use crate::storage::StorageTrait;
 use normal_rust_types::AccessControlError;
 use normal_rust_types::StorageError;

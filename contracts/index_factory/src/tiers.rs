@@ -1,8 +1,10 @@
 use crate::storage::{
     get_fee_tier_config_with_default, get_user_30_day_volume, get_user_tier_cache,
-    set_user_tier_cache, UserTierData,
+    set_user_tier_cache,
 };
 use soroban_sdk::{Address, Env, Map};
+
+use normal_rust_types::UserTierData;
 
 pub struct TierCalculator;
 

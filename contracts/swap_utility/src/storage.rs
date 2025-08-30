@@ -1,7 +1,7 @@
 use soroban_sdk::{contracttype, Address, Env};
 use utils::bump::{bump_instance, bump_persistent};
 
-use crate::interface::{DexProvider, ProviderConfig};
+use normal_rust_types::{DexProvider, ProviderConfig};
 
 #[contracttype]
 #[derive(Clone)]
