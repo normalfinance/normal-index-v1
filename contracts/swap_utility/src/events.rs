@@ -1,6 +1,6 @@
 use soroban_sdk::{symbol_short, Address, Env, Symbol};
 
-use crate::interface::DexProvider;
+use normal_rust_types::DexProvider;
 
 const SWAP_EXECUTED: Symbol = symbol_short!("swap_exec");
 const SWAP_FAILED: Symbol = symbol_short!("swap_fail");

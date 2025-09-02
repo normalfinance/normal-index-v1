@@ -95,7 +95,7 @@ pub fn get_default_provider(env: &Env) -> DexProvider {
     env.storage()
         .instance()
         .get(&DataKey::DefaultProvider)
-        .unwrap_or_default()
+        .unwrap_or(DexProvider::Normal)
 }
 
 // Utility functions

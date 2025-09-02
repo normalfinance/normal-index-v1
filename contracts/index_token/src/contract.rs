@@ -4,7 +4,7 @@ use crate::balance::{read_balance, receive_balance, spend_balance};
 use crate::interface::UpgradeableContract;
 use crate::metadata::{read_decimal, read_name, read_symbol, write_metadata};
 use access_control::access::{AccessControl, AccessControlTrait};
-use access_control::errors::AccessControlError;
+use normal_rust_types::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
 use access_control::interface::TransferableContract;
 use access_control::management::SingleAddressManagementTrait;

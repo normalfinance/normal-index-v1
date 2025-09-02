@@ -1,10 +1,10 @@
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec};
 
-use normal_rust_types::{SwapError, ProviderConfig, SwapParams, SwapResult};
+use normal_rust_types::{DexProvider, SwapDirection, SwapError, ProviderConfig, SwapParams, SwapResult};
 use crate::events::{Events, SwapEvents};
 use crate::providers::{NormalProvider, SoroswapProvider, SwapProvider};
 use crate::storage::{
-        get_provider_config, get_xlm_token_address, is_initialized, require_admin,
+        get_default_provider, get_provider_config, get_xlm_token_address, is_initialized, require_admin,
         require_initialized, set_admin, set_default_provider, set_initialized, set_provider_config,
         set_xlm_token_address,
 };
@@ -64,11 +64,8 @@ impl SwapUtilityTrait for SwapUtility {
     fn execute_swap(env: Env, params: SwapParams) -> Result<SwapResult, SwapError> {
         require_initialized(&env);
 
-        // Determine which provider to use
-        let provider = params
-            .provider
-            .clone()
-            .unwrap_or_else(|| select_provider(&env, &params));
+        // Use the specified provider
+        let provider = params.provider.clone();
 
         // Get provider configuration
         let config =
@@ -95,7 +92,7 @@ impl SwapUtilityTrait for SwapUtility {
                 );
             }
             Err(error) => {
-                let provider_used = params.provider.unwrap_or_default();
+                let provider_used = params.provider.clone();
                 events.swap_failed(
                     provider_used,
                     params.token_in,
@@ -187,14 +184,14 @@ impl SwapUtility {
         require_initialized(&env);
 
         let params = SwapParams {
-            provider: None,
+            provider: get_default_provider(&env),
             token_in: token_in.clone(),
             token_out: token_out.clone(),
             amount_in,
             amount_out_min: 0,
             to: env.current_contract_address(), // placeholder
             asset: asset.clone(),
-            direction: crate::interface::SwapDirection::default(),
+            direction: SwapDirection::Buy,
             fee_enabled: None,
         };
 
