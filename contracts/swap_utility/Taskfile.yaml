@@ -11,9 +11,9 @@ tasks:
 
   build:
     cmds:
-      - soroban contract build --package index-token
-      - soroban contract optimize --wasm ../../target/wasm32v1-none/release/index_token.wasm --wasm-out ../../target/wasm32v1-none/release/index_token.wasm
-      - cp ../../target/wasm32v1-none/release/index_token.wasm ../../wasm/index_token.wasm
+      - soroban contract build --package swap-utility
+      - soroban contract optimize --wasm ../../target/wasm32v1-none/release/swap_utility.wasm --wasm-out ../../target/wasm32v1-none/release/swap_utility.wasm
+      - cp ../../target/wasm32v1-none/release/swap_utility.wasm ../../wasm/swap_utility.wasm
 
   test:
     deps:
