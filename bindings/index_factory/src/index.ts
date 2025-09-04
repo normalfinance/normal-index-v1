@@ -153,6 +153,646 @@ export interface IndexParams {
 
 export interface Client {
   /**
+   * Construct and simulate a deploy_index_contract transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  deploy_index_contract: ({serialized_asset, params}: {serialized_asset: Buffer, params: IndexParams}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<string>>
+
+  /**
+   * Construct and simulate a get_protocol_fee_recipient transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_protocol_fee_recipient: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<string>>
+
+  /**
+   * Construct and simulate a get_factory_config transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_factory_config: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<FactoryConfig>>
+
+  /**
+   * Construct and simulate a get_swap_utility transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_swap_utility: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<string>>
+
+  /**
+   * Construct and simulate a get_protocol_fee_amount transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_protocol_fee_amount: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u128>>
+
+  /**
+   * Construct and simulate a get_index_fee_enabled transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_index_fee_enabled: ({index_address}: {index_address: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<boolean>>
+
+  /**
+   * Construct and simulate a get_max_manager_fee_amount transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_max_manager_fee_amount: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u128>>
+
+  /**
+   * Construct and simulate a get_minimum_fee_threshold transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_minimum_fee_threshold: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u128>>
+
+  /**
+   * Construct and simulate a get_index_contract_wasm transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_index_contract_wasm: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<Buffer>>
+
+  /**
+   * Construct and simulate a get_deployed_indexes transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_deployed_indexes: ({operator}: {operator: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<Array<string>>>
+
+  /**
+   * Construct and simulate a get_all_deployed_indexes transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_all_deployed_indexes: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<Array<string>>>
+
+  /**
+   * Construct and simulate a get_index_count transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_index_count: ({operator}: {operator: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u32>>
+
+  /**
+   * Construct and simulate a get_total_index_count transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_total_index_count: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u32>>
+
+  /**
+   * Construct and simulate a set_index_contract_wasm transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  set_index_contract_wasm: ({admin, index_contract_wasm}: {admin: string, index_contract_wasm: Buffer}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a set_protocol_fee_amount transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  set_protocol_fee_amount: ({admin, amount}: {admin: string, amount: u128}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a set_protocol_fee_recipient transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  set_protocol_fee_recipient: ({admin, recipient}: {admin: string, recipient: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a set_max_manager_fee_amount transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  set_max_manager_fee_amount: ({admin, amount}: {admin: string, amount: u128}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a set_minimum_fee_threshold transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  set_minimum_fee_threshold: ({admin, threshold}: {admin: string, threshold: u128}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a set_index_fee_enabled transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  set_index_fee_enabled: ({admin, index_address, enabled}: {admin: string, index_address: string, enabled: boolean}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a batch_set_index_fee_enabled transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  batch_set_index_fee_enabled: ({admin, index_settings}: {admin: string, index_settings: Array<readonly [string, boolean]>}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a kill_create transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  kill_create: ({admin}: {admin: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a unkill_create transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  unkill_create: ({admin}: {admin: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a get_is_killed_create transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_is_killed_create: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<boolean>>
+
+  /**
+   * Construct and simulate a set_oracle_registry transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  set_oracle_registry: ({admin, oracle_registry}: {admin: string, oracle_registry: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a get_oracle_registry transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_oracle_registry: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<string>>
+
+  /**
+   * Construct and simulate a convert_token_to_usd transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  convert_token_to_usd: ({token, amount}: {token: string, amount: u128}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u128>>
+
+  /**
+   * Construct and simulate a set_fee_tier_config transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  set_fee_tier_config: ({admin, tier_rates}: {admin: string, tier_rates: Map<u128, u32>}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a get_fee_tier_config transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_fee_tier_config: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<FeeTierConfig>>
+
+  /**
+   * Construct and simulate a record_user_volume transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  record_user_volume: ({user, usd_amount, index_address}: {user: string, usd_amount: u128, index_address: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a get_user_fee_rate transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_user_fee_rate: ({user}: {user: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u32>>
+
+  /**
+   * Construct and simulate a get_user_tier_data transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_user_tier_data: ({user}: {user: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<UserTierData>>
+
+  /**
+   * Construct and simulate a get_user_30_day_volume transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_user_30_day_volume: ({user}: {user: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u128>>
+
+  /**
    * Construct and simulate a version transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
   version: (options?: {
@@ -374,6 +1014,38 @@ export class Client extends ContractClient {
     super(
       new ContractSpec([ "AAAAAQAAAAAAAAAAAAAADUZhY3RvcnlDb25maWcAAAAAAAAGAAAAAAAAABNpbmRleF9jb250cmFjdF93YXNtAAAAA+4AAAAgAAAAAAAAABZtYXhfbWFuYWdlcl9mZWVfYW1vdW50AAAAAAAKAAAAAAAAABVtaW5pbXVtX2ZlZV90aHJlc2hvbGQAAAAAAAAKAAAAAAAAABNwcm90b2NvbF9mZWVfYW1vdW50AAAAAAoAAAAAAAAAFnByb3RvY29sX2ZlZV9yZWNpcGllbnQAAAAAABMAAAAAAAAADHN3YXBfdXRpbGl0eQAAABM=",
         "AAAAAAAAAAAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAgAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAPZW1lcmdlbmN5X2FkbWluAAAAABMAAAAAAAAADHN3YXBfdXRpbGl0eQAAABMAAAAAAAAAE2luZGV4X2NvbnRyYWN0X3dhc20AAAAD7gAAACAAAAAAAAAAFm1heF9tYW5hZ2VyX2ZlZV9hbW91bnQAAAAAAAoAAAAAAAAAE3Byb3RvY29sX2ZlZV9hbW91bnQAAAAACgAAAAAAAAAWcHJvdG9jb2xfZmVlX3JlY2lwaWVudAAAAAAAEwAAAAAAAAAVbWluaW11bV9mZWVfdGhyZXNob2xkAAAAAAAACgAAAAA=",
+        "AAAAAAAAAAAAAAAVZGVwbG95X2luZGV4X2NvbnRyYWN0AAAAAAAAAgAAAAAAAAAQc2VyaWFsaXplZF9hc3NldAAAAA4AAAAAAAAABnBhcmFtcwAAAAAH0AAAAAtJbmRleFBhcmFtcwAAAAABAAAAEw==",
+        "AAAAAAAAAAAAAAAaZ2V0X3Byb3RvY29sX2ZlZV9yZWNpcGllbnQAAAAAAAAAAAABAAAAEw==",
+        "AAAAAAAAAAAAAAASZ2V0X2ZhY3RvcnlfY29uZmlnAAAAAAAAAAAAAQAAB9AAAAANRmFjdG9yeUNvbmZpZwAAAA==",
+        "AAAAAAAAAAAAAAAQZ2V0X3N3YXBfdXRpbGl0eQAAAAAAAAABAAAAEw==",
+        "AAAAAAAAAAAAAAAXZ2V0X3Byb3RvY29sX2ZlZV9hbW91bnQAAAAAAAAAAAEAAAAK",
+        "AAAAAAAAAAAAAAAVZ2V0X2luZGV4X2ZlZV9lbmFibGVkAAAAAAAAAQAAAAAAAAANaW5kZXhfYWRkcmVzcwAAAAAAABMAAAABAAAAAQ==",
+        "AAAAAAAAAAAAAAAaZ2V0X21heF9tYW5hZ2VyX2ZlZV9hbW91bnQAAAAAAAAAAAABAAAACg==",
+        "AAAAAAAAAAAAAAAZZ2V0X21pbmltdW1fZmVlX3RocmVzaG9sZAAAAAAAAAAAAAABAAAACg==",
+        "AAAAAAAAAAAAAAAXZ2V0X2luZGV4X2NvbnRyYWN0X3dhc20AAAAAAAAAAAEAAAPuAAAAIA==",
+        "AAAAAAAAAAAAAAAUZ2V0X2RlcGxveWVkX2luZGV4ZXMAAAABAAAAAAAAAAhvcGVyYXRvcgAAABMAAAABAAAD6gAAABM=",
+        "AAAAAAAAAAAAAAAYZ2V0X2FsbF9kZXBsb3llZF9pbmRleGVzAAAAAAAAAAEAAAPqAAAAEw==",
+        "AAAAAAAAAAAAAAAPZ2V0X2luZGV4X2NvdW50AAAAAAEAAAAAAAAACG9wZXJhdG9yAAAAEwAAAAEAAAAE",
+        "AAAAAAAAAAAAAAAVZ2V0X3RvdGFsX2luZGV4X2NvdW50AAAAAAAAAAAAAAEAAAAE",
+        "AAAAAAAAAAAAAAAXc2V0X2luZGV4X2NvbnRyYWN0X3dhc20AAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAABNpbmRleF9jb250cmFjdF93YXNtAAAAA+4AAAAgAAAAAA==",
+        "AAAAAAAAAAAAAAAXc2V0X3Byb3RvY29sX2ZlZV9hbW91bnQAAAAAAgAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAAZhbW91bnQAAAAAAAoAAAAA",
+        "AAAAAAAAAAAAAAAac2V0X3Byb3RvY29sX2ZlZV9yZWNpcGllbnQAAAAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAJcmVjaXBpZW50AAAAAAAAEwAAAAA=",
+        "AAAAAAAAAAAAAAAac2V0X21heF9tYW5hZ2VyX2ZlZV9hbW91bnQAAAAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAGYW1vdW50AAAAAAAKAAAAAA==",
+        "AAAAAAAAAAAAAAAZc2V0X21pbmltdW1fZmVlX3RocmVzaG9sZAAAAAAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAJdGhyZXNob2xkAAAAAAAACgAAAAA=",
+        "AAAAAAAAAAAAAAAVc2V0X2luZGV4X2ZlZV9lbmFibGVkAAAAAAAAAwAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAAAAAA1pbmRleF9hZGRyZXNzAAAAAAAAEwAAAAAAAAAHZW5hYmxlZAAAAAABAAAAAA==",
+        "AAAAAAAAAAAAAAAbYmF0Y2hfc2V0X2luZGV4X2ZlZV9lbmFibGVkAAAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAOaW5kZXhfc2V0dGluZ3MAAAAAA+oAAAPtAAAAAgAAABMAAAABAAAAAA==",
+        "AAAAAAAAAAAAAAALa2lsbF9jcmVhdGUAAAAAAQAAAAAAAAAFYWRtaW4AAAAAAAATAAAAAA==",
+        "AAAAAAAAAAAAAAANdW5raWxsX2NyZWF0ZQAAAAAAAAEAAAAAAAAABWFkbWluAAAAAAAAEwAAAAA=",
+        "AAAAAAAAAAAAAAAUZ2V0X2lzX2tpbGxlZF9jcmVhdGUAAAAAAAAAAQAAAAE=",
+        "AAAAAAAAAAAAAAATc2V0X29yYWNsZV9yZWdpc3RyeQAAAAACAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAAD29yYWNsZV9yZWdpc3RyeQAAAAATAAAAAA==",
+        "AAAAAAAAAAAAAAATZ2V0X29yYWNsZV9yZWdpc3RyeQAAAAAAAAAAAQAAABM=",
+        "AAAAAAAAAAAAAAAUY29udmVydF90b2tlbl90b191c2QAAAACAAAAAAAAAAV0b2tlbgAAAAAAABMAAAAAAAAABmFtb3VudAAAAAAACgAAAAEAAAAK",
+        "AAAAAAAAAAAAAAATc2V0X2ZlZV90aWVyX2NvbmZpZwAAAAACAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAACnRpZXJfcmF0ZXMAAAAAA+wAAAAKAAAABAAAAAA=",
+        "AAAAAAAAAAAAAAATZ2V0X2ZlZV90aWVyX2NvbmZpZwAAAAAAAAAAAQAAB9AAAAANRmVlVGllckNvbmZpZwAAAA==",
+        "AAAAAAAAAAAAAAAScmVjb3JkX3VzZXJfdm9sdW1lAAAAAAADAAAAAAAAAAR1c2VyAAAAEwAAAAAAAAAKdXNkX2Ftb3VudAAAAAAACgAAAAAAAAANaW5kZXhfYWRkcmVzcwAAAAAAABMAAAAA",
+        "AAAAAAAAAAAAAAARZ2V0X3VzZXJfZmVlX3JhdGUAAAAAAAABAAAAAAAAAAR1c2VyAAAAEwAAAAEAAAAE",
+        "AAAAAAAAAAAAAAASZ2V0X3VzZXJfdGllcl9kYXRhAAAAAAABAAAAAAAAAAR1c2VyAAAAEwAAAAEAAAfQAAAADFVzZXJUaWVyRGF0YQ==",
+        "AAAAAAAAAAAAAAAWZ2V0X3VzZXJfMzBfZGF5X3ZvbHVtZQAAAAAAAQAAAAAAAAAEdXNlcgAAABMAAAABAAAACg==",
         "AAAAAAAAAAAAAAAHdmVyc2lvbgAAAAAAAAAAAQAAAAQ=",
         "AAAAAAAAAAAAAAAOY29tbWl0X3VwZ3JhZGUAAAAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAANbmV3X3dhc21faGFzaAAAAAAAA+4AAAAgAAAAAA==",
         "AAAAAAAAAAAAAAANYXBwbHlfdXBncmFkZQAAAAAAAAEAAAAAAAAABWFkbWluAAAAAAAAEwAAAAEAAAPuAAAAIA==",
@@ -401,7 +1073,39 @@ export class Client extends ContractClient {
     )
   }
   public readonly fromJSON = {
-    version: this.txFromJSON<u32>,
+    deploy_index_contract: this.txFromJSON<string>,
+        get_protocol_fee_recipient: this.txFromJSON<string>,
+        get_factory_config: this.txFromJSON<FactoryConfig>,
+        get_swap_utility: this.txFromJSON<string>,
+        get_protocol_fee_amount: this.txFromJSON<u128>,
+        get_index_fee_enabled: this.txFromJSON<boolean>,
+        get_max_manager_fee_amount: this.txFromJSON<u128>,
+        get_minimum_fee_threshold: this.txFromJSON<u128>,
+        get_index_contract_wasm: this.txFromJSON<Buffer>,
+        get_deployed_indexes: this.txFromJSON<Array<string>>,
+        get_all_deployed_indexes: this.txFromJSON<Array<string>>,
+        get_index_count: this.txFromJSON<u32>,
+        get_total_index_count: this.txFromJSON<u32>,
+        set_index_contract_wasm: this.txFromJSON<null>,
+        set_protocol_fee_amount: this.txFromJSON<null>,
+        set_protocol_fee_recipient: this.txFromJSON<null>,
+        set_max_manager_fee_amount: this.txFromJSON<null>,
+        set_minimum_fee_threshold: this.txFromJSON<null>,
+        set_index_fee_enabled: this.txFromJSON<null>,
+        batch_set_index_fee_enabled: this.txFromJSON<null>,
+        kill_create: this.txFromJSON<null>,
+        unkill_create: this.txFromJSON<null>,
+        get_is_killed_create: this.txFromJSON<boolean>,
+        set_oracle_registry: this.txFromJSON<null>,
+        get_oracle_registry: this.txFromJSON<string>,
+        convert_token_to_usd: this.txFromJSON<u128>,
+        set_fee_tier_config: this.txFromJSON<null>,
+        get_fee_tier_config: this.txFromJSON<FeeTierConfig>,
+        record_user_volume: this.txFromJSON<null>,
+        get_user_fee_rate: this.txFromJSON<u32>,
+        get_user_tier_data: this.txFromJSON<UserTierData>,
+        get_user_30_day_volume: this.txFromJSON<u128>,
+        version: this.txFromJSON<u32>,
         commit_upgrade: this.txFromJSON<null>,
         apply_upgrade: this.txFromJSON<Buffer>,
         revert_upgrade: this.txFromJSON<null>,
