@@ -1,5 +1,6 @@
 use crate::events::Events;
 use crate::events::IndexEvents;
+use crate::fees::collect_fees_before_mint;
 use crate::fees::{
     batch_collect_fees, collect_fees_before_action, force_collect_fees, get_effective_balance,
     get_last_batch_collection, get_users_with_accrued_fees, initialize_or_update_user_tracking,
@@ -41,7 +42,6 @@ use crate::storage::{
     get_total_redemptions, set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem,
     Component,
 };
-use crate::token::create_index_token_contract;
 use crate::volume::VolumeTracker;
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -56,6 +56,7 @@ use access_control::utils::{
 };
 use normal_rust_types::AccessControlError;
 use normal_rust_types::{IndexInfo, IndexMetrics, IndexStatus};
+use soroban_sdk::Bytes;
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
     Address, BytesN, Env, Map, Symbol, Vec,
@@ -79,26 +80,17 @@ impl Index {
     //   - e: The Soroban environment.
     //   - factory: The address of the factory contract.
     //   - params: The address authorized to claim funds.
-    pub fn __constructor(
-        e: Env,
-        factory: Address,
-        index_token_wasm_hash: BytesN<32>,
-        params: IndexParams,
-    ) {
+    pub fn __constructor(e: Env, factory: Address, serialized_asset: Bytes, params: IndexParams) {
         // set admin
         set_factory(&e, &factory);
 
-        // deploy and initialize index token contract
-        let share_contract =
-            create_index_token_contract(&e, index_token_wasm_hash, &params.token_symbol);
-        // Token initialization should be handled by the index_token contract itself
-        // SorobanTokenAdminClient::new(&e, &share_contract).initialize(
-        //     &e.current_contract_address(),
-        //     &7u32,
-        //     &params.name.into_val(&e),
-        //     &params.token_symbol.into_val(&e),
-        // );
-        put_token_share(&e, share_contract);
+        // Create the Deployer with Asset
+        let deployer = e.deployer().with_stellar_asset(serialized_asset);
+        let _ = deployer.deployed_address();
+        // Deploy the Stellar Asset Contract
+        let sac_address = deployer.deploy();
+
+        put_token_share(&e, sac_address);
 
         set_manager_fee_amount(&e, &params.manager_fee_amount);
         set_public(&e, &params.is_public);
@@ -155,6 +147,9 @@ impl IndexTrait for Index {
         validate_token_contracts(&e, &vec![&e, token.clone()]);
 
         // ...
+
+        // Collect fee
+        collect_fees_before_mint(&e, user.clone(), amount);
 
         let total_shares = get_total_shares(&e);
 
@@ -1666,49 +1661,6 @@ impl Index {
         set_last_batch_collection(&e, e.ledger().timestamp());
 
         result
-    }
-
-    /// Called by token contract to enforce fee collection for transfers and burns
-    /// This ensures fees are collected regardless of where tokens are traded (external DEXes)
-    pub fn collect_fees_before_operation(
-        e: Env,
-        from: Address,
-        amount: i128,
-        to: Option<Address>, // Some(address) for transfers, None for burns
-    ) -> (u128, u128) {
-        // No auth required - this is called by the trusted token contract
-
-        // Collect fees from sender before they transfer/burn tokens
-        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -amount);
-
-        // Update tracking based on operation type
-        match to {
-            Some(recipient) => {
-                // Transfer: update tracking for both users
-                initialize_or_update_user_tracking(&e, &from, -amount); // Sender: reduce balance
-                initialize_or_update_user_tracking(&e, &recipient, amount); // Receiver: increase balance
-            }
-            None => {
-                // Burn: only update sender's tracking (tokens are destroyed)
-                initialize_or_update_user_tracking(&e, &from, -amount);
-            }
-        }
-
-        (manager_fees, protocol_fees)
-    }
-
-    /// Called by token contract during external mints to enforce fee collection
-    /// This prevents users from bypassing fees by acquiring tokens on external DEXes
-    pub fn collect_fees_before_mint(e: Env, user: Address, amount: i128) -> (u128, u128) {
-        // No auth required - this is called by the trusted token contract
-
-        // Collect any accrued fees on user's existing balance
-        let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &user, amount);
-
-        // Update user tracking with the new amount
-        initialize_or_update_user_tracking(&e, &user, amount);
-
-        (manager_fees, protocol_fees)
     }
 
     /// Get users with accrued fees above threshold (admin function)

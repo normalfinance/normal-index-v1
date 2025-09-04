@@ -9,8 +9,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 soroban-sdk = { workspace = true }
-utils = { path = "../../modules/utils" }
-access_control = { path = "../../modules/access_control" }
+utils = { workspace = true }
+access_control = { workspace = true }
 normal-rust-types = { workspace = true }
 
 [dev-dependencies]
@@ -18,7 +18,3 @@ soroban-sdk = { workspace = true, features = ["testutils"] }
 
 [features]
 testutils = ["soroban-sdk/testutils"]
-
-[[bin]]
-name = "swap-utility"
-path = "src/bin/swap_utility.rs"

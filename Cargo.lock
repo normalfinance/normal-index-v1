@@ -687,18 +687,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "index-token"
-version = "0.1.0"
-dependencies = [
- "access_control",
- "normal-rust-types",
- "soroban-sdk",
- "soroban-token-sdk",
- "upgrade",
- "utils",
-]
-
-[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1336,15 +1324,6 @@ dependencies = [
  "stellar-xdr",
  "syn 2.0.104",
  "thiserror",
-]
-
-[[package]]
-name = "soroban-token-sdk"
-version = "22.0.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b5d44abd4abb253c0714d28b3b5a9db6aaf9afa1684c3a23778e07a201c3adb"
-dependencies = [
- "soroban-sdk",
 ]
 
 [[package]]

@@ -13,11 +13,7 @@ enum DataKey {
     TotalShares,
 }
 
-// pub mod token {
-//     soroban_sdk::contractimport!(file = "../../target/wasm32v1-none/release/index_token.wasm");
-// }
-// pub use token::{self as token_contract, Client};
-use normal_rust_types::StorageError;
+use utils::storage_errors::StorageError;
 
 pub fn get_token_share(e: &Env) -> Address {
     bump_instance(e);

@@ -440,3 +440,48 @@ pub fn set_last_batch_collection(e: &Env, timestamp: u64) {
     e.storage().persistent().set(&key, &timestamp);
     bump_persistent(e, &key);
 }
+
+// @dev from contract.rs
+
+/// Called by token contract to enforce fee collection for transfers and burns
+/// This ensures fees are collected regardless of where tokens are traded (external DEXes)
+pub fn collect_fees_before_operation(
+    e: Env,
+    from: Address,
+    amount: i128,
+    to: Option<Address>, // Some(address) for transfers, None for burns
+) -> (u128, u128) {
+    // No auth required - this is called by the trusted token contract
+
+    // Collect fees from sender before they transfer/burn tokens
+    let (manager_fees, protocol_fees) = collect_fees_before_action(&e, &from, -amount);
+
+    // Update tracking based on operation type
+    match to {
+        Some(recipient) => {
+            // Transfer: update tracking for both users
+            initialize_or_update_user_tracking(&e, &from, -amount); // Sender: reduce balance
+            initialize_or_update_user_tracking(&e, &recipient, amount); // Receiver: increase balance
+        }
+        None => {
+            // Burn: only update sender's tracking (tokens are destroyed)
+            initialize_or_update_user_tracking(&e, &from, -amount);
+        }
+    }
+
+    (manager_fees, protocol_fees)
+}
+
+/// Called by token contract during external mints to enforce fee collection
+/// This prevents users from bypassing fees by acquiring tokens on external DEXes
+pub fn collect_fees_before_mint(e: &Env, user: Address, amount: u128) -> (u128, u128) {
+    // No auth required - this is called by the trusted token contract
+
+    // Collect any accrued fees on user's existing balance
+    let (manager_fees, protocol_fees) = collect_fees_before_action(e, &user, amount as i128);
+
+    // Update user tracking with the new amount
+    initialize_or_update_user_tracking(e, &user, amount as i128);
+
+    (manager_fees, protocol_fees)
+}

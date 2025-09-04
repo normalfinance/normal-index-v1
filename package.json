@@ -3,13 +3,15 @@
   "description": "Fully customizable on-chain index funds supporting any crypto token, real-world asset, NFT, yield, and more",
   "version": "0.1.0",
   "scripts": {
-    "env": "cp .env.example .env",
-    "setup": "node initialize.js",
+    "env": "cp .env.example .env.testnet",
     "test": "pnpm run test:integration && pnpm run test:unit",
     "lint": "prettier --check . && eslint .",
     "format": "prettier --write .",
     "scout": "cargo scout-audit --output-format html --output-path audits/scout/report.html",
-    "deploy": "./scripts/deploy.sh stroopy"
+    "contracts:bindings": "./scripts/generate-bindings.sh",
+    "contracts:deploy": "./scripts/deploy.sh",
+    "contracts:setup": "./scripts/setup.sh",
+    "factory:deploy": "./scripts/deploy_index.sh"
   },
   "repository": {
     "type": "git",
