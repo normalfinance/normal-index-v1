@@ -1,6 +1,6 @@
 use soroban_sdk::{Address, Env, Vec};
 
-use normal_rust_types::{SwapError, ProviderConfig, SwapParams, SwapResult};
+use normal_rust_types::{ProviderConfig, SwapError, SwapParams, SwapResult};
 
 pub trait SwapProvider {
     /// Execute a swap operation for this specific provider

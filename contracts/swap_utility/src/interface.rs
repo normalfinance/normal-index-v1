@@ -1,8 +1,8 @@
 use soroban_sdk::{contracttype, Address, Env, String, Symbol, Vec};
 
-use normal_rust_types::{DexProvider, SwapDirection, SwapError, SwapParams, SwapResult, ProviderConfig};
-
-
+use normal_rust_types::{
+    DexProvider, ProviderConfig, SwapDirection, SwapError, SwapParams, SwapResult,
+};
 
 pub trait SwapUtilityTrait {
     /// Execute a single swap operation
