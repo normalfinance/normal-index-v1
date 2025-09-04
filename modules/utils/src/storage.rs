@@ -20,7 +20,7 @@ pub struct IndexParams {
     pub blacklist_accounts: Vec<Address>,
 
     // Config
-    pub public: bool,
+    pub is_public: bool,
 
     // Token
     pub name: String,

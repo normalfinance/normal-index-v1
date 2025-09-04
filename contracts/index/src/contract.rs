@@ -92,13 +92,13 @@ impl Index {
         put_token_share(&e, sac_address);
 
         set_manager_fee_amount(&e, &params.manager_fee_amount);
-        set_public(&e, &params.public);
+        set_public(&e, &params.is_public);
 
         // Set the admin as the initial manager who will receive fees
         set_manager_address(&e, &params.admin);
 
         // Set up rebalance authorities for private indexes
-        if !params.public {
+        if !params.is_public {
             for authority in params.rebalance_authorities.iter() {
                 set_rebalance_authority_status(&e, &authority, true);
             }
@@ -928,17 +928,17 @@ impl AdminInterface for Index {
         Events::new(&e).initial_price_updated(current_time, admin, old_price, initial_price);
     }
 
-    fn set_public_status(e: Env, admin: Address, public: bool) {
+    fn set_public_status(e: Env, admin: Address, is_public: bool) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
         let old_status = get_public(&e);
-        crate::storage::set_public(&e, &public);
+        crate::storage::set_public(&e, &is_public);
 
         let current_time = e.ledger().timestamp();
         // Emit enhanced event
-        Events::new(&e).public_status_updated(current_time, admin, old_status, public);
+        Events::new(&e).public_status_updated(current_time, admin, old_status, is_public);
     }
 
     fn set_whitelist_status(e: Env, admin: Address, address: Address, status: bool) {

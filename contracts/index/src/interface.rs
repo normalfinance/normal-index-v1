@@ -93,7 +93,7 @@ pub trait AdminInterface {
 
     fn set_initial_price(e: Env, admin: Address, initial_price: u128);
 
-    fn set_public_status(e: Env, admin: Address, public: bool);
+    fn set_public_status(e: Env, admin: Address, is_public: bool);
 
     fn set_whitelist_status(e: Env, admin: Address, address: Address, status: bool);
 
