@@ -3,7 +3,7 @@ use soroban_sdk::{contracttype, Address, Env, Map, Vec};
 use crate::storage::Component;
 
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum DexProvider {
     Normal,
     Soroswap,
