@@ -10,6 +10,10 @@ mod storage;
 mod volume;
 #[cfg(test)]
 mod test_fees;
+#[cfg(test)]
+mod test_refactor;
+#[cfg(test)]
+mod test_rebalance;
 // mod test;
 // mod test_math;
 // mod test_permissions;
