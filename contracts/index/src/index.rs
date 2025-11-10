@@ -24,13 +24,16 @@ use crate::fees::get_fee_enabled_from_factory;
 use crate::storage::{get_all_components, get_swap_utility, get_swap_utility_address};
 
 #[contracttype]
-pub struct SwapParams {
-    pub provider: Option<DexProvider>,
-    pub token_in: Address,
-    pub token_out: Address,
-    pub amount_in: i128,
-    pub amount_out_min: i128,
-    pub to: Address,
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum DexProvider {
+    Normal,
+    Soroswap,
+}
+
+impl Default for DexProvider {
+    fn default() -> Self {
+        Self::Normal
+    }
 }
 
 #[contracttype]
@@ -47,16 +50,13 @@ impl Default for SwapDirection {
 }
 
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum DexProvider {
-    Normal,
-    Soroswap,
-}
-
-impl Default for DexProvider {
-    fn default() -> Self {
-        Self::Normal
-    }
+pub struct SwapParams {
+    pub provider: Option<String>, // DexProvider as string (Option<Enum> not supported by contracttype)
+    pub token_in: Address,
+    pub token_out: Address,
+    pub amount_in: i128,
+    pub amount_out_min: i128,
+    pub to: Address,
 }
 
 pub fn generate_swap_params(
@@ -113,8 +113,8 @@ pub fn generate_swap_params(
 pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
     let mut results: Vec<u128> = Vec::new(e);
 
-    // Get swap utility contract address
-    let swap_utility_address = get_swap_utility_address(e);
+    // Get swap utility contract address (stored for potential future use)
+    let _swap_utility_address = get_swap_utility_address(e);
 
     for i in 0..swaps.len() {
         let params = swaps.get(i).unwrap();
@@ -161,7 +161,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
                 // Add successful result
                 results.push_back(result.amount_out as u128);
             }
-            Ok(Err(swap_error)) => {
+            Ok(Err(_swap_error)) => {
                 // Swap failed but call succeeded - emit failure event
                 Events::new(&e).swap_failed(
                     e.current_contract_address(),
@@ -174,7 +174,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
                 // Add zero result for failed swap
                 results.push_back(0u128);
             }
-            Err(contract_error) => {
+            Err(_contract_error) => {
                 // Contract call failed - emit failure event with generic error
                 Events::new(&e).swap_failed(
                     e.current_contract_address(),

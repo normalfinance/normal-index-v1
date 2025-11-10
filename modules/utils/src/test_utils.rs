@@ -1,7 +1,7 @@
 #![cfg(any(test, feature = "testutils"))]
 
 use soroban_sdk::testutils::{Ledger, LedgerInfo};
-use soroban_sdk::{BytesN, Env, U256};
+use soroban_sdk::{Env, U256};
 
 pub fn assert_approx_eq_abs(a: u128, b: u128, delta: u128) {
     assert!(
@@ -51,7 +51,7 @@ pub fn jump_sequence(e: &Env, sequence: u32) {
     });
 }
 
-pub fn install_dummy_wasm<'a>(e: &Env) -> BytesN<32> {
-    soroban_sdk::contractimport!(file = "../../wasm/dummy_contract.wasm");
-    e.deployer().upload_contract_wasm(WASM)
-}
+// pub fn install_dummy_wasm<'a>(e: &Env) -> BytesN<32> {
+//     soroban_sdk::contractimport!(file = "../../wasm/dummy_contract.wasm");
+//     e.deployer().upload_contract_wasm(WASM)
+// }

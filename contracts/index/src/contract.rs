@@ -8,7 +8,7 @@ use crate::fees::{
     preview_accrued_fees, set_last_batch_collection,
 };
 
-use crate::index::{execute_swaps, generate_swap_params, vault_amount_to_shares};
+use crate::index::vault_amount_to_shares;
 use crate::interface::{
     AdminInterface, ComponentAction, ComponentAllocation, IndexInfo, IndexMetrics, IndexStatus,
     IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus, RefactorParams,
@@ -1445,7 +1445,7 @@ impl Index {
 
     fn execute_refactoring(e: &Env, admin: Address, params: RefactorParams) {
         let mut total_weight = 0u128;
-        let mut components_updated = 0u32;
+        let mut _components_updated = 0u32;
 
         // Validate and execute component updates (without swaps)
         for update in params.component_updates.iter() {
@@ -1459,7 +1459,7 @@ impl Index {
                     set_component(e, update.token.clone(), component);
                     crate::storage::add_component_to_registry(e, update.token.clone());
                     total_weight += update.new_weight;
-                    components_updated += 1;
+                    _components_updated += 1;
 
                     // Get component balance for NAV impact calculation
                     let initial_balance =
@@ -1487,7 +1487,7 @@ impl Index {
                     let current_time = e.ledger().timestamp();
 
                     remove_component(e, update.token.clone());
-                    components_updated += 1;
+                    _components_updated += 1;
 
                     // Emit enhanced event
                     Events::new(e).component_removed_detailed(
@@ -1512,7 +1512,7 @@ impl Index {
 
                     update_component_weight(e, update.token.clone(), update.new_weight);
                     total_weight += update.new_weight;
-                    components_updated += 1;
+                    _components_updated += 1;
 
                     let balance_after =
                         get_component_balance_safe(e, update.token.clone()).unwrap_or(0);

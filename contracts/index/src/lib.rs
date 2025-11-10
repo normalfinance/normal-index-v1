@@ -8,6 +8,8 @@ mod index;
 mod interface;
 mod storage;
 mod volume;
+#[cfg(test)]
+mod test_fees;
 // mod test;
 // mod test_math;
 // mod test_permissions;
