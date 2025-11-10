@@ -1,24 +1,18 @@
 #![cfg(test)]
 
 use super::contract::{Index, IndexClient};
-use super::interface::{AdminInterface, ComponentAction, ComponentUpdate, IndexTrait, RefactorParams};
+use super::interface::{ComponentAction, ComponentUpdate, RefactorParams};
 use super::storage::{
     get_all_components, get_component, get_component_safe, get_last_rebalance_ts,
     get_last_updated_ts, set_component, set_last_rebalance_ts, set_last_updated_ts, Component,
 };
-use access_control::access::AccessControl;
-use access_control::role::Role;
-use soroban_sdk::{
-    testutils::{Address as _, Ledger, LedgerInfo},
-    vec, Address, Env, Map, Symbol, Vec,
-};
-use token_share::put_token_share;
+use soroban_sdk::{testutils::Address as _, vec, Address, Env, Symbol, Vec};
 use utils::test_utils::jump;
 
 // Test utilities
 
 fn register_test_contract(e: &Env) -> Address {
-    e.register_contract(None, Index)
+    e.register(Index, ())
 }
 
 fn create_test_index(e: &Env) -> (Address, Address, Address) {
@@ -26,13 +20,9 @@ fn create_test_index(e: &Env) -> (Address, Address, Address) {
     let admin = Address::generate(e);
     let token = Address::generate(e);
 
-    e.as_contract(&contract_address, || {
-        // Initialize access control with admin
-        let access_control = AccessControl::new(e);
-        access_control.set_role_address(&Role::Admin, &admin);
-        // Set token share
-        put_token_share(e, token.clone());
-    });
+    // Use the initialize method to set up the contract
+    let client = IndexClient::new(e, &contract_address);
+    client.initialize(&admin, &token);
 
     (contract_address, admin, token)
 }
@@ -48,7 +38,8 @@ fn setup_components(e: &Env, contract: &Address, tokens_with_weights: Vec<(Addre
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
             };
-            set_component(e, token, component);
+            set_component(e, token.clone(), component);
+            crate::storage::add_component_to_registry(e, token.clone());
         }
     });
 }
@@ -216,7 +207,7 @@ fn test_refactor_weight_sum_must_equal_10000() {
 }
 
 #[test]
-#[should_panic(expected = "InvalidWeightSum")]
+#[should_panic(expected = "Error(Contract, #40)")]
 fn test_refactor_weight_sum_not_10000_fails() {
     let e = Env::default();
     e.mock_all_auths();
@@ -307,7 +298,7 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
 // ===== Permission Checks =====
 
 #[test]
-#[should_panic(expected = "UnauthorizedRefactor")]
+#[should_panic(expected = "Error(Contract, #45)")]
 fn test_refactor_requires_admin() {
     let e = Env::default();
     e.mock_all_auths();
@@ -336,7 +327,7 @@ fn test_refactor_requires_admin() {
 }
 
 #[test]
-#[should_panic(expected = "Blacklisted")]
+#[should_panic(expected = "Error(Contract, #44)")]
 fn test_refactor_blacklisted_admin_fails() {
     let e = Env::default();
     e.mock_all_auths();
@@ -374,13 +365,12 @@ fn test_refactor_admin_can_refactor_anytime() {
     let client = IndexClient::new(&e, &contract_address);
 
     let token1 = create_mock_token(&e);
-    let token2 = create_mock_token(&e);
 
     // First refactor
     let updates1 = vec![
         &e,
         ComponentUpdate {
-            token: token1,
+            token: token1.clone(),
             new_weight: 10000,
             action: ComponentAction::Add,
         },
@@ -391,7 +381,7 @@ fn test_refactor_admin_can_refactor_anytime() {
     let updates2 = vec![
         &e,
         ComponentUpdate {
-            token: token2,
+            token: token1.clone(),
             new_weight: 10000,
             action: ComponentAction::UpdateWeight,
         },
@@ -404,7 +394,7 @@ fn test_refactor_admin_can_refactor_anytime() {
 // ===== Critical Integration: Refactor Blocks Operations =====
 
 #[test]
-#[should_panic(expected = "RebalanceRequiredAfterRefactor")]
+#[should_panic(expected = "Error(Contract, #47)")]
 fn test_mint_blocked_after_refactor() {
     let e = Env::default();
     e.mock_all_auths();
@@ -415,10 +405,19 @@ fn test_mint_blocked_after_refactor() {
     let user = Address::generate(&e);
     let comp_token = create_mock_token(&e);
 
+    // Whitelist the user so mint doesn't fail on whitelist check
+    client.set_whitelist_status(&admin, &user, &true);
+
+    // Advance ledger time first
+    jump(&e, 100);
+    
     // Set initial rebalance timestamp
     e.as_contract(&contract_address, || {
-        set_last_rebalance_ts(&e, &100);
+        set_last_rebalance_ts(&e, &e.ledger().timestamp());
     });
+
+    // Advance ledger time to ensure refactor timestamp > initial rebalance
+    jump(&e, 50);
 
     // Refactor - this updates last_updated_ts
     let updates = vec![
@@ -436,12 +435,12 @@ fn test_mint_blocked_after_refactor() {
     let last_rebalance = e.as_contract(&contract_address, || get_last_rebalance_ts(&e));
     assert!(last_updated > last_rebalance);
 
-    // Attempt mint - should fail
+    // Attempt mint - should fail with RebalanceRequiredAfterRefactor
     client.mint(&user, &token, &1000, &None, &None);
 }
 
 #[test]
-#[should_panic(expected = "RebalanceRequiredAfterRefactor")]
+#[should_panic(expected = "Error(Contract, #47)")]
 fn test_redeem_blocked_after_refactor() {
     let e = Env::default();
     e.mock_all_auths();
@@ -452,10 +451,19 @@ fn test_redeem_blocked_after_refactor() {
     let user = Address::generate(&e);
     let comp_token = create_mock_token(&e);
 
+    // Whitelist the user so redeem doesn't fail on whitelist check
+    client.set_whitelist_status(&admin, &user, &true);
+
+    // Advance ledger time first
+    jump(&e, 100);
+    
     // Set initial rebalance timestamp
     e.as_contract(&contract_address, || {
-        set_last_rebalance_ts(&e, &100);
+        set_last_rebalance_ts(&e, &e.ledger().timestamp());
     });
+
+    // Advance ledger time to ensure refactor timestamp > initial rebalance
+    jump(&e, 50);
 
     // Refactor
     let updates = vec![
@@ -468,7 +476,7 @@ fn test_redeem_blocked_after_refactor() {
     ];
     client.refactor(&admin, &RefactorParams { component_updates: updates });
 
-    // Attempt redeem - should fail
+    // Attempt redeem - should fail with RebalanceRequiredAfterRefactor
     client.redeem(&user, &1000);
 }
 
@@ -477,10 +485,9 @@ fn test_operations_allowed_after_rebalance() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let (contract_address, admin, token) = create_test_index(&e);
+    let (contract_address, admin, _) = create_test_index(&e);
     let client = IndexClient::new(&e, &contract_address);
 
-    let user = Address::generate(&e);
     let comp_token = create_mock_token(&e);
 
     // Initial setup with rebalance timestamp
