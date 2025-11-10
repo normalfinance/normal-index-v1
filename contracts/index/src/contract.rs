@@ -143,6 +143,14 @@ impl IndexTrait for Index {
             }
         }
 
+        // Check if rebalancing is required after refactoring
+        let last_updated = get_last_updated_ts(&e);
+        let last_rebalance = get_last_rebalance_ts(&e);
+        
+        if last_updated > last_rebalance {
+            panic_with_error!(e, IndexError::RebalanceRequiredAfterRefactor);
+        }
+
         validate_token_contracts(&e, &vec![&e, token.clone()]);
 
         // ...
@@ -245,6 +253,14 @@ impl IndexTrait for Index {
 
         if get_blacklist_status(&e, &user) {
             panic_with_error!(e, IndexError::Blacklisted);
+        }
+
+        // Check if rebalancing is required after refactoring
+        let last_updated = get_last_updated_ts(&e);
+        let last_rebalance = get_last_rebalance_ts(&e);
+        
+        if last_updated > last_rebalance {
+            panic_with_error!(e, IndexError::RebalanceRequiredAfterRefactor);
         }
 
         let is_public = get_public(&e);
