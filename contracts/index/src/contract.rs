@@ -36,11 +36,11 @@ use crate::storage::{
 };
 use crate::storage::{
     get_all_component_balances, get_all_components, get_base_nav, get_component,
-    get_component_balance_safe, get_component_registry, get_factory_safe, get_initial_price,
-    get_is_killed_mint, get_is_killed_rebalance, get_is_killed_redeem, get_last_rebalance_ts,
-    get_last_updated_ts, get_public, get_rebalance_threshold, get_total_mints,
-    get_total_redemptions, set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem,
-    Component,
+    get_component_balance_safe, get_component_registry, get_component_safe, get_factory_safe,
+    get_initial_price, get_is_killed_mint, get_is_killed_rebalance, get_is_killed_redeem,
+    get_last_rebalance_ts, get_last_updated_ts, get_public, get_rebalance_threshold,
+    get_total_mints, get_total_redemptions, set_is_killed_mint, set_is_killed_rebalance,
+    set_is_killed_redeem, Component,
 };
 use crate::volume::VolumeTracker;
 use access_control::access::{AccessControl, AccessControlTrait};
@@ -297,7 +297,7 @@ impl IndexTrait for Index {
             nav_before,
             nav_before, // TODO: Calculate nav_after after redemption
             total_shares_before,
-            total_shares_before - share_amount, // Approximation
+            total_shares_before.saturating_sub(share_amount), // Approximation - prevent underflow
             component_payouts,
             manager_fees + protocol_fees,
         );
@@ -1295,6 +1295,7 @@ impl QueryInterface for Index {
         let mut allocations = Map::new(&e);
         let components = get_all_components(&e);
         let current_nav = Index::get_current_nav(e.clone());
+        let base_nav = get_base_nav(&e);
 
         // Get component addresses for iteration
         let component_addresses = get_component_registry(&e);
@@ -1305,11 +1306,13 @@ impl QueryInterface for Index {
             let component = components.get(token.clone()).unwrap();
             
             let current_balance = get_component_balance_safe(&e, token.clone()).unwrap_or(0);
-            let target_balance = if current_nav > 0 {
-                (current_nav * (component.weight as u128)) / 10000
+            // Target balance is based on base_nav (intended portfolio value)
+            let target_balance = if base_nav > 0 {
+                (base_nav * (component.weight as u128)) / 10000
             } else {
                 0
             };
+            // Percentage is based on current_nav (actual portfolio value)
             let percentage = if current_nav > 0 {
                 (current_balance * 10000) / current_nav
             } else {
@@ -1480,6 +1483,11 @@ impl Index {
             let update = params.component_updates.get_unchecked(i);
             match update.action {
                 ComponentAction::Add => {
+                    // Check if component already exists
+                    if get_component_safe(e, update.token.clone()).is_some() {
+                        panic_with_error!(e, IndexError::InvalidComponentAction);
+                    }
+                    
                     // Create component with symbol (simplified for now)
                     let component = Component {
                         asset: Symbol::new(e, "TOKEN"), // Simplified - would need proper token symbol
@@ -1509,7 +1517,8 @@ impl Index {
                 }
                 ComponentAction::Remove => {
                     // Get component info before removing
-                    let _component = get_component(e, update.token.clone()); // This will panic if not found
+                    let component = get_component(e, update.token.clone()); // This will panic if not found
+                    let old_weight = component.weight;
                     let final_balance =
                         get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
                     let current_time = e.ledger().timestamp();
@@ -1566,8 +1575,29 @@ impl Index {
             }
         }
 
-        // TODO: Add weight validation
-        // For now, tests can handle weight validation themselves
+        // Validate that final weights sum to 10000
+        // Calculate by iterating registry and getting components directly (avoiding get_all_components Map issues)
+        let component_registry = crate::storage::get_component_registry(e);
+        let registry_len = component_registry.len();
+        
+        // If no components, weights should sum to 0 (valid empty state)
+        if registry_len == 0 {
+            return;
+        }
+        
+        let mut total_weight = 0u128;
+        for i in 0..registry_len {
+            let token_address = component_registry.get_unchecked(i);
+            // Get component directly from storage instead of using Map
+            if let Some(component) = get_component_safe(e, token_address.clone()) {
+                total_weight += component.weight;
+            }
+        }
+        
+        // Validate that final weights sum to 10000
+        if total_weight != 10000 {
+            panic_with_error!(e, IndexError::InvalidWeightSum);
+        }
     }
 
     fn execute_weight_based_mint(e: &Env, deposited_token: Address, deposited_amount: u128) {

@@ -1,6 +1,6 @@
 use paste::paste;
 use soroban_sdk::token::TokenClient as SorobanTokenClient;
-use soroban_sdk::{contracttype, panic_with_error, Address, Env, Map, Symbol, Vec};
+use soroban_sdk::{contracttype, panic_with_error, log, Address, Env, Map, Symbol, Vec};
 use utils::bump::{bump_instance, bump_persistent};
 use utils::constant::THIRTY_DAY;
 use utils::errors::storage_errors::StorageError;
@@ -449,7 +449,10 @@ pub fn get_all_component_balances(e: &Env) -> Map<Address, u128> {
 
 // Helper function to get component balance without panicking
 pub fn get_component_balance_safe(e: &Env, token: Address) -> Option<u128> {
+    let token_clone = token.clone();
     let key = DataKey::ComponentBalance(token);
+    log!(e, "Getting component balance for token: {:?}", token_clone);
+    log!(e, "Key: {:?}", key);
     match e.storage().persistent().get::<DataKey, u128>(&key) {
         Some(balance) => {
             bump_persistent(e, &key);

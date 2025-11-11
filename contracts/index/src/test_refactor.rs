@@ -7,6 +7,7 @@ use super::storage::{
     get_last_updated_ts, set_component, set_last_rebalance_ts, set_last_updated_ts, Component,
 };
 use soroban_sdk::{testutils::Address as _, vec, Address, Env, Symbol, Vec};
+use token_share::get_total_shares;
 use utils::test_utils::jump;
 
 // Test utilities
@@ -474,6 +475,11 @@ fn test_redeem_allowed_after_refactor() {
         },
     ];
     client.refactor(&admin, &RefactorParams { component_updates: updates });
+
+    // Ensure total_shares is 0 so get_nav() doesn't try to call the token contract
+    // (which doesn't exist in this test setup)
+    let total_shares = e.as_contract(&contract_address, || get_total_shares(&e));
+    assert_eq!(total_shares, 0, "total_shares should be 0 to avoid token contract calls");
 
     // Redeem is now allowed after refactor without requiring rebalance
     // The check for RebalanceRequiredAfterRefactor has been removed

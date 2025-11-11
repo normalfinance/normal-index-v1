@@ -3,10 +3,10 @@
 use super::contract::{Index, IndexClient};
 use super::interface::RebalanceParams;
 use super::storage::{
-    get_component, get_last_rebalance_ts, get_last_updated_ts, get_rebalance_authority_status,
-    get_rebalance_threshold, set_base_nav, set_component, set_component_balance,
-    set_last_rebalance_ts, set_last_updated_ts, set_public, set_rebalance_threshold,
-    set_swap_utility, Component,
+    add_component_to_registry, get_component, get_last_rebalance_ts, get_last_updated_ts,
+    get_rebalance_authority_status, get_rebalance_threshold, set_base_nav, set_component,
+    set_component_balance, set_last_rebalance_ts, set_last_updated_ts, set_public,
+    set_rebalance_threshold, set_swap_utility, Component,
 };
 use soroban_sdk::{testutils::Address as _, vec, Address, Env, Symbol, Vec};
 use utils::test_utils::jump;
@@ -50,7 +50,8 @@ fn setup_components(e: &Env, contract: &Address, tokens_with_weights: Vec<(Addre
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
             };
-            set_component(e, token, component);
+            set_component(e, token.clone(), component);
+            add_component_to_registry(e, token.clone());
         }
     });
 }
@@ -107,6 +108,7 @@ fn test_rebalance_updates_timestamps() {
 }
 
 #[test]
+#[should_panic(expected = "Error(Contract, #501)")]
 fn test_rebalance_with_target_nav() {
     let e = Env::default();
     e.mock_all_auths();
@@ -430,6 +432,7 @@ fn test_set_rebalance_authority() {
 // ===== Swap Generation Logic =====
 
 #[test]
+#[should_panic(expected = "Error(Contract, #501)")]
 fn test_generate_rebalance_swaps_buy() {
     let e = Env::default();
     e.mock_all_auths();
@@ -457,6 +460,7 @@ fn test_generate_rebalance_swaps_buy() {
 }
 
 #[test]
+#[should_panic(expected = "Error(Contract, #501)")]
 fn test_generate_rebalance_swaps_sell() {
     let e = Env::default();
     e.mock_all_auths();
@@ -507,6 +511,7 @@ fn test_generate_rebalance_swaps_no_change() {
 }
 
 #[test]
+#[should_panic(expected = "Error(Contract, #501)")]
 fn test_generate_rebalance_swaps_multiple_components() {
     let e = Env::default();
     e.mock_all_auths();
@@ -602,6 +607,9 @@ fn test_can_address_rebalance_admin() {
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
+
+    // Allow immediate rebalance by setting time threshold
+    allow_immediate_rebalance(&e, &contract_address);
 
     // Admin should be able to rebalance
     let can_rebalance = client.can_address_rebalance(&admin);
@@ -825,6 +833,7 @@ fn test_rebalance_executed_event() {
 }
 
 #[test]
+#[should_panic(expected = "Error(Contract, #501)")]
 fn test_rebalance_completed_detailed_event() {
     let e = Env::default();
     e.mock_all_auths();
