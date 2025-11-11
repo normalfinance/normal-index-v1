@@ -264,8 +264,15 @@ pub fn generate_rebalance_swaps(
     // Get all current components and their weights
     let components = crate::storage::get_all_components(e);
 
+    // Get component addresses for iteration
+    let component_addresses = crate::storage::get_component_registry(e);
+    
     // For each component, check if current balance matches target allocation
-    for (token_address, component) in components.iter() {
+    let len = component_addresses.len();
+    for i in 0..len {
+        let token_address = component_addresses.get_unchecked(i);
+        let component = components.get(token_address.clone()).unwrap();
+        
         let current_balance =
             crate::storage::get_component_balance_safe(e, token_address.clone()).unwrap_or(0);
 

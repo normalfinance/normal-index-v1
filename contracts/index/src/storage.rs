@@ -1,6 +1,6 @@
 use paste::paste;
 use soroban_sdk::token::TokenClient as SorobanTokenClient;
-use soroban_sdk::{contracttype, panic_with_error, Address, Env, Map, Symbol, Vec};
+use soroban_sdk::{contracttype, panic_with_error, log, Address, Env, Map, Symbol, Vec};
 use utils::bump::{bump_instance, bump_persistent};
 use utils::constant::THIRTY_DAY;
 use utils::errors::storage_errors::StorageError;
@@ -255,7 +255,10 @@ pub fn add_rebalance_authority_to_registry(e: &Env, address: Address) {
         None => Vec::new(e),
     };
 
-    for existing_address in registry.iter() {
+    // Check if address already exists using index-based iteration
+    let len = registry.len();
+    for i in 0..len {
+        let existing_address = registry.get_unchecked(i);
         if existing_address == address {
             return;
         }
@@ -274,7 +277,9 @@ pub fn remove_rebalance_authority_from_registry(e: &Env, address: Address) {
     };
 
     let mut new_registry = Vec::new(e);
-    for existing_address in registry.iter() {
+    let len = registry.len();
+    for i in 0..len {
+        let existing_address = registry.get_unchecked(i);
         if existing_address != address {
             new_registry.push_back(existing_address);
         }
@@ -288,7 +293,10 @@ pub fn get_all_rebalance_authorities(e: &Env) -> Vec<Address> {
     let registry = get_rebalance_authority_registry(e);
     let mut active_authorities = Vec::new(e);
 
-    for address in registry.iter() {
+    // Iterate using index-based access with get_unchecked for performance
+    let len = registry.len();
+    for i in 0..len {
+        let address = registry.get_unchecked(i);
         if get_rebalance_authority_status(e, &address) {
             active_authorities.push_back(address);
         }
@@ -339,8 +347,10 @@ pub fn get_all_components(e: &Env) -> Map<Address, Component> {
     // Get the list of component addresses from registry
     let component_addresses = get_component_registry(e);
 
-    // Iterate through each component address and get its data
-    for address in component_addresses.iter() {
+    // Iterate through each component address and get its data using index-based access
+    let len = component_addresses.len();
+    for i in 0..len {
+        let address = component_addresses.get_unchecked(i);
         match get_component_safe(e, address.clone()) {
             Some(component) => {
                 components_map.set(address, component);
@@ -420,7 +430,9 @@ pub fn get_all_component_balances(e: &Env) -> Map<Address, u128> {
     let component_addresses = get_component_registry(e);
 
     // Iterate through each component address and get its balance
-    for address in component_addresses.iter() {
+    let len = component_addresses.len();
+    for i in 0..len {
+        let address = component_addresses.get_unchecked(i);
         match get_component_balance_safe(e, address.clone()) {
             Some(balance) => {
                 balances_map.set(address, balance);
@@ -437,7 +449,10 @@ pub fn get_all_component_balances(e: &Env) -> Map<Address, u128> {
 
 // Helper function to get component balance without panicking
 pub fn get_component_balance_safe(e: &Env, token: Address) -> Option<u128> {
+    let token_clone = token.clone();
     let key = DataKey::ComponentBalance(token);
+    log!(e, "Getting component balance for token: {:?}", token_clone);
+    log!(e, "Key: {:?}", key);
     match e.storage().persistent().get::<DataKey, u128>(&key) {
         Some(balance) => {
             bump_persistent(e, &key);
@@ -462,7 +477,9 @@ pub fn add_component_to_registry(env: &Env, token: Address) {
     };
 
     // Check if component is already in registry
-    for existing_token in registry.iter() {
+    let len = registry.len();
+    for i in 0..len {
+        let existing_token = registry.get_unchecked(i);
         if existing_token == token {
             return; // Already exists, don't add duplicate
         }
@@ -483,7 +500,9 @@ pub fn remove_component_from_registry(env: &Env, token: Address) {
 
     // Find and remove the component
     let mut new_registry = Vec::new(env);
-    for existing_token in registry.iter() {
+    let len = registry.len();
+    for i in 0..len {
+        let existing_token = registry.get_unchecked(i);
         if existing_token != token {
             new_registry.push_back(existing_token);
         }

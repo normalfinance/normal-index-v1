@@ -36,11 +36,11 @@ use crate::storage::{
 };
 use crate::storage::{
     get_all_component_balances, get_all_components, get_base_nav, get_component,
-    get_component_balance_safe, get_component_registry, get_factory_safe, get_initial_price,
-    get_is_killed_mint, get_is_killed_rebalance, get_is_killed_redeem, get_last_rebalance_ts,
-    get_last_updated_ts, get_public, get_rebalance_threshold, get_total_mints,
-    get_total_redemptions, set_is_killed_mint, set_is_killed_rebalance, set_is_killed_redeem,
-    Component,
+    get_component_balance_safe, get_component_registry, get_component_safe, get_factory_safe,
+    get_initial_price, get_is_killed_mint, get_is_killed_rebalance, get_is_killed_redeem,
+    get_last_rebalance_ts, get_last_updated_ts, get_public, get_rebalance_threshold,
+    get_total_mints, get_total_redemptions, set_is_killed_mint, set_is_killed_rebalance,
+    set_is_killed_redeem, Component,
 };
 use crate::volume::VolumeTracker;
 use access_control::access::{AccessControl, AccessControlTrait};
@@ -99,7 +99,9 @@ impl Index {
 
         // Set up rebalance authorities for private indexes
         if !params.is_public {
-            for authority in params.rebalance_authorities.iter() {
+            let len = params.rebalance_authorities.len();
+            for i in 0..len {
+                let authority = params.rebalance_authorities.get_unchecked(i);
                 set_rebalance_authority_status(&e, &authority, true);
             }
         }
@@ -142,6 +144,14 @@ impl IndexTrait for Index {
                 panic_with_error!(e, IndexError::NotWhitelisted);
             }
         }
+
+        // // Check if rebalancing is required after refactoring
+        // let last_updated = get_last_updated_ts(&e);
+        // let last_rebalance = get_last_rebalance_ts(&e);
+        
+        // if last_updated > last_rebalance {
+        //     panic_with_error!(e, IndexError::RebalanceRequiredAfterRefactor); // no need of this, they can still mint
+        // }
 
         validate_token_contracts(&e, &vec![&e, token.clone()]);
 
@@ -247,6 +257,14 @@ impl IndexTrait for Index {
             panic_with_error!(e, IndexError::Blacklisted);
         }
 
+        // // Check if rebalancing is required after refactoring
+        // let last_updated = get_last_updated_ts(&e);
+        // let last_rebalance = get_last_rebalance_ts(&e);
+        
+        // if last_updated > last_rebalance {
+        //     panic_with_error!(e, IndexError::RebalanceRequiredAfterRefactor); // no need of this, they can still redeem
+        // }
+
         let is_public = get_public(&e);
         if !is_public {
             let access_control = AccessControl::new(&e);
@@ -279,7 +297,7 @@ impl IndexTrait for Index {
             nav_before,
             nav_before, // TODO: Calculate nav_after after redemption
             total_shares_before,
-            total_shares_before - share_amount, // Approximation
+            total_shares_before.saturating_sub(share_amount), // Approximation - prevent underflow
             component_payouts,
             manager_fees + protocol_fees,
         );
@@ -536,26 +554,27 @@ impl AdminInterface for Index {
         }
 
         // Capture pre-refactor state
-        let components_before = get_all_components(&e);
+        // let components_before = get_all_components(&e);
         let current_time = e.ledger().timestamp();
 
         // Execute component updates without swap operations
         Index::execute_refactoring(&e, caller.clone(), params.clone());
 
         // Capture post-refactor state
-        let components_after = get_all_components(&e);
+        // let components_after = get_all_components(&e);
 
         // Update last updated timestamp (but not rebalance timestamp)
         set_last_updated_ts(&e, &current_time);
 
         // Emit refactor event
-        Events::new(&e).refactor_executed(
-            current_time,
-            caller.clone(),
-            components_before,
-            components_after,
-            params.component_updates.len() as u32,
-        );
+        // TODO: Re-enable component state capture when iteration is fixed
+        // Events::new(&e).refactor_executed(
+        //     current_time,
+        //     caller.clone(),
+        //     components_before,
+        //     components_after,
+        //     params.component_updates.len() as u32,
+        // );
     }
 
     fn rebalance(e: Env, caller: Address, params: RebalanceParams) {
@@ -1123,7 +1142,9 @@ impl QueryInterface for Index {
         let component_addresses = get_component_registry(&e);
 
         // Iterate through each component to calculate total portfolio value
-        for component_address in component_addresses.iter() {
+        let len = component_addresses.len();
+        for i in 0..len {
+            let component_address = component_addresses.get_unchecked(i);
             // Get the component balance (how much of this token the index holds)
             let balance = match get_component_balance_safe(&e, component_address.clone()) {
                 Some(bal) => bal,
@@ -1274,14 +1295,24 @@ impl QueryInterface for Index {
         let mut allocations = Map::new(&e);
         let components = get_all_components(&e);
         let current_nav = Index::get_current_nav(e.clone());
+        let base_nav = get_base_nav(&e);
 
-        for (token, component) in components.iter() {
+        // Get component addresses for iteration
+        let component_addresses = get_component_registry(&e);
+        let len = component_addresses.len();
+        
+        for i in 0..len {
+            let token = component_addresses.get_unchecked(i);
+            let component = components.get(token.clone()).unwrap();
+            
             let current_balance = get_component_balance_safe(&e, token.clone()).unwrap_or(0);
-            let target_balance = if current_nav > 0 {
-                (current_nav * (component.weight as u128)) / 10000
+            // Target balance is based on base_nav (intended portfolio value)
+            let target_balance = if base_nav > 0 {
+                (base_nav * (component.weight as u128)) / 10000
             } else {
                 0
             };
+            // Percentage is based on current_nav (actual portfolio value)
             let percentage = if current_nav > 0 {
                 (current_balance * 10000) / current_nav
             } else {
@@ -1444,13 +1475,19 @@ impl Index {
     }
 
     fn execute_refactoring(e: &Env, admin: Address, params: RefactorParams) {
-        let mut total_weight = 0u128;
         let mut _components_updated = 0u32;
 
         // Validate and execute component updates (without swaps)
-        for update in params.component_updates.iter() {
+        let len = params.component_updates.len();
+        for i in 0..len {
+            let update = params.component_updates.get_unchecked(i);
             match update.action {
                 ComponentAction::Add => {
+                    // Check if component already exists
+                    if get_component_safe(e, update.token.clone()).is_some() {
+                        panic_with_error!(e, IndexError::InvalidComponentAction);
+                    }
+                    
                     // Create component with symbol (simplified for now)
                     let component = Component {
                         asset: Symbol::new(e, "TOKEN"), // Simplified - would need proper token symbol
@@ -1458,7 +1495,6 @@ impl Index {
                     };
                     set_component(e, update.token.clone(), component);
                     crate::storage::add_component_to_registry(e, update.token.clone());
-                    total_weight += update.new_weight;
                     _components_updated += 1;
 
                     // Get component balance for NAV impact calculation
@@ -1481,7 +1517,8 @@ impl Index {
                 }
                 ComponentAction::Remove => {
                     // Get component info before removing
-                    let _component = get_component(e, update.token.clone()); // This will panic if not found
+                    let component = get_component(e, update.token.clone()); // This will panic if not found
+                    let old_weight = component.weight;
                     let final_balance =
                         get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
                     let current_time = e.ledger().timestamp();
@@ -1511,7 +1548,6 @@ impl Index {
                     let current_time = e.ledger().timestamp();
 
                     update_component_weight(e, update.token.clone(), update.new_weight);
-                    total_weight += update.new_weight;
                     _components_updated += 1;
 
                     let balance_after =
@@ -1539,15 +1575,27 @@ impl Index {
             }
         }
 
-        // Validate total weights equal 100% (10000 basis points) for add/update operations
-        let has_weight_operations = params.component_updates.iter().any(|u| {
-            matches!(
-                u.action,
-                ComponentAction::Add | ComponentAction::UpdateWeight
-            )
-        });
-
-        if has_weight_operations && total_weight != 10000 {
+        // Validate that final weights sum to 10000
+        // Calculate by iterating registry and getting components directly (avoiding get_all_components Map issues)
+        let component_registry = crate::storage::get_component_registry(e);
+        let registry_len = component_registry.len();
+        
+        // If no components, weights should sum to 0 (valid empty state)
+        if registry_len == 0 {
+            return;
+        }
+        
+        let mut total_weight = 0u128;
+        for i in 0..registry_len {
+            let token_address = component_registry.get_unchecked(i);
+            // Get component directly from storage instead of using Map
+            if let Some(component) = get_component_safe(e, token_address.clone()) {
+                total_weight += component.weight;
+            }
+        }
+        
+        // Validate that final weights sum to 10000
+        if total_weight != 10000 {
             panic_with_error!(e, IndexError::InvalidWeightSum);
         }
     }
@@ -1563,8 +1611,15 @@ impl Index {
 
         let mut swaps = Vec::new(e);
 
+        // Get component addresses for iteration
+        let component_addresses = crate::storage::get_component_registry(e);
+        
         // For each component, calculate how much of the deposited amount should be allocated
-        for (component_token, component) in components.iter() {
+        let len = component_addresses.len();
+        for i in 0..len {
+            let component_token = component_addresses.get_unchecked(i);
+            let component = components.get(component_token.clone()).unwrap();
+            
             // Calculate target amount based on weight (weight is in basis points, 10000 = 100%)
             let target_amount = (deposited_amount * component.weight) / 10000;
 
@@ -1601,7 +1656,10 @@ impl Index {
 
             // Update component balances based on swap results
             let mut swap_index = 0;
-            for (component_token, component) in components.iter() {
+            let len2 = component_addresses.len();
+            for i in 0..len2 {
+                let component_token = component_addresses.get_unchecked(i);
+                let component = components.get(component_token.clone()).unwrap();
                 let target_amount = (deposited_amount * component.weight) / 10000;
 
                 if target_amount > 0 && component_token != deposited_token {
