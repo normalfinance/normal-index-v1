@@ -8,6 +8,10 @@ use super::storage::{
     set_component_balance, set_last_rebalance_ts, set_last_updated_ts, set_public,
     set_rebalance_threshold, set_swap_utility, Component,
 };
+use super::test_utils::{
+    complete_test_setup, create_mock_token, enhanced_setup_components, setup_components_without_balances,
+    setup_components_with_zero_balances, setup_mock_token_shares,
+};
 use soroban_sdk::{testutils::Address as _, vec, Address, Env, Symbol, Vec};
 use utils::test_utils::jump;
 
@@ -20,40 +24,19 @@ fn register_test_contract(e: &Env) -> Address {
 }
 
 fn create_test_index(e: &Env) -> (Address, Address, Address) {
-    let contract_address = register_test_contract(e);
-    let admin = Address::generate(e);
-    let token = Address::generate(e);
-
-    // Use the initialize method to set up the contract
-    let client = IndexClient::new(e, &contract_address);
-    client.initialize(&admin, &token);
+    let (contract_address, admin, token, _swap_utility, _factory) = complete_test_setup(e);
 
     // Set additional test configuration
     e.as_contract(&contract_address, || {
         // Set default rebalance threshold
         set_rebalance_threshold(e, &THIRTY_DAYS);
-        // Set a mock swap utility address
-        set_swap_utility(e, &Address::generate(e));
     });
 
     (contract_address, admin, token)
 }
 
-fn create_mock_token(e: &Env) -> Address {
-    Address::generate(e)
-}
-
 fn setup_components(e: &Env, contract: &Address, tokens_with_weights: Vec<(Address, u128)>) {
-    e.as_contract(contract, || {
-        for (token, weight) in tokens_with_weights.iter() {
-            let component = Component {
-                asset: Symbol::new(e, "TOKEN"),
-                weight,
-            };
-            set_component(e, token.clone(), component);
-            add_component_to_registry(e, token.clone());
-        }
-    });
+    enhanced_setup_components(e, contract, tokens_with_weights);
 }
 
 // Helper function to make rebalance immediately allowed by setting an old timestamp
@@ -667,19 +650,22 @@ fn test_get_component_allocation() {
     let token1 = create_mock_token(&e);
     let token2 = create_mock_token(&e);
 
-    // Setup components with weights
-    setup_components(
+    // Setup components with weights only (no auto-balances)
+    setup_components_without_balances(
         &e,
         &contract_address,
         vec![&e, (token1.clone(), 6000), (token2.clone(), 4000)],
     );
 
-    // Set balances different from target weights
+    // Set balances different from target weights and setup token shares
     e.as_contract(&contract_address, || {
         set_base_nav(&e, &100_000);
         set_component_balance(&e, token1.clone(), 50_000); // Target should be 60_000
         set_component_balance(&e, token2.clone(), 50_000); // Target should be 40_000
     });
+    
+    // Setup mock token shares for NAV calculation
+    setup_mock_token_shares(&e, &contract_address, 1_000_000); // 1M total shares
 
     // Get component allocation
     let allocations = client.get_component_allocation();

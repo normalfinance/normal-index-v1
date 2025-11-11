@@ -1540,32 +1540,21 @@ impl Index {
                     Events::new(e).component_removed(update.token.clone());
                 }
                 ComponentAction::UpdateWeight => {
-                    // Get component info before and after updating
-                    let old_component = get_component(e, update.token.clone()); // This will panic if not found
+                    // Check if component exists first
+                    let component_exists = get_component_safe(e, update.token.clone()).is_some();
+                    
+                    if !component_exists {
+                        panic_with_error!(e, IndexError::ComponentNotFound);
+                    }
+                    
+                    // Get component info before updating
+                    let old_component = get_component(e, update.token.clone());
                     let old_weight = old_component.weight;
-                    let balance_before =
-                        get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
-                    let current_time = e.ledger().timestamp();
 
                     update_component_weight(e, update.token.clone(), update.new_weight);
                     _components_updated += 1;
 
-                    let balance_after =
-                        get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
-
-                    // Emit enhanced event
-                    Events::new(e).component_weight_updated_detailed(
-                        current_time,
-                        admin.clone(),
-                        update.token.clone(),
-                        old_weight,
-                        update.new_weight,
-                        balance_before,
-                        balance_after,
-                        0, // TODO: Calculate actual NAV impact
-                    );
-
-                    // Also emit legacy event for backward compatibility
+                    // Emit legacy event for backward compatibility
                     Events::new(e).component_weight_updated(
                         update.token.clone(),
                         old_weight,
@@ -1588,6 +1577,7 @@ impl Index {
         let mut total_weight = 0u128;
         for i in 0..registry_len {
             let token_address = component_registry.get_unchecked(i);
+            
             // Get component directly from storage instead of using Map
             if let Some(component) = get_component_safe(e, token_address.clone()) {
                 total_weight += component.weight;

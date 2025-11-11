@@ -6,6 +6,10 @@ use super::storage::{
     get_all_components, get_component, get_component_safe, get_last_rebalance_ts,
     get_last_updated_ts, set_component, set_last_rebalance_ts, set_last_updated_ts, Component,
 };
+use super::test_utils::{
+    complete_test_setup, create_mock_token, enhanced_setup_components, setup_components_without_balances,
+    setup_components_with_zero_balances, setup_mock_token_shares,
+};
 use soroban_sdk::{testutils::Address as _, vec, Address, Env, Symbol, Vec};
 use token_share::get_total_shares;
 use utils::test_utils::jump;
@@ -17,32 +21,14 @@ fn register_test_contract(e: &Env) -> Address {
 }
 
 fn create_test_index(e: &Env) -> (Address, Address, Address) {
-    let contract_address = register_test_contract(e);
-    let admin = Address::generate(e);
-    let token = Address::generate(e);
-
-    // Use the initialize method to set up the contract
-    let client = IndexClient::new(e, &contract_address);
-    client.initialize(&admin, &token);
-
+    let (contract_address, admin, token, _swap_utility, _factory) = complete_test_setup(e);
     (contract_address, admin, token)
 }
 
-fn create_mock_token(e: &Env) -> Address {
-    Address::generate(e)
-}
-
 fn setup_components(e: &Env, contract: &Address, tokens_with_weights: Vec<(Address, u128)>) {
-    e.as_contract(contract, || {
-        for (token, weight) in tokens_with_weights.iter() {
-            let component = Component {
-                asset: Symbol::new(e, "TOKEN"),
-                weight,
-            };
-            set_component(e, token.clone(), component);
-            crate::storage::add_component_to_registry(e, token.clone());
-        }
-    });
+    // Use the setup without automatic balances for refactor tests
+    // These tests need to control balances explicitly
+    setup_components_without_balances(e, contract, tokens_with_weights);
 }
 
 // ===== Basic Refactor Operations =====

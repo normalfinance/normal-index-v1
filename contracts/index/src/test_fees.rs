@@ -13,6 +13,7 @@ use super::storage::{
     set_protocol_fee_recipient,
 };
 use super::contract::Index;
+use super::test_utils::{complete_test_setup};
 use soroban_sdk::{
     testutils::Address as _,
     Address, Env,
@@ -42,7 +43,12 @@ fn setup_fee_config(
 
 
 fn create_test_environment(e: &Env) -> (Address, Address, Address, Address) {
-    let contract_address = register_test_contract(e);
+    // Ensure auth is mocked before calling setup
+    e.mock_all_auths();
+    
+    let (contract_address, _admin, _token, _swap_utility, _factory) = complete_test_setup(e);
+    
+    // Create additional addresses for fee testing
     let manager = Address::generate(e);
     let protocol_recipient = Address::generate(e);
     let user = Address::generate(e);
