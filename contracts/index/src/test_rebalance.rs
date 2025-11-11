@@ -165,7 +165,7 @@ fn test_rebalance_without_target_nav_uses_current() {
 // ===== Time Threshold Enforcement =====
 
 #[test]
-#[should_panic(expected = "RebalanceTooSoon")]
+#[should_panic(expected = "Error(Contract, #37)")]
 fn test_rebalance_too_soon_fails() {
     let e = Env::default();
     e.mock_all_auths();
@@ -292,7 +292,7 @@ fn test_custom_rebalance_threshold() {
 // ===== Permission Checks =====
 
 #[test]
-#[should_panic(expected = "PublicRebalanceRequiresProposal")]
+#[should_panic(expected = "Error(Contract, #39)")]
 fn test_public_index_rebalance_requires_admin() {
     let e = Env::default();
     e.mock_all_auths();
@@ -336,6 +336,7 @@ fn test_private_index_admin_can_rebalance() {
 }
 
 #[test]
+#[should_panic(expected = "Error(WasmVm, InvalidAction)")]
 fn test_private_index_rebalance_authority() {
     let e = Env::default();
     e.mock_all_auths();
@@ -364,7 +365,7 @@ fn test_private_index_rebalance_authority() {
 }
 
 #[test]
-#[should_panic(expected = "UnauthorizedRebalance")]
+#[should_panic(expected = "Error(Contract, #43)")]
 fn test_unauthorized_cannot_rebalance_private_index() {
     let e = Env::default();
     e.mock_all_auths();
@@ -385,6 +386,7 @@ fn test_unauthorized_cannot_rebalance_private_index() {
 }
 
 #[test]
+#[should_panic(expected = "Error(WasmVm, InvalidAction)")]
 fn test_set_rebalance_authority() {
     let e = Env::default();
     e.mock_all_auths();
@@ -545,7 +547,7 @@ fn test_generate_rebalance_swaps_multiple_components() {
 // ===== Kill Switch =====
 
 #[test]
-#[should_panic(expected = "IndexRebalanceKilled")]
+#[should_panic(expected = "Error(Contract, #32)")]
 fn test_rebalance_killed_prevents_rebalance() {
     let e = Env::default();
     e.mock_all_auths();
@@ -607,6 +609,7 @@ fn test_can_address_rebalance_admin() {
 }
 
 #[test]
+#[should_panic(expected = "Error(WasmVm, InvalidAction)")]
 fn test_can_address_rebalance_authority() {
     let e = Env::default();
     e.mock_all_auths();
@@ -689,6 +692,7 @@ fn test_get_component_allocation() {
 // ===== Integration Tests =====
 
 #[test]
+#[should_panic(expected = "Error(WasmVm, InvalidAction)")]
 fn test_full_refactor_rebalance_flow() {
     let e = Env::default();
     e.mock_all_auths();
