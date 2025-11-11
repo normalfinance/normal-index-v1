@@ -145,13 +145,13 @@ impl IndexTrait for Index {
             }
         }
 
-        // Check if rebalancing is required after refactoring
-        let last_updated = get_last_updated_ts(&e);
-        let last_rebalance = get_last_rebalance_ts(&e);
+        // // Check if rebalancing is required after refactoring
+        // let last_updated = get_last_updated_ts(&e);
+        // let last_rebalance = get_last_rebalance_ts(&e);
         
-        if last_updated > last_rebalance {
-            panic_with_error!(e, IndexError::RebalanceRequiredAfterRefactor);
-        }
+        // if last_updated > last_rebalance {
+        //     panic_with_error!(e, IndexError::RebalanceRequiredAfterRefactor); // no need of this, they can still mint
+        // }
 
         validate_token_contracts(&e, &vec![&e, token.clone()]);
 
@@ -257,13 +257,13 @@ impl IndexTrait for Index {
             panic_with_error!(e, IndexError::Blacklisted);
         }
 
-        // Check if rebalancing is required after refactoring
-        let last_updated = get_last_updated_ts(&e);
-        let last_rebalance = get_last_rebalance_ts(&e);
+        // // Check if rebalancing is required after refactoring
+        // let last_updated = get_last_updated_ts(&e);
+        // let last_rebalance = get_last_rebalance_ts(&e);
         
-        if last_updated > last_rebalance {
-            panic_with_error!(e, IndexError::RebalanceRequiredAfterRefactor);
-        }
+        // if last_updated > last_rebalance {
+        //     panic_with_error!(e, IndexError::RebalanceRequiredAfterRefactor); // no need of this, they can still redeem
+        // }
 
         let is_public = get_public(&e);
         if !is_public {

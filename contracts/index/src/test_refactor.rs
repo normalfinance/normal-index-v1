@@ -391,11 +391,10 @@ fn test_refactor_admin_can_refactor_anytime() {
     // Should succeed without time threshold check
 }
 
-// ===== Critical Integration: Refactor Blocks Operations =====
+// ===== Critical Integration: Operations Allowed After Refactor =====
 
 #[test]
-#[should_panic(expected = "Error(Contract, #47)")]
-fn test_mint_blocked_after_refactor() {
+fn test_mint_allowed_after_refactor() {
     let e = Env::default();
     e.mock_all_auths();
 
@@ -435,13 +434,13 @@ fn test_mint_blocked_after_refactor() {
     let last_rebalance = e.as_contract(&contract_address, || get_last_rebalance_ts(&e));
     assert!(last_updated > last_rebalance);
 
-    // Attempt mint - should fail with RebalanceRequiredAfterRefactor
+    // Mint is now allowed after refactor without requiring rebalance
+    // The check for RebalanceRequiredAfterRefactor has been removed
     client.mint(&user, &token, &1000, &None, &None);
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #47)")]
-fn test_redeem_blocked_after_refactor() {
+fn test_redeem_allowed_after_refactor() {
     let e = Env::default();
     e.mock_all_auths();
 
@@ -476,7 +475,8 @@ fn test_redeem_blocked_after_refactor() {
     ];
     client.refactor(&admin, &RefactorParams { component_updates: updates });
 
-    // Attempt redeem - should fail with RebalanceRequiredAfterRefactor
+    // Redeem is now allowed after refactor without requiring rebalance
+    // The check for RebalanceRequiredAfterRefactor has been removed
     client.redeem(&user, &1000);
 }
 

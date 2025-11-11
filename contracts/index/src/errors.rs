@@ -27,7 +27,6 @@ pub enum IndexError {
 
     // Refactoring Errors
     UnauthorizedRefactor = 45,
-    RebalanceRequiredAfterRefactor = 47,
 
     NotWhitelisted = 43,
     Blacklisted = 44,

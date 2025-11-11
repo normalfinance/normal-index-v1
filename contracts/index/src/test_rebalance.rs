@@ -741,7 +741,7 @@ fn test_full_refactor_rebalance_flow() {
     let last_rebalance = e.as_contract(&contract_address, || get_last_rebalance_ts(&e));
     assert!(last_updated > last_rebalance);
 
-    // Mint should fail (caught in earlier test - test_mint_blocked_after_refactor)
+    // Mint is now allowed after refactor (check removed - see test_mint_allowed_after_refactor)
 
     // Allow immediate rebalance
     allow_immediate_rebalance(&e, &contract_address);
