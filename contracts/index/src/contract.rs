@@ -1593,7 +1593,7 @@ impl Index {
         let mut total_weight = 0u128;
         for i in 0..registry_len {
             let token_address = component_registry.get_unchecked(i);
-            
+
             // Get component directly from storage instead of using Map
             if let Some(component) = get_component_safe(e, token_address.clone()) {
                 total_weight += component.weight;
