@@ -385,8 +385,14 @@ fn test_mint_allowed_after_refactor() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let (contract_address, admin, _) = create_test_index(&e);
+    let (contract_address, admin, base_token) = create_test_index(&e);
     let client = IndexClient::new(&e, &contract_address);
+
+    // Create a proper mock token for the share token
+    let share_token = create_mock_token(&e);
+    e.as_contract(&contract_address, || {
+        token_share::put_token_share(&e, share_token);
+    });
 
     let user = Address::generate(&e);
     let token = create_mock_token(&e);  
@@ -426,6 +432,10 @@ fn test_mint_allowed_after_refactor() {
     let last_rebalance = e.as_contract(&contract_address, || get_last_rebalance_ts(&e));
     assert!(last_updated > last_rebalance);
 
+    // Set up mock token balance for the user to ensure transfer works
+    // The MockToken contract returns 1B tokens for any balance query, but we need to make sure
+    // the user has proper authorization for the transfer
+    
     // Core test: Verify the RebalanceRequiredAfterRefactor check has been removed.
     // If the old check was still in place, calling mint with last_updated > last_rebalance 
     // would fail with RebalanceRequiredAfterRefactor error (#43) BEFORE any token operations.
@@ -438,6 +448,7 @@ fn test_mint_allowed_after_refactor() {
     
     // We expect this to NOT fail with RebalanceRequiredAfterRefactor (error #43)
     // Since that check has been removed from the code (lines 148-154 in contract.rs are commented out)
+    // This uses the same token that was used in the refactor to properly test the scenario
     client.mint(&user, &token, &1000, &None, &None);
 }
 

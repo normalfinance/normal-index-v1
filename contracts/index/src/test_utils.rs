@@ -158,6 +158,18 @@ impl MockToken {
     pub fn allowance(_env: Env, _from: Address, _spender: Address) -> i128 {
         i128::MAX // Allow unlimited allowance
     }
+    
+    // Admin functions for token minting/burning
+    pub fn mint(env: Env, to: Address, amount: i128) {
+        // Mock implementation - just succeed
+        // In a real token, this would create new tokens
+    }
+    
+    pub fn burn(env: Env, from: Address, amount: i128) {
+        // Mock implementation - just succeed
+        // In a real token, this would destroy tokens
+        from.require_auth();
+    }
 }
 
 pub fn create_mock_token(e: &Env) -> Address {
