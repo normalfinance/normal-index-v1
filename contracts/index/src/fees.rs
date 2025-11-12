@@ -8,7 +8,7 @@ use crate::storage::{
     set_accumulated_manager_fees, set_accumulated_protocol_fees, set_last_fee_collection,
     set_total_fees,
 };
-use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, Vec};
+use soroban_sdk::{contracttype, Address, Env, IntoVal, log, Symbol, Vec};
 use utils::bump::bump_persistent;
 
 pub fn get_protocol_fee_amount_from_factory(e: &Env, user: &Address) -> u32 {
@@ -34,8 +34,10 @@ pub fn get_protocol_fee_amount_from_factory(e: &Env, user: &Address) -> u32 {
 /// Get fee enabled status from Factory contract
 /// Returns true if fees are enabled, defaults to true if factory not available (backwards compatibility)
 pub fn get_fee_enabled_from_factory(e: &Env) -> bool {
+    log!(e, "Getting fee enabled status from factory");
     match get_factory_safe(e) {
         Some(factory_address) => {
+            log!(e, "Factory address: {}", factory_address);
             // Call Factory's get_index_fee_enabled() function
             e.invoke_contract::<bool>(
                 &factory_address,
@@ -125,6 +127,7 @@ pub fn calculate_accrued_fees(
 ) -> (u128, u128) {
     // Early return if fee collection is disabled for this index (query factory)
     if !get_fee_enabled_from_factory(e) {
+        log!(e, "Fee collection is disabled for this index");
         return (0, 0);
     }
 

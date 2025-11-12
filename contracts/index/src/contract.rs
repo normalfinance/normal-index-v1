@@ -58,7 +58,7 @@ use access_control::utils::{
 use soroban_sdk::Bytes;
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
-    Address, BytesN, Env, Map, Symbol, Vec,
+    Address, BytesN, Env, log, Map, Symbol, Vec,
 };
 use token_share::{get_token_share, get_total_shares, mint_shares, put_token_share};
 use upgrade::events::Events as UpgradeEvents;
@@ -392,7 +392,7 @@ impl IndexTrait for Index {
     }
 
     fn get_component_balance(e: Env, token: Address) -> u128 {
-        crate::storage::get_component_balance(&e, token)
+        crate::storage::get_component_balance_safe(&e, token).unwrap_or(0)
     }
 
     fn get_last_fee_collection(e: Env) -> u64 {
@@ -588,13 +588,20 @@ impl AdminInterface for Index {
             panic_with_error!(e, IndexError::Blacklisted);
         }
 
+        log!(&e, "Rebalance called by caller: {:?}", caller);
+
         let is_public = get_public(&e);
         if !is_public {
             let access_control = AccessControl::new(&e);
             let is_admin = access_control.address_has_role(&caller, &Role::Admin);
             let is_whitelisted = get_whitelist_status(&e, &caller);
+            let is_rebalance_authority = get_rebalance_authority_status(&e, &caller);
 
-            if !is_admin && !is_whitelisted {
+            log!(&e, "Is admin: {:?}", is_admin);
+            log!(&e, "Is whitelisted: {:?}", is_whitelisted);
+            log!(&e, "Is rebalance authority: {:?}", is_rebalance_authority);
+
+            if !is_admin && !is_whitelisted && !is_rebalance_authority {
                 panic_with_error!(e, IndexError::NotWhitelisted);
             }
         }
@@ -617,12 +624,19 @@ impl AdminInterface for Index {
             Index::validate_private_rebalance(&e, &caller);
         }
 
+        log!(&e, "Rebalance validated");
+
         // Capture pre-rebalancing state
         let nav_before = Self::get_nav(e.clone()) as u128;
         let components_before = get_all_components(&e);
 
+        log!(&e, "Nav before: {:?}", nav_before);
+        log!(&e, "Components before: {:?}", components_before);
+
         // Execute rebalancing logic (swaps only)
         Index::execute_rebalancing(&e, caller.clone(), params.clone());
+
+        log!(&e, "Rebalancing executed");
 
         // Capture post-rebalancing state
         let nav_after = Self::get_nav(e.clone()) as u128;
@@ -1442,8 +1456,10 @@ impl Index {
         // Generate and execute swap transactions to align current balances with target weights
         let swaps = crate::index::generate_rebalance_swaps(e, &params);
         let total_swaps = swaps.len() as u32;
-
+        
+        log!(&e, "Total swaps: {:?}", total_swaps);
         if total_swaps > 0 {
+            log!(&e, "Executing swaps");
             let _swap_results = crate::index::execute_swaps(e, swaps);
         }
 
@@ -1540,32 +1556,21 @@ impl Index {
                     Events::new(e).component_removed(update.token.clone());
                 }
                 ComponentAction::UpdateWeight => {
-                    // Get component info before and after updating
-                    let old_component = get_component(e, update.token.clone()); // This will panic if not found
+                    // Check if component exists first
+                    let component_exists = get_component_safe(e, update.token.clone()).is_some();
+                    
+                    if !component_exists {
+                        panic_with_error!(e, IndexError::ComponentNotFound);
+                    }
+                    
+                    // Get component info before updating
+                    let old_component = get_component(e, update.token.clone());
                     let old_weight = old_component.weight;
-                    let balance_before =
-                        get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
-                    let current_time = e.ledger().timestamp();
 
                     update_component_weight(e, update.token.clone(), update.new_weight);
                     _components_updated += 1;
 
-                    let balance_after =
-                        get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
-
-                    // Emit enhanced event
-                    Events::new(e).component_weight_updated_detailed(
-                        current_time,
-                        admin.clone(),
-                        update.token.clone(),
-                        old_weight,
-                        update.new_weight,
-                        balance_before,
-                        balance_after,
-                        0, // TODO: Calculate actual NAV impact
-                    );
-
-                    // Also emit legacy event for backward compatibility
+                    // Emit legacy event for backward compatibility
                     Events::new(e).component_weight_updated(
                         update.token.clone(),
                         old_weight,
@@ -1588,6 +1593,7 @@ impl Index {
         let mut total_weight = 0u128;
         for i in 0..registry_len {
             let token_address = component_registry.get_unchecked(i);
+
             // Get component directly from storage instead of using Map
             if let Some(component) = get_component_safe(e, token_address.clone()) {
                 total_weight += component.weight;

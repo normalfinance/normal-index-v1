@@ -1,5 +1,5 @@
 use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{contracttype, panic_with_error, Address, Env, IntoVal, String, Symbol, Vec};
+use soroban_sdk::{contracttype, panic_with_error, Address, Env, IntoVal, log, String, Symbol, Vec};
 use token_share::get_token_share;
 use utils::validate;
 
@@ -119,11 +119,26 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
     for i in 0..swaps.len() {
         let params = swaps.get(i).unwrap();
 
+        log!(&e, "Executing swap with params: {:?}", params);
+
         // Get fee enabled status from factory contract
         let fee_enabled = get_fee_enabled_from_factory(e);
 
+        log!(&e, "Fee enabled in execute_swaps: {:?}", fee_enabled);
+
         // Get the component info to extract the asset symbol
-        let component = crate::storage::get_component(e, params.token_out.clone());
+        // For buy swaps: token_out is the component, for sell swaps: token_in is the component
+        let base_token = get_base_token(e);
+        let component_token = if params.token_out == base_token {
+            // Sell swap: selling component for base token
+            params.token_in.clone()
+        } else {
+            // Buy swap: buying component with base token
+            params.token_out.clone()
+        };
+        let component = crate::storage::get_component(e, component_token);
+
+        log!(&e, "Component in execute_swaps: {:?}", component);
 
         // Map local SwapParams to SwapUtilityParams for the external contract
         let utility_params = SwapUtilityParams {

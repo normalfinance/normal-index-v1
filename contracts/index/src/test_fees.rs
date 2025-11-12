@@ -13,8 +13,10 @@ use super::storage::{
     set_protocol_fee_recipient,
 };
 use super::contract::Index;
+use super::test_utils::{complete_test_setup};
 use soroban_sdk::{
     testutils::Address as _,
+    log,
     Address, Env,
 };
 use utils::test_utils::jump;
@@ -42,10 +44,20 @@ fn setup_fee_config(
 
 
 fn create_test_environment(e: &Env) -> (Address, Address, Address, Address) {
-    let contract_address = register_test_contract(e);
+    // Ensure auth is mocked before calling setup
+    e.mock_all_auths();
+    
+    let (contract_address, _admin, _token, _swap_utility, _factory) = complete_test_setup(e);
+    
+    // Create additional addresses for fee testing
     let manager = Address::generate(e);
     let protocol_recipient = Address::generate(e);
     let user = Address::generate(e);
+
+    log!(e, "contract_address: {}", contract_address);
+    log!(e, "manager: {}", manager);
+    log!(e, "protocol_recipient: {}", protocol_recipient);
+    log!(e, "user: {}", user);
     
     e.as_contract(&contract_address, || {
         setup_fee_config(
@@ -53,7 +65,7 @@ fn create_test_environment(e: &Env) -> (Address, Address, Address, Address) {
             100u128,                    
             25_000_000_000u128,         
             manager.clone(),
-            protocol_recipient.clone(),
+            protocol_recipient.clone()
         );
     });
     
@@ -536,6 +548,7 @@ fn test_protocol_fee_recipient_storage() {
     let recipient = e.as_contract(&contract_address, || {
         get_protocol_fee_recipient(&e)
     });
+    log!(&e, "recipient: {}", recipient);
     assert_eq!(recipient, protocol_recipient, "Protocol fee recipient should match");
     
     let new_recipient = Address::generate(&e);

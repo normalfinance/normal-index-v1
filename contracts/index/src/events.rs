@@ -739,7 +739,7 @@ impl IndexEvents for Events {
     ) {
         self.env().events().publish(
             (
-                Symbol::new(self.env(), "component_weight_updated_detailed"),
+                Symbol::new(self.env(), "component_weight_upd_detailed"),
                 ts,
                 admin,
                 token,
@@ -763,7 +763,7 @@ impl IndexEvents for Events {
     ) {
         self.env().events().publish(
             (
-                Symbol::new(self.env(), "rebalance_authority_updated_detailed"),
+                Symbol::new(self.env(), "rebalance_auth_updated_detailed"),
                 ts,
                 admin,
                 authority,

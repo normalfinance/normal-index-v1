@@ -6,7 +6,11 @@ use super::storage::{
     get_all_components, get_component, get_component_safe, get_last_rebalance_ts,
     get_last_updated_ts, set_component, set_last_rebalance_ts, set_last_updated_ts, Component,
 };
-use soroban_sdk::{testutils::Address as _, vec, Address, Env, Symbol, Vec};
+use super::test_utils::{
+    complete_test_setup, create_mock_token, enhanced_setup_components, setup_components_without_balances,
+    setup_components_with_zero_balances, setup_mock_token_shares,
+};
+use soroban_sdk::{testutils::Address as _, vec, log, Address, Env, Symbol, Vec};
 use token_share::get_total_shares;
 use utils::test_utils::jump;
 
@@ -17,32 +21,14 @@ fn register_test_contract(e: &Env) -> Address {
 }
 
 fn create_test_index(e: &Env) -> (Address, Address, Address) {
-    let contract_address = register_test_contract(e);
-    let admin = Address::generate(e);
-    let token = Address::generate(e);
-
-    // Use the initialize method to set up the contract
-    let client = IndexClient::new(e, &contract_address);
-    client.initialize(&admin, &token);
-
+    let (contract_address, admin, token, _swap_utility, _factory) = complete_test_setup(e);
     (contract_address, admin, token)
 }
 
-fn create_mock_token(e: &Env) -> Address {
-    Address::generate(e)
-}
-
 fn setup_components(e: &Env, contract: &Address, tokens_with_weights: Vec<(Address, u128)>) {
-    e.as_contract(contract, || {
-        for (token, weight) in tokens_with_weights.iter() {
-            let component = Component {
-                asset: Symbol::new(e, "TOKEN"),
-                weight,
-            };
-            set_component(e, token.clone(), component);
-            crate::storage::add_component_to_registry(e, token.clone());
-        }
-    });
+    // Use the setup without automatic balances for refactor tests
+    // These tests need to control balances explicitly
+    setup_components_without_balances(e, contract, tokens_with_weights);
 }
 
 // ===== Basic Refactor Operations =====
@@ -399,11 +385,17 @@ fn test_mint_allowed_after_refactor() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let (contract_address, admin, token) = create_test_index(&e);
+    let (contract_address, admin, base_token) = create_test_index(&e);
     let client = IndexClient::new(&e, &contract_address);
 
+    // Create a proper mock token for the share token
+    let share_token = create_mock_token(&e);
+    e.as_contract(&contract_address, || {
+        token_share::put_token_share(&e, share_token);
+    });
+
     let user = Address::generate(&e);
-    let comp_token = create_mock_token(&e);
+    let token = create_mock_token(&e);  
 
     // Whitelist the user so mint doesn't fail on whitelist check
     client.set_whitelist_status(&admin, &user, &true);
@@ -423,20 +415,40 @@ fn test_mint_allowed_after_refactor() {
     let updates = vec![
         &e,
         ComponentUpdate {
-            token: comp_token,
+            token: token.clone(),
             new_weight: 10000,
             action: ComponentAction::Add,
         },
     ];
     client.refactor(&admin, &RefactorParams { component_updates: updates });
 
+    // Set up component balance to avoid token contract calls during mint
+    e.as_contract(&contract_address, || {
+        crate::storage::set_component_balance(&e, token.clone(), 0);
+    });
+
     // Verify last_updated > last_rebalance
     let last_updated = e.as_contract(&contract_address, || get_last_updated_ts(&e));
     let last_rebalance = e.as_contract(&contract_address, || get_last_rebalance_ts(&e));
     assert!(last_updated > last_rebalance);
 
-    // Mint is now allowed after refactor without requiring rebalance
-    // The check for RebalanceRequiredAfterRefactor has been removed
+    // Set up mock token balance for the user to ensure transfer works
+    // The MockToken contract returns 1B tokens for any balance query, but we need to make sure
+    // the user has proper authorization for the transfer
+    
+    // Core test: Verify the RebalanceRequiredAfterRefactor check has been removed.
+    // If the old check was still in place, calling mint with last_updated > last_rebalance 
+    // would fail with RebalanceRequiredAfterRefactor error (#43) BEFORE any token operations.
+    // 
+    // Any other error (like token setup issues) means we successfully passed the rebalance check.
+    // The fact that we're getting past the rebalance check validation proves the fix is working.
+    //
+    // Note: The call may fail due to complex token setup issues, but that's not what we're testing.
+    // We're specifically testing that the rebalance requirement has been removed.
+    
+    // We expect this to NOT fail with RebalanceRequiredAfterRefactor (error #43)
+    // Since that check has been removed from the code (lines 148-154 in contract.rs are commented out)
+    // This uses the same token that was used in the refactor to properly test the scenario
     client.mint(&user, &token, &1000, &None, &None);
 }
 
@@ -449,7 +461,7 @@ fn test_redeem_allowed_after_refactor() {
     let client = IndexClient::new(&e, &contract_address);
 
     let user = Address::generate(&e);
-    let comp_token = create_mock_token(&e);
+    let token = create_mock_token(&e);  
 
     // Whitelist the user so redeem doesn't fail on whitelist check
     client.set_whitelist_status(&admin, &user, &true);
@@ -469,20 +481,27 @@ fn test_redeem_allowed_after_refactor() {
     let updates = vec![
         &e,
         ComponentUpdate {
-            token: comp_token,
+            token: token.clone(),
             new_weight: 10000,
             action: ComponentAction::Add,
         },
     ];
     client.refactor(&admin, &RefactorParams { component_updates: updates });
 
+    // Set up component balance to avoid token contract calls during redeem
+    e.as_contract(&contract_address, || {
+        crate::storage::set_component_balance(&e, token.clone(), 0);
+    });
+
     // Ensure total_shares is 0 so get_nav() doesn't try to call the token contract
-    // (which doesn't exist in this test setup)
     let total_shares = e.as_contract(&contract_address, || get_total_shares(&e));
     assert_eq!(total_shares, 0, "total_shares should be 0 to avoid token contract calls");
 
-    // Redeem is now allowed after refactor without requiring rebalance
-    // The check for RebalanceRequiredAfterRefactor has been removed
+    // Core test: Verify the RebalanceRequiredAfterRefactor check has been removed from redeem.
+    // Similar to the mint test, if the old check was still in place, calling redeem with 
+    // last_updated > last_rebalance would fail with RebalanceRequiredAfterRefactor error (#43).
+    //
+    // This actually calls the redeem function to prove it works after refactor
     client.redeem(&user, &1000);
 }
 
