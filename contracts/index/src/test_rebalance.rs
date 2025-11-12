@@ -609,6 +609,9 @@ fn test_can_address_rebalance_authority() {
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
 
+    // Allow immediate rebalance by setting time threshold
+    allow_immediate_rebalance(&e, &contract_address);
+
     // Authority should be able to rebalance
     let can_rebalance = client.can_address_rebalance(&authority);
     assert!(can_rebalance, "Authority should be able to rebalance");
