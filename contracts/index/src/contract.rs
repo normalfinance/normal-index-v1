@@ -595,11 +595,13 @@ impl AdminInterface for Index {
             let access_control = AccessControl::new(&e);
             let is_admin = access_control.address_has_role(&caller, &Role::Admin);
             let is_whitelisted = get_whitelist_status(&e, &caller);
+            let is_rebalance_authority = get_rebalance_authority_status(&e, &caller);
 
             log!(&e, "Is admin: {:?}", is_admin);
             log!(&e, "Is whitelisted: {:?}", is_whitelisted);
+            log!(&e, "Is rebalance authority: {:?}", is_rebalance_authority);
 
-            if !is_admin && !is_whitelisted {
+            if !is_admin && !is_whitelisted && !is_rebalance_authority {
                 panic_with_error!(e, IndexError::NotWhitelisted);
             }
         }
