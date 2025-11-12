@@ -16,6 +16,7 @@ use super::contract::Index;
 use super::test_utils::{complete_test_setup};
 use soroban_sdk::{
     testutils::Address as _,
+    log,
     Address, Env,
 };
 use utils::test_utils::jump;
@@ -52,6 +53,11 @@ fn create_test_environment(e: &Env) -> (Address, Address, Address, Address) {
     let manager = Address::generate(e);
     let protocol_recipient = Address::generate(e);
     let user = Address::generate(e);
+
+    log!(e, "contract_address: {}", contract_address);
+    log!(e, "manager: {}", manager);
+    log!(e, "protocol_recipient: {}", protocol_recipient);
+    log!(e, "user: {}", user);
     
     e.as_contract(&contract_address, || {
         setup_fee_config(
@@ -59,7 +65,7 @@ fn create_test_environment(e: &Env) -> (Address, Address, Address, Address) {
             100u128,                    
             25_000_000_000u128,         
             manager.clone(),
-            protocol_recipient.clone(),
+            protocol_recipient.clone()
         );
     });
     
@@ -542,6 +548,7 @@ fn test_protocol_fee_recipient_storage() {
     let recipient = e.as_contract(&contract_address, || {
         get_protocol_fee_recipient(&e)
     });
+    log!(&e, "recipient: {}", recipient);
     assert_eq!(recipient, protocol_recipient, "Protocol fee recipient should match");
     
     let new_recipient = Address::generate(&e);

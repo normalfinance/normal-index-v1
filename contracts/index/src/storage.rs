@@ -518,13 +518,7 @@ pub fn get_factory_safe(e: &Env) -> Option<Address> {
     match e.storage().instance().get(&key) {
         Some(factory) => {
             bump_instance(e);
-            // Check if it's a valid address (not empty string)
-            let empty_address = Address::from_str(e, "");
-            if factory == empty_address {
-                None
-            } else {
-                Some(factory)
-            }
+            Some(factory)
         }
         None => None,
     }

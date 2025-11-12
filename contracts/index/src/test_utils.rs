@@ -73,8 +73,20 @@ impl MockFactory {
         env.storage().instance().get(&key).unwrap_or_else(|| Address::generate(&env))
     }
     
-    pub fn get_fee_enabled(_env: Env) -> bool {
-        false 
+    pub fn get_index_fee_enabled(_env: Env, _index_address: Address) -> bool {
+        true 
+    }
+
+    pub fn get_user_fee_rate(_env: Env, _user: Address) -> u32 {
+        0  // Return 0 basis points for protocol fee in tests
+    }
+
+    pub fn get_protocol_fee_amount(_env: Env) -> u128 {
+        0  // Return 0 basis points for protocol fee in tests
+    }
+
+    pub fn get_minimum_fee_threshold(_env: Env) -> u128 {
+        1_000_000  // Return default minimum fee threshold in tests
     }
 
     pub fn set_swap_utility(env: Env, swap_utility: Address) {
@@ -118,8 +130,38 @@ pub fn setup_test_contracts(e: &Env) -> (Address, Address, Address, Address) {
 }
 
 
+#[contract]
+pub struct MockToken;
+
+#[contractimpl]
+impl MockToken {
+    pub fn balance(env: Env, id: Address) -> i128 {
+        // Return a large balance for all accounts to simulate having tokens
+        1_000_000_000 // 1B tokens
+    }
+    
+    pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
+        // Mock implementation - just verify auth and succeed
+        from.require_auth();
+    }
+    
+    pub fn transfer_from(env: Env, spender: Address, from: Address, to: Address, amount: i128) {
+        // Mock implementation - just verify auth and succeed  
+        spender.require_auth();
+    }
+    
+    pub fn approve(env: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
+        // Mock implementation - just verify auth
+        from.require_auth();
+    }
+    
+    pub fn allowance(_env: Env, _from: Address, _spender: Address) -> i128 {
+        i128::MAX // Allow unlimited allowance
+    }
+}
+
 pub fn create_mock_token(e: &Env) -> Address {
-    Address::generate(e)
+    e.register(MockToken, ())
 }
 
 
