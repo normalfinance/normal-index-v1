@@ -58,7 +58,7 @@ use access_control::utils::{
 use soroban_sdk::Bytes;
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
-    Address, BytesN, Env, Map, Symbol, Vec,
+    Address, BytesN, Env, log, Map, Symbol, Vec,
 };
 use token_share::{get_token_share, get_total_shares, mint_shares, put_token_share};
 use upgrade::events::Events as UpgradeEvents;
@@ -392,7 +392,7 @@ impl IndexTrait for Index {
     }
 
     fn get_component_balance(e: Env, token: Address) -> u128 {
-        crate::storage::get_component_balance(&e, token)
+        crate::storage::get_component_balance_safe(&e, token).unwrap_or(0)
     }
 
     fn get_last_fee_collection(e: Env) -> u64 {
@@ -588,11 +588,16 @@ impl AdminInterface for Index {
             panic_with_error!(e, IndexError::Blacklisted);
         }
 
+        log!(&e, "Rebalance called by caller: {:?}", caller);
+
         let is_public = get_public(&e);
         if !is_public {
             let access_control = AccessControl::new(&e);
             let is_admin = access_control.address_has_role(&caller, &Role::Admin);
             let is_whitelisted = get_whitelist_status(&e, &caller);
+
+            log!(&e, "Is admin: {:?}", is_admin);
+            log!(&e, "Is whitelisted: {:?}", is_whitelisted);
 
             if !is_admin && !is_whitelisted {
                 panic_with_error!(e, IndexError::NotWhitelisted);
@@ -617,12 +622,19 @@ impl AdminInterface for Index {
             Index::validate_private_rebalance(&e, &caller);
         }
 
+        log!(&e, "Rebalance validated");
+
         // Capture pre-rebalancing state
         let nav_before = Self::get_nav(e.clone()) as u128;
         let components_before = get_all_components(&e);
 
+        log!(&e, "Nav before: {:?}", nav_before);
+        log!(&e, "Components before: {:?}", components_before);
+
         // Execute rebalancing logic (swaps only)
         Index::execute_rebalancing(&e, caller.clone(), params.clone());
+
+        log!(&e, "Rebalancing executed");
 
         // Capture post-rebalancing state
         let nav_after = Self::get_nav(e.clone()) as u128;
@@ -1442,8 +1454,10 @@ impl Index {
         // Generate and execute swap transactions to align current balances with target weights
         let swaps = crate::index::generate_rebalance_swaps(e, &params);
         let total_swaps = swaps.len() as u32;
-
+        
+        log!(&e, "Total swaps: {:?}", total_swaps);
         if total_swaps > 0 {
+            log!(&e, "Executing swaps");
             let _swap_results = crate::index::execute_swaps(e, swaps);
         }
 

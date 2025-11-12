@@ -12,7 +12,7 @@ use super::test_utils::{
     complete_test_setup, create_mock_token, enhanced_setup_components, setup_components_without_balances,
     setup_components_with_zero_balances, setup_mock_token_shares,
 };
-use soroban_sdk::{testutils::Address as _, vec, Address, Env, Symbol, Vec};
+use soroban_sdk::{testutils::Address as _, vec, log, Address, Env, Symbol, Vec};
 use utils::test_utils::jump;
 
 const THIRTY_DAYS: u64 = 30 * 24 * 60 * 60;
@@ -91,7 +91,6 @@ fn test_rebalance_updates_timestamps() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #501)")]
 fn test_rebalance_with_target_nav() {
     let e = Env::default();
     e.mock_all_auths();
@@ -321,7 +320,6 @@ fn test_private_index_admin_can_rebalance() {
 }
 
 #[test]
-#[should_panic(expected = "Error(WasmVm, InvalidAction)")]
 fn test_private_index_rebalance_authority() {
     let e = Env::default();
     e.mock_all_auths();
@@ -371,7 +369,6 @@ fn test_unauthorized_cannot_rebalance_private_index() {
 }
 
 #[test]
-#[should_panic(expected = "Error(WasmVm, InvalidAction)")]
 fn test_set_rebalance_authority() {
     let e = Env::default();
     e.mock_all_auths();
@@ -415,7 +412,6 @@ fn test_set_rebalance_authority() {
 // ===== Swap Generation Logic =====
 
 #[test]
-#[should_panic(expected = "Error(Contract, #501)")]
 fn test_generate_rebalance_swaps_buy() {
     let e = Env::default();
     e.mock_all_auths();
@@ -430,7 +426,7 @@ fn test_generate_rebalance_swaps_buy() {
 
     e.as_contract(&contract_address, || {
         set_base_nav(&e, &100_000);
-        set_component_balance(&e, token, 30_000); // 30% of NAV
+        set_component_balance(&e, token.clone(), 30_000); // 30% of NAV
     });
 
     // Allow immediate rebalance
@@ -443,7 +439,6 @@ fn test_generate_rebalance_swaps_buy() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #501)")]
 fn test_generate_rebalance_swaps_sell() {
     let e = Env::default();
     e.mock_all_auths();
@@ -494,7 +489,6 @@ fn test_generate_rebalance_swaps_no_change() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #501)")]
 fn test_generate_rebalance_swaps_multiple_components() {
     let e = Env::default();
     e.mock_all_auths();
@@ -600,7 +594,6 @@ fn test_can_address_rebalance_admin() {
 }
 
 #[test]
-#[should_panic(expected = "Error(WasmVm, InvalidAction)")]
 fn test_can_address_rebalance_authority() {
     let e = Env::default();
     e.mock_all_auths();
@@ -686,7 +679,6 @@ fn test_get_component_allocation() {
 // ===== Integration Tests =====
 
 #[test]
-#[should_panic(expected = "Error(WasmVm, InvalidAction)")]
 fn test_full_refactor_rebalance_flow() {
     let e = Env::default();
     e.mock_all_auths();
@@ -698,18 +690,29 @@ fn test_full_refactor_rebalance_flow() {
     let token2 = create_mock_token(&e);
     let token3 = create_mock_token(&e);
 
-    // Initial state: 2 components (50%/50%)
-    setup_components(
+    // Initial state: 2 components (50%/50%) - setup without automatic balances
+    setup_components_without_balances(
         &e,
         &contract_address,
         vec![&e, (token1.clone(), 5000), (token2.clone(), 5000)],
     );
+
+    // Set base NAV and initial component balances manually
+    e.as_contract(&contract_address, || {
+        set_base_nav(&e, &100_000);
+        // Set balanced initial state
+        set_component_balance(&e, token1.clone(), 50_000); // 50% of NAV
+        set_component_balance(&e, token2.clone(), 50_000); // 50% of NAV
+    });
 
     // Set initial rebalance timestamp
     e.as_contract(&contract_address, || {
         set_last_rebalance_ts(&e, &100);
         set_last_updated_ts(&e, &100);
     });
+
+    // Advance time to ensure refactor gets a different timestamp (105 > 100)
+    jump(&e, 105);
 
     // Refactor to 3 components (40%/30%/30%)
     use super::interface::{ComponentAction, ComponentUpdate, RefactorParams};
@@ -740,6 +743,15 @@ fn test_full_refactor_rebalance_flow() {
     assert!(last_updated > last_rebalance);
 
     // Mint is now allowed after refactor (check removed - see test_mint_allowed_after_refactor)
+
+    // Create imbalanced component allocations to force swap generation
+    // Target weights after refactor: token1=40%, token2=30%, token3=30% 
+    // Set imbalanced state: token1=60%, token2=20%, token3=20%
+    e.as_contract(&contract_address, || {
+        set_component_balance(&e, token1.clone(), 60_000); // 60% instead of target 40%
+        set_component_balance(&e, token2.clone(), 20_000); // 20% instead of target 30%
+        set_component_balance(&e, token3.clone(), 20_000); // 20% instead of target 30%
+    });
 
     // Allow immediate rebalance
     allow_immediate_rebalance(&e, &contract_address);
@@ -819,7 +831,6 @@ fn test_rebalance_executed_event() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #501)")]
 fn test_rebalance_completed_detailed_event() {
     let e = Env::default();
     e.mock_all_auths();
