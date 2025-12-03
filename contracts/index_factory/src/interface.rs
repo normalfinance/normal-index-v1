@@ -1,4 +1,4 @@
-use soroban_sdk::{ Address, Bytes, BytesN, Env, Map, Vec };
+use soroban_sdk::{Address, Bytes, BytesN, Env, Map, Vec};
 use utils::storage::IndexParams;
 
 use crate::contract::FactoryConfig;

@@ -1,4 +1,4 @@
-use soroban_sdk::{ contracttype, Address, Env, Map, Vec };
+use soroban_sdk::{contracttype, Address, Env, Map, Vec};
 
 use crate::storage::Component;
 
@@ -22,7 +22,7 @@ pub trait IndexTrait {
         token: Address,
         amount: u128,
         destination: Option<Address>,
-        max_slippage: Option<u64>
+        max_slippage: Option<u64>,
     );
 
     fn redeem(e: Env, user: Address, share_amount: u128);

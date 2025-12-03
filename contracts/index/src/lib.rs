@@ -6,11 +6,11 @@ mod events;
 mod index;
 mod interface;
 mod storage;
-mod volume;
-#[cfg(test)]
-mod test_refactor;
 #[cfg(test)]
 mod test_rebalance;
+#[cfg(test)]
+mod test_refactor;
+mod volume;
 
 #[cfg(test)]
 mod test_utils;

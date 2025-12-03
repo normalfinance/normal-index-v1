@@ -1,15 +1,13 @@
 use paste::paste;
 use soroban_sdk::token::TokenClient as SorobanTokenClient;
-use soroban_sdk::{ contracttype, panic_with_error, log, Address, Env, Map, Symbol, Vec };
-use utils::bump::{ bump_instance, bump_persistent };
+use soroban_sdk::{contracttype, log, panic_with_error, Address, Env, Map, Symbol, Vec};
+use utils::bump::{bump_instance, bump_persistent};
 use utils::constant::THIRTY_DAY;
 use utils::errors::storage_errors::StorageError;
 use utils::{
-    generate_instance_storage_getter,
-    generate_instance_storage_getter_and_setter,
+    generate_instance_storage_getter, generate_instance_storage_getter_and_setter,
     generate_instance_storage_getter_and_setter_with_default,
-    generate_instance_storage_getter_with_default,
-    generate_instance_storage_setter,
+    generate_instance_storage_getter_with_default, generate_instance_storage_setter,
 };
 
 #[derive(Clone)]
@@ -17,7 +15,7 @@ use utils::{
 enum DataKey {
     Factory,
     SwapUtility, // Address of the SwapUtility contract for cross-contract swaps
-    TokenIndex, //
+    TokenIndex,  //
 
     BaseNAV, // The Net Asset Value (NAV) at the inception of the index - what the creator deposits (e.g. $1,000)
     InitialPrice, // The price assigned to the index at inception (e.g. $100)
@@ -36,7 +34,7 @@ enum DataKey {
     RebalanceThreshold, // Minimum amount of time that must pass before the index can be rebalanced again
 
     LastRebalanceTs, // The ts when the index was last rebalanced
-    LastUpdatedTs, // The ts when the index was last updated (any property)
+    LastUpdatedTs,   // The ts when the index was last updated (any property)
 
     // Metrics
     TotalMints,
@@ -47,7 +45,7 @@ enum DataKey {
 
     // Rebalancing authorities (for private indexes)
     RebalanceAuthority(Address), // Address -> bool mapping for rebalance authorities
-    RebalanceAuthorityRegistry, // Vec<Address> - list of all rebalance authority addresses
+    RebalanceAuthorityRegistry,  // Vec<Address> - list of all rebalance authority addresses
 
     // Swap utility contract address
     SwapUtilityAddress,
@@ -57,7 +55,10 @@ generate_instance_storage_getter_and_setter_with_default!(
     factory,
     DataKey::Factory,
     Address,
-    Address::from_str(&Env::default(), "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOAFM")
+    Address::from_str(
+        &Env::default(),
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOAFM"
+    )
 );
 generate_instance_storage_setter!(swap_utility, DataKey::SwapUtility, Address);
 
@@ -89,7 +90,10 @@ generate_instance_storage_getter_and_setter_with_default!(
     manager_address,
     DataKey::ManagerAddress,
     Address,
-    Address::from_str(&Env::default(), "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOAFM")
+    Address::from_str(
+        &Env::default(),
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOAFM"
+    )
 );
 
 generate_instance_storage_getter_and_setter_with_default!(public, DataKey::Public, bool, false);

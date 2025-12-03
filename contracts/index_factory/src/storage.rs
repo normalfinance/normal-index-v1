@@ -1,13 +1,11 @@
 use paste::paste;
-use soroban_sdk::{ contracttype, panic_with_error, Address, BytesN, Env, Map, String, Vec };
-use utils::bump::{ bump_instance, bump_persistent };
+use soroban_sdk::{contracttype, panic_with_error, Address, BytesN, Env, Map, String, Vec};
+use utils::bump::{bump_instance, bump_persistent};
 use utils::storage_errors::StorageError;
 use utils::{
-    generate_instance_storage_getter,
-    generate_instance_storage_getter_and_setter,
+    generate_instance_storage_getter, generate_instance_storage_getter_and_setter,
     generate_instance_storage_getter_and_setter_with_default,
-    generate_instance_storage_getter_with_default,
-    generate_instance_storage_setter,
+    generate_instance_storage_getter_with_default, generate_instance_storage_setter,
 };
 
 // FROM SOROSWAP
@@ -38,7 +36,7 @@ enum DataKey {
     ContractSequence(Address),
     // Index registry storage
     DeployedIndexes(Address), // manager -> Vec<Address>
-    AllDeployedIndexes, // global registry -> Vec<Address>
+    AllDeployedIndexes,       // global registry -> Vec<Address>
 }
 
 generate_instance_storage_getter_and_setter!(swap_utility, DataKey::SwapUtility, Address);
@@ -77,7 +75,9 @@ pub fn add_deployed_index(env: &Env, manager: &Address, index_address: &Address)
         None => Vec::new(env),
     };
     manager_indexes.push_back(index_address.clone());
-    env.storage().persistent().set(&manager_key, &manager_indexes);
+    env.storage()
+        .persistent()
+        .set(&manager_key, &manager_indexes);
     bump_persistent(env, &manager_key);
 
     // Add to global list

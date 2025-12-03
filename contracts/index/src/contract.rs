@@ -4,17 +4,8 @@ use crate::events::IndexEvents;
 
 use crate::index::vault_amount_to_shares;
 use crate::interface::{
-    AdminInterface,
-    ComponentAction,
-    ComponentAllocation,
-    IndexInfo,
-    IndexMetrics,
-    IndexStatus,
-    IndexTrait,
-    QueryInterface,
-    RebalanceParams,
-    RebalanceStatus,
-    RefactorParams,
+    AdminInterface, ComponentAction, ComponentAllocation, IndexInfo, IndexMetrics, IndexStatus,
+    IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus, RefactorParams,
 };
 use crate::storage::get_all_rebalance_authorities;
 use crate::storage::get_blacklist_status;
@@ -30,28 +21,16 @@ use crate::storage::set_public;
 use crate::storage::set_rebalance_authority_status;
 use crate::storage::set_total_mints;
 use crate::storage::update_component_weight;
-use crate::storage::{ get_manager_address, set_manager_address };
 use crate::storage::{
-    get_all_component_balances,
-    get_all_components,
-    get_base_nav,
-    get_component,
-    get_component_balance_safe,
-    get_component_registry,
-    get_component_safe,
-    get_factory_safe,
-    get_initial_price,
-    get_last_rebalance_ts,
-    get_last_updated_ts,
-    get_public,
-    get_rebalance_threshold,
-    get_total_mints,
-    get_total_redemptions,
-    Component,
+    get_all_component_balances, get_all_components, get_base_nav, get_component,
+    get_component_balance_safe, get_component_registry, get_component_safe, get_factory_safe,
+    get_initial_price, get_last_rebalance_ts, get_last_updated_ts, get_public,
+    get_rebalance_threshold, get_total_mints, get_total_redemptions, Component,
 };
+use crate::storage::{get_manager_address, set_manager_address};
 use crate::volume::VolumeTracker;
-use access_control::access::{ AccessControl, AccessControlTrait };
-use access_control::emergency::{ get_emergency_mode, set_emergency_mode };
+use access_control::access::{AccessControl, AccessControlTrait};
+use access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use access_control::errors::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
 use access_control::interface::TransferableContract;
@@ -60,28 +39,17 @@ use access_control::role::Role;
 use access_control::role::SymbolRepresentation;
 use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::{
-    require_pause_admin_or_owner,
-    require_pause_or_emergency_pause_admin_or_owner,
+    require_pause_admin_or_owner, require_pause_or_emergency_pause_admin_or_owner,
 };
 use soroban_sdk::Bytes;
 use soroban_sdk::{
-    contract,
-    contractimpl,
-    panic_with_error,
-    token::TokenClient as SorobanTokenClient,
-    vec,
-    Address,
-    BytesN,
-    Env,
-    log,
-    Map,
-    Symbol,
-    Vec,
+    contract, contractimpl, log, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
+    Address, BytesN, Env, Map, Symbol, Vec,
 };
-use token_share::{ get_token_share, get_total_shares, mint_shares, put_token_share };
+use token_share::{get_token_share, get_total_shares, mint_shares, put_token_share};
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
-use upgrade::{ apply_upgrade, commit_upgrade, revert_upgrade };
+use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
 use utils::storage::IndexParams;
 use utils::token::transfer_token;
 use utils::token::validate_token_contracts;
@@ -134,7 +102,7 @@ impl IndexTrait for Index {
         token: Address,
         amount: u128,
         destination: Option<Address>,
-        _max_slippage: Option<u64>
+        _max_slippage: Option<u64>,
     ) {
         user.require_auth();
 
@@ -178,7 +146,13 @@ impl IndexTrait for Index {
         let n_shares = vault_amount_to_shares(&e, amount, total_shares, vault_amount);
 
         // Deposit the token first
-        transfer_token(&e, &token, &user, &e.current_contract_address(), &(amount as i128));
+        transfer_token(
+            &e,
+            &token,
+            &user,
+            &e.current_contract_address(),
+            &(amount as i128),
+        );
 
         // Execute weight-based allocation
         Index::execute_weight_based_mint(&e, token.clone(), amount);
@@ -213,7 +187,7 @@ impl IndexTrait for Index {
             total_shares,
             total_shares_after,
             // 0, // TODO: Calculate actual fees collected during mint
-            destination
+            destination,
         );
 
         // Also emit legacy event for backward compatibility
@@ -261,11 +235,8 @@ impl IndexTrait for Index {
         // TODO: Implement actual redemption logic to get accurate values
         let component_payouts = Map::new(&e); // Empty map for now
 
-        let redemption_usd_value = VolumeTracker::calculate_redeem_usd_value(
-            &e,
-            share_amount,
-            share_price
-        );
+        let redemption_usd_value =
+            VolumeTracker::calculate_redeem_usd_value(&e, share_amount, share_price);
         VolumeTracker::record_redeem_volume(&e, &user, redemption_usd_value);
 
         Events::new(&e).redemption_executed(
@@ -277,8 +248,7 @@ impl IndexTrait for Index {
             nav_before, // TODO: Calculate nav_after after redemption
             total_shares_before,
             total_shares_before.saturating_sub(share_amount), // Approximation - prevent underflow
-            component_payouts
-            // manager_fees + protocol_fees
+            component_payouts,                                // manager_fees + protocol_fees
         );
 
         // Also emit legacy event for backward compatibility
@@ -385,7 +355,7 @@ impl IndexTrait for Index {
             &spender,
             &from,
             &to,
-            &(amount as i128)
+            &(amount as i128),
         );
     }
 }
@@ -603,7 +573,7 @@ impl AdminInterface for Index {
             components_after,
             0, // No swaps counted here - counted in execute_rebalancing
             0, // TODO: Calculate actual gas cost
-            (nav_after as i128) - (nav_before as i128) // Performance impact
+            (nav_after as i128) - (nav_before as i128), // Performance impact
         );
 
         // Also emit legacy event for backward compatibility
@@ -626,7 +596,7 @@ impl AdminInterface for Index {
             admin.clone(),
             authority.clone(),
             old_status,
-            status
+            status,
         );
 
         // Also emit legacy event for backward compatibility
@@ -647,7 +617,7 @@ impl AdminInterface for Index {
             current_time,
             admin.clone(),
             old_manager.clone(),
-            manager.clone()
+            manager.clone(),
         );
         // Also emit legacy event for backward compatibility
         Events::new(&e).manager_address_updated_legacy(old_manager, manager);
@@ -812,11 +782,10 @@ impl TransferableContract for Index {
         let access_control = AccessControl::new(&e);
         let role = Role::from_symbol(&e, role_name);
         match access_control.get_transfer_ownership_deadline(&role) {
-            0 =>
-                match access_control.get_role_safe(&role) {
-                    Some(address) => address,
-                    None => panic_with_error!(&e, AccessControlError::RoleNotFound),
-                }
+            0 => match access_control.get_role_safe(&role) {
+                Some(address) => address,
+                None => panic_with_error!(&e, AccessControlError::RoleNotFound),
+            },
             _ => access_control.get_future_address(&role),
         }
     }
@@ -873,10 +842,8 @@ impl QueryInterface for Index {
 
             if balance > 0 {
                 // Get the token price - for now we'll use a placeholder approach
-                let token_price = Index::get_token_price_in_base_currency(
-                    &e,
-                    component_address.clone()
-                );
+                let token_price =
+                    Index::get_token_price_in_base_currency(&e, component_address.clone());
 
                 // Calculate value: balance * price
                 let component_value = balance.saturating_mul(token_price);
@@ -992,8 +959,8 @@ impl QueryInterface for Index {
             access_control.address_has_role(&caller, &Role::Admin)
         } else {
             // Private index: admin or rebalance authority
-            access_control.address_has_role(&caller, &Role::Admin) ||
-                get_rebalance_authority_status(&e, &caller)
+            access_control.address_has_role(&caller, &Role::Admin)
+                || get_rebalance_authority_status(&e, &caller)
         }
     }
 
@@ -1076,7 +1043,7 @@ impl Index {
     fn get_price_via_factory_aggregator(
         e: &Env,
         _factory_address: &Address,
-        token: &Address
+        token: &Address,
     ) -> Option<u128> {
         // Placeholder: aggregator not implemented yet. Return None to fall back to weight-based pricing.
         let _ = (e, token);
@@ -1115,9 +1082,8 @@ impl Index {
         let access_control = AccessControl::new(e);
 
         // Allow admin or rebalance authority
-        if
-            !access_control.address_has_role(caller, &Role::Admin) &&
-            !get_rebalance_authority_status(e, caller)
+        if !access_control.address_has_role(caller, &Role::Admin)
+            && !get_rebalance_authority_status(e, caller)
         {
             panic_with_error!(e, IndexError::UnauthorizedRebalance);
         }
@@ -1172,14 +1138,14 @@ impl Index {
             performance_delta,
             nav_before,
             nav_after,
-            duration_ms
+            duration_ms,
         );
 
         // Also emit legacy event for backward compatibility
         Events::new(e).rebalance_completed(
             e.current_contract_address(),
             0, // components_updated: 0
-            total_swaps
+            total_swaps,
         );
     }
 
@@ -1207,10 +1173,8 @@ impl Index {
                     _components_updated += 1;
 
                     // Get component balance for NAV impact calculation
-                    let initial_balance = get_component_balance_safe(
-                        e,
-                        update.token.clone()
-                    ).unwrap_or(0);
+                    let initial_balance =
+                        get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
                     let current_time = e.ledger().timestamp();
 
                     // Emit enhanced event
@@ -1220,7 +1184,7 @@ impl Index {
                         update.token.clone(),
                         update.new_weight,
                         initial_balance,
-                        0 // TODO: Calculate actual NAV impact
+                        0, // TODO: Calculate actual NAV impact
                     );
 
                     // Also emit legacy event for backward compatibility
@@ -1230,10 +1194,8 @@ impl Index {
                     // Get component info before removing
                     let component = get_component(e, update.token.clone()); // This will panic if not found
                     let old_weight = component.weight;
-                    let final_balance = get_component_balance_safe(
-                        e,
-                        update.token.clone()
-                    ).unwrap_or(0);
+                    let final_balance =
+                        get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
                     let current_time = e.ledger().timestamp();
 
                     remove_component(e, update.token.clone());
@@ -1246,7 +1208,7 @@ impl Index {
                         update.token.clone(),
                         final_balance,
                         final_balance, // proceeds_distributed (approximation)
-                        0 // TODO: Calculate actual NAV impact
+                        0,             // TODO: Calculate actual NAV impact
                     );
 
                     // Also emit legacy event for backward compatibility
@@ -1271,7 +1233,7 @@ impl Index {
                     Events::new(e).component_weight_updated(
                         update.token.clone(),
                         old_weight,
-                        update.new_weight
+                        update.new_weight,
                     );
                 }
             }
@@ -1330,13 +1292,13 @@ impl Index {
                 if component_token == deposited_token {
                     // No swap needed - the deposited token matches this component
                     // Just update the component balance directly
-                    let current_balance = crate::storage
-                        ::get_component_balance_safe(e, component_token.clone())
-                        .unwrap_or(0);
+                    let current_balance =
+                        crate::storage::get_component_balance_safe(e, component_token.clone())
+                            .unwrap_or(0);
                     crate::storage::set_component_balance(
                         e,
                         component_token.clone(),
-                        current_balance + target_amount
+                        current_balance + target_amount,
                     );
                 } else {
                     // Need to swap deposited token for component token
@@ -1369,13 +1331,13 @@ impl Index {
                     // This component required a swap
                     if swap_index < swap_results.len() {
                         let amount_received = swap_results.get(swap_index).unwrap_or(0u128);
-                        let current_balance = crate::storage
-                            ::get_component_balance_safe(e, component_token.clone())
-                            .unwrap_or(0);
+                        let current_balance =
+                            crate::storage::get_component_balance_safe(e, component_token.clone())
+                                .unwrap_or(0);
                         crate::storage::set_component_balance(
                             e,
                             component_token.clone(),
-                            current_balance + amount_received
+                            current_balance + amount_received,
                         );
                         swap_index += 1;
                     }

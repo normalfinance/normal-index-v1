@@ -2,44 +2,31 @@ use crate::events::Events;
 use crate::events::FactoryConfigEvents;
 use crate::events::FactoryEvents;
 use crate::index_utils::get_index_salt;
-use crate::interface::{ AdminInterface, IndexFactoryTrait };
+use crate::interface::{AdminInterface, IndexFactoryTrait};
 use crate::storage::get_index_contract_wasm;
 use crate::storage::get_swap_utility;
 use crate::storage::set_index_contract_wasm;
 use crate::storage::set_swap_utility;
 use crate::storage::{
-    add_deployed_index,
-    get_all_deployed_indexes,
-    get_contract_sequence,
-    get_deployed_indexes,
-    get_oracle_registry,
-    set_contract_sequence,
-    set_oracle_registry,
+    add_deployed_index, get_all_deployed_indexes, get_contract_sequence, get_deployed_indexes,
+    get_oracle_registry, set_contract_sequence, set_oracle_registry,
 };
-use access_control::access::{ AccessControl, AccessControlTrait };
-use access_control::emergency::{ get_emergency_mode, set_emergency_mode };
+use access_control::access::{AccessControl, AccessControlTrait};
+use access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use access_control::errors::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
 use access_control::interface::TransferableContract;
 use access_control::management::SingleAddressManagementTrait;
-use access_control::role::{ Role, SymbolRepresentation };
+use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::require_admin;
 use soroban_sdk::Bytes;
 use soroban_sdk::{
-    contract,
-    contractimpl,
-    contracttype,
-    panic_with_error,
-    Address,
-    BytesN,
-    Env,
-    Symbol,
-    Vec,
+    contract, contractimpl, contracttype, panic_with_error, Address, BytesN, Env, Symbol, Vec,
 };
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
-use upgrade::{ apply_upgrade, commit_upgrade, revert_upgrade };
+use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
 use utils::storage::IndexParams;
 
 #[contract]
@@ -69,7 +56,7 @@ impl IndexFactory {
         admin: Address,
         emergency_admin: Address,
         swap_utility: Address,
-        index_contract_wasm: BytesN<32>
+        index_contract_wasm: BytesN<32>,
     ) {
         let access_control = AccessControl::new(&e);
         access_control.set_role_address(&Role::Admin, &admin);
@@ -100,14 +87,14 @@ impl IndexFactoryTrait for IndexFactory {
 
         let salt = get_index_salt(&e, &params.admin, &sequence);
 
-        let address = e
-            .deployer()
-            .with_current_contract(salt)
-            .deploy_v2(get_index_contract_wasm(&e), (
+        let address = e.deployer().with_current_contract(salt).deploy_v2(
+            get_index_contract_wasm(&e),
+            (
                 e.current_contract_address(),
                 serialized_asset.clone(),
                 params.clone(),
-            ));
+            ),
+        );
 
         // Add to index registry
         add_deployed_index(&e, &params.admin, &address);
@@ -133,7 +120,7 @@ impl IndexFactoryTrait for IndexFactory {
             base_nav,
             initial_price,
             is_public,
-            deployment_cost
+            deployment_cost,
         );
 
         address
@@ -214,7 +201,7 @@ impl AdminInterface for IndexFactory {
             admin.clone(),
             old_wasm.clone(),
             index_contract_wasm.clone(),
-            1
+            1,
         );
     }
 
@@ -401,11 +388,10 @@ impl TransferableContract for IndexFactory {
         let access_control = AccessControl::new(&e);
         let role = Role::from_symbol(&e, role_name);
         match access_control.get_transfer_ownership_deadline(&role) {
-            0 =>
-                match access_control.get_role_safe(&role) {
-                    Some(address) => address,
-                    None => panic_with_error!(&e, AccessControlError::RoleNotFound),
-                }
+            0 => match access_control.get_role_safe(&role) {
+                Some(address) => address,
+                None => panic_with_error!(&e, AccessControlError::RoleNotFound),
+            },
             _ => access_control.get_future_address(&role),
         }
     }

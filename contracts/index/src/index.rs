@@ -1,14 +1,6 @@
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
-    contracttype,
-    panic_with_error,
-    Address,
-    Env,
-    IntoVal,
-    log,
-    String,
-    Symbol,
-    Vec,
+    contracttype, log, panic_with_error, Address, Env, IntoVal, String, Symbol, Vec,
 };
 use token_share::get_token_share;
 use utils::validate;
@@ -28,8 +20,8 @@ pub struct SwapUtilityParams {
 }
 
 use crate::errors::IndexError;
-use crate::events::{ Events, IndexEvents };
-use crate::storage::{ get_all_components, get_swap_utility, get_swap_utility_address };
+use crate::events::{Events, IndexEvents};
+use crate::storage::{get_all_components, get_swap_utility, get_swap_utility_address};
 
 #[contracttype]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -70,7 +62,7 @@ pub struct SwapParams {
 pub fn generate_swap_params(
     e: &Env,
     deposit_token: Address,
-    deposit_amount: u128
+    deposit_amount: u128,
 ) -> Vec<SwapParams> {
     // Validate inputs
     validate!(e, deposit_amount > 0, IndexError::PathIsEmpty);
@@ -159,7 +151,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
         let swap_result = e.try_invoke_contract::<SwapResult, soroban_sdk::Error>(
             &get_swap_utility(&e),
             &Symbol::new(&e, "execute_swap"),
-            Vec::from_array(&e, [utility_params.into_val(e)])
+            Vec::from_array(&e, [utility_params.into_val(e)]),
         );
 
         match swap_result {
@@ -172,7 +164,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
                     params.token_in,
                     params.token_out,
                     result.amount_in,
-                    result.amount_out
+                    result.amount_out,
                 );
 
                 // Add successful result
@@ -185,7 +177,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
                     params.token_in,
                     params.token_out,
                     params.amount_in.try_into().unwrap(),
-                    1000u32 // Convert error enum to numeric code
+                    1000u32, // Convert error enum to numeric code
                 );
 
                 // Add zero result for failed swap
@@ -198,7 +190,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
                     params.token_in,
                     params.token_out,
                     params.amount_in.try_into().unwrap(),
-                    999u32 // Generic contract call failure
+                    999u32, // Generic contract call failure
                 );
 
                 // Add zero result for failed swap
@@ -249,12 +241,14 @@ pub fn vault_amount_to_shares(
     e: &Env,
     amount: u128,
     total_shares: u128,
-    vault_amount: u128
+    vault_amount: u128,
 ) -> u128 {
     // relative to the entire pool + total amount minted
     let n_shares = if vault_amount > 0 {
         // assumes total_shares != 0 (in most cases) for nice result for user
-        amount.fixed_mul_floor(total_shares, vault_amount).unwrap_or(amount)
+        amount
+            .fixed_mul_floor(total_shares, vault_amount)
+            .unwrap_or(amount)
         // get_proportion_u128(e, amount, total_shares, vault_amount)
     } else {
         // must be case that total_shares == 0 for nice result for user
@@ -269,7 +263,7 @@ pub fn vault_amount_to_shares(
 // Enhanced rebalancing swap generation - now focuses on balancing existing components
 pub fn generate_rebalance_swaps(
     e: &Env,
-    params: &crate::interface::RebalanceParams
+    params: &crate::interface::RebalanceParams,
 ) -> Vec<SwapParams> {
     let current_nav = crate::storage::get_base_nav(e) as u128; // Simplified NAV calculation
     let target_nav = params.target_nav.map(|n| n as u128).unwrap_or(current_nav);
@@ -288,9 +282,8 @@ pub fn generate_rebalance_swaps(
         let token_address = component_addresses.get_unchecked(i);
         let component = components.get(token_address.clone()).unwrap();
 
-        let current_balance = crate::storage
-            ::get_component_balance_safe(e, token_address.clone())
-            .unwrap_or(0);
+        let current_balance =
+            crate::storage::get_component_balance_safe(e, token_address.clone()).unwrap_or(0);
 
         // Calculate target balance based on component weight and target NAV
         let target_balance = if target_nav > 0 {

@@ -1,4 +1,4 @@
-use soroban_sdk::{ Address, BytesN, Env, Symbol, Vec };
+use soroban_sdk::{Address, BytesN, Env, Symbol, Vec};
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -37,7 +37,7 @@ pub(crate) trait FactoryEvents {
         base_nav: u128,
         initial_price: u128,
         is_public: bool,
-        deployment_cost: u128
+        deployment_cost: u128,
     );
 
     // Factory configuration events
@@ -62,62 +62,59 @@ impl FactoryEvents for Events {
         base_nav: u128,
         initial_price: u128,
         is_public: bool,
-        deployment_cost: u128
+        deployment_cost: u128,
     ) {
         // Split into multiple events due to Soroban topic limits
         // Primary deployment event
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "index_deployed"),
-                    ts,
-                    deployer.clone(),
-                    index_address.clone(),
-                    operator,
-                    manager,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "index_deployed"),
+                ts,
+                deployer.clone(),
+                index_address.clone(),
+                operator,
+                manager,
+            ),
+            (),
+        );
 
         // Configuration event
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "index_config"),
-                    ts,
-                    index_address.clone(),
-                    base_nav,
-                    initial_price,
-                    is_public,
-                    deployment_cost,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "index_config"),
+                ts,
+                index_address.clone(),
+                base_nav,
+                initial_price,
+                is_public,
+                deployment_cost,
+            ),
+            (),
+        );
 
         // Components event
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "index_components"),
-                    ts,
-                    index_address,
-                    initial_components,
-                    initial_weights,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "index_components"),
+                ts,
+                index_address,
+                initial_components,
+                initial_weights,
+            ),
+            (),
+        );
     }
 
     fn factory_admin_updated(&self, ts: u64, old_admin: Address, new_admin: Address) {
-        self.env()
-            .events()
-            .publish(
-                (Symbol::new(self.env(), "factory_admin_updated"), ts, old_admin, new_admin),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "factory_admin_updated"),
+                ts,
+                old_admin,
+                new_admin,
+            ),
+            (),
+        );
     }
 
     fn factory_paused(&self, ts: u64, admin: Address) {
@@ -148,7 +145,7 @@ pub(crate) trait FactoryConfigEvents {
         admin: Address,
         old_wasm: BytesN<32>,
         new_wasm: BytesN<32>,
-        version: u32
+        version: u32,
     );
 
     fn token_wasm_updated(
@@ -157,7 +154,7 @@ pub(crate) trait FactoryConfigEvents {
         admin: Address,
         old_wasm: BytesN<32>,
         new_wasm: BytesN<32>,
-        version: u32
+        version: u32,
     );
 }
 
@@ -168,14 +165,19 @@ impl FactoryConfigEvents for Events {
         admin: Address,
         old_wasm: BytesN<32>,
         new_wasm: BytesN<32>,
-        version: u32
+        version: u32,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (Symbol::new(self.env(), "wasm_updated"), ts, admin, old_wasm, new_wasm, version),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "wasm_updated"),
+                ts,
+                admin,
+                old_wasm,
+                new_wasm,
+                version,
+            ),
+            (),
+        );
     }
 
     fn token_wasm_updated(
@@ -184,13 +186,18 @@ impl FactoryConfigEvents for Events {
         admin: Address,
         old_wasm: BytesN<32>,
         new_wasm: BytesN<32>,
-        version: u32
+        version: u32,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (Symbol::new(self.env(), "wasm_updated"), ts, admin, old_wasm, new_wasm, version),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "wasm_updated"),
+                ts,
+                admin,
+                old_wasm,
+                new_wasm,
+                version,
+            ),
+            (),
+        );
     }
 }

@@ -1,6 +1,6 @@
 use crate::index::DexProvider;
 use crate::storage::Component;
-use soroban_sdk::{ Address, Env, Map, Symbol, Vec };
+use soroban_sdk::{Address, Env, Map, Symbol, Vec};
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -32,7 +32,7 @@ pub(crate) trait IndexEvents {
         total_shares_before: u128,
         total_shares_after: u128,
         // fees_collected: u128,
-        destination: Option<Address>
+        destination: Option<Address>,
     );
 
     // Enhanced redemption event with component breakdown
@@ -46,8 +46,7 @@ pub(crate) trait IndexEvents {
         nav_after: u128,
         total_shares_before: u128,
         total_shares_after: u128,
-        component_payouts: Map<Address, u128>
-        // fees_deducted: u128,
+        component_payouts: Map<Address, u128>, // fees_deducted: u128,
     );
 
     // Enhanced rebalancing event with detailed swap and performance data
@@ -61,7 +60,7 @@ pub(crate) trait IndexEvents {
         components_after: Map<Address, Component>,
         total_swaps: u32,
         gas_cost: u128,
-        performance_impact: i128 // Can be negative if rebalancing reduced NAV
+        performance_impact: i128, // Can be negative if rebalancing reduced NAV
     );
 
     fn refactor_executed(
@@ -70,7 +69,7 @@ pub(crate) trait IndexEvents {
         caller: Address,
         components_before: Map<Address, Component>,
         components_after: Map<Address, Component>,
-        components_updated: u32
+        components_updated: u32,
     );
 
     // Legacy events for backward compatibility
@@ -88,7 +87,7 @@ pub(crate) trait IndexEvents {
         token_in: Address,
         token_out: Address,
         amount_in: u128,
-        amount_out: u128
+        amount_out: u128,
     );
 
     fn swap_failed(
@@ -97,7 +96,7 @@ pub(crate) trait IndexEvents {
         token_in: Address,
         token_out: Address,
         amount_in: u128,
-        error_code: u32
+        error_code: u32,
     );
 
     fn kill_deposit(&self);
@@ -118,7 +117,7 @@ pub(crate) trait IndexEvents {
         ts: u64,
         admin: Address,
         old_manager: Address,
-        new_manager: Address
+        new_manager: Address,
     );
 
     fn public_status_updated(&self, ts: u64, admin: Address, old_status: bool, new_status: bool);
@@ -129,7 +128,7 @@ pub(crate) trait IndexEvents {
         admin: Address,
         user: Address,
         old_status: bool,
-        new_status: bool
+        new_status: bool,
     );
 
     fn blacklist_status_updated(
@@ -138,7 +137,7 @@ pub(crate) trait IndexEvents {
         admin: Address,
         user: Address,
         old_status: bool,
-        new_status: bool
+        new_status: bool,
     );
 
     fn rebalance_threshold_updated(
@@ -146,7 +145,7 @@ pub(crate) trait IndexEvents {
         ts: u64,
         admin: Address,
         old_threshold: u64,
-        new_threshold: u64
+        new_threshold: u64,
     );
 
     fn base_nav_updated(&self, ts: u64, admin: Address, old_nav: u128, new_nav: u128);
@@ -158,14 +157,14 @@ pub(crate) trait IndexEvents {
         &self,
         ts: u64,
         admin: Address,
-        operation: Symbol // "mint", "redeem", "rebalance"
+        operation: Symbol, // "mint", "redeem", "rebalance"
     );
 
     fn operation_unkilled(
         &self,
         ts: u64,
         admin: Address,
-        operation: Symbol // "mint", "redeem", "rebalance"
+        operation: Symbol, // "mint", "redeem", "rebalance"
     );
 
     // Enhanced component management events
@@ -176,7 +175,7 @@ pub(crate) trait IndexEvents {
         token: Address,
         weight: u128,
         initial_balance: u128,
-        nav_impact: u128
+        nav_impact: u128,
     );
 
     fn component_removed_detailed(
@@ -186,7 +185,7 @@ pub(crate) trait IndexEvents {
         token: Address,
         final_balance: u128,
         proceeds_distributed: u128,
-        nav_impact: u128
+        nav_impact: u128,
     );
 
     fn component_weight_updated_detailed(
@@ -198,7 +197,7 @@ pub(crate) trait IndexEvents {
         new_weight: u128,
         balance_before: u128,
         balance_after: u128,
-        nav_impact: u128
+        nav_impact: u128,
     );
 
     fn rebalance_authority_updated_detailed(
@@ -207,7 +206,7 @@ pub(crate) trait IndexEvents {
         admin: Address,
         authority: Address,
         old_status: bool,
-        new_status: bool
+        new_status: bool,
     );
 
     // Enhanced rebalance completion event
@@ -221,7 +220,7 @@ pub(crate) trait IndexEvents {
         performance_delta: i128,
         nav_before: u128,
         nav_after: u128,
-        duration_ms: u64
+        duration_ms: u64,
     );
 
     fn manager_address_updated_legacy(&self, old_manager: Address, new_manager: Address);
@@ -253,28 +252,26 @@ impl IndexEvents for Events {
         total_shares_before: u128,
         total_shares_after: u128,
         // fees_collected: u128,
-        destination: Option<Address>
+        destination: Option<Address>,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "mint_executed"),
-                    ts,
-                    user.clone(),
-                    token_in,
-                    amount_in,
-                    shares_minted,
-                    share_price,
-                    nav_before,
-                    nav_after,
-                    total_shares_before,
-                    total_shares_after,
-                    // fees_collected,
-                    destination.unwrap_or(user),
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "mint_executed"),
+                ts,
+                user.clone(),
+                token_in,
+                amount_in,
+                shares_minted,
+                share_price,
+                nav_before,
+                nav_after,
+                total_shares_before,
+                total_shares_after,
+                // fees_collected,
+                destination.unwrap_or(user),
+            ),
+            (),
+        );
     }
 
     fn redemption_executed(
@@ -287,27 +284,24 @@ impl IndexEvents for Events {
         nav_after: u128,
         total_shares_before: u128,
         total_shares_after: u128,
-        component_payouts: Map<Address, u128>
-        // fees_deducted: u128,
+        component_payouts: Map<Address, u128>, // fees_deducted: u128,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "redemption_executed"),
-                    ts,
-                    user,
-                    shares_redeemed,
-                    share_price,
-                    nav_before,
-                    nav_after,
-                    total_shares_before,
-                    total_shares_after,
-                    component_payouts,
-                    // fees_deducted,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "redemption_executed"),
+                ts,
+                user,
+                shares_redeemed,
+                share_price,
+                nav_before,
+                nav_after,
+                total_shares_before,
+                total_shares_after,
+                component_payouts,
+                // fees_deducted,
+            ),
+            (),
+        );
     }
 
     fn rebalance_executed(
@@ -320,25 +314,23 @@ impl IndexEvents for Events {
         components_after: Map<Address, Component>,
         total_swaps: u32,
         gas_cost: u128,
-        performance_impact: i128
+        performance_impact: i128,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "rebalance_executed"),
-                    ts,
-                    caller,
-                    nav_before,
-                    nav_after,
-                    components_before,
-                    components_after,
-                    total_swaps,
-                    gas_cost,
-                    performance_impact,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "rebalance_executed"),
+                ts,
+                caller,
+                nav_before,
+                nav_after,
+                components_before,
+                components_after,
+                total_swaps,
+                gas_cost,
+                performance_impact,
+            ),
+            (),
+        );
     }
 
     fn refactor_executed(
@@ -347,21 +339,19 @@ impl IndexEvents for Events {
         caller: Address,
         components_before: Map<Address, Component>,
         components_after: Map<Address, Component>,
-        components_updated: u32
+        components_updated: u32,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "refactor_executed"),
-                    ts,
-                    caller,
-                    components_before,
-                    components_after,
-                    components_updated,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "refactor_executed"),
+                ts,
+                caller,
+                components_before,
+                components_after,
+                components_updated,
+            ),
+            (),
+        );
     }
 
     // Configuration update event implementations
@@ -370,35 +360,31 @@ impl IndexEvents for Events {
         ts: u64,
         admin: Address,
         old_manager: Address,
-        new_manager: Address
+        new_manager: Address,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "manager_address_updated"),
-                    ts,
-                    admin,
-                    old_manager,
-                    new_manager,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "manager_address_updated"),
+                ts,
+                admin,
+                old_manager,
+                new_manager,
+            ),
+            (),
+        );
     }
 
     fn public_status_updated(&self, ts: u64, admin: Address, old_status: bool, new_status: bool) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "public_status_updated"),
-                    ts,
-                    admin,
-                    old_status,
-                    new_status,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "public_status_updated"),
+                ts,
+                admin,
+                old_status,
+                new_status,
+            ),
+            (),
+        );
     }
 
     fn whitelist_status_updated(
@@ -407,21 +393,19 @@ impl IndexEvents for Events {
         admin: Address,
         user: Address,
         old_status: bool,
-        new_status: bool
+        new_status: bool,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "whitelist_status_updated"),
-                    ts,
-                    admin,
-                    user,
-                    old_status,
-                    new_status,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "whitelist_status_updated"),
+                ts,
+                admin,
+                user,
+                old_status,
+                new_status,
+            ),
+            (),
+        );
     }
 
     fn blacklist_status_updated(
@@ -430,21 +414,19 @@ impl IndexEvents for Events {
         admin: Address,
         user: Address,
         old_status: bool,
-        new_status: bool
+        new_status: bool,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "blacklist_status_updated"),
-                    ts,
-                    admin,
-                    user,
-                    old_status,
-                    new_status,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "blacklist_status_updated"),
+                ts,
+                admin,
+                user,
+                old_status,
+                new_status,
+            ),
+            (),
+        );
     }
 
     fn rebalance_threshold_updated(
@@ -452,50 +434,68 @@ impl IndexEvents for Events {
         ts: u64,
         admin: Address,
         old_threshold: u64,
-        new_threshold: u64
+        new_threshold: u64,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "rebalance_threshold_updated"),
-                    ts,
-                    admin,
-                    old_threshold,
-                    new_threshold,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "rebalance_threshold_updated"),
+                ts,
+                admin,
+                old_threshold,
+                new_threshold,
+            ),
+            (),
+        );
     }
 
     fn base_nav_updated(&self, ts: u64, admin: Address, old_nav: u128, new_nav: u128) {
-        self.env()
-            .events()
-            .publish(
-                (Symbol::new(self.env(), "base_nav_updated"), ts, admin, old_nav, new_nav),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "base_nav_updated"),
+                ts,
+                admin,
+                old_nav,
+                new_nav,
+            ),
+            (),
+        );
     }
 
     fn initial_price_updated(&self, ts: u64, admin: Address, old_price: u128, new_price: u128) {
-        self.env()
-            .events()
-            .publish(
-                (Symbol::new(self.env(), "initial_price_updated"), ts, admin, old_price, new_price),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "initial_price_updated"),
+                ts,
+                admin,
+                old_price,
+                new_price,
+            ),
+            (),
+        );
     }
 
     fn operation_killed(&self, ts: u64, admin: Address, operation: Symbol) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "operation_killed"), ts, admin, operation), ());
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "operation_killed"),
+                ts,
+                admin,
+                operation,
+            ),
+            (),
+        );
     }
 
     fn operation_unkilled(&self, ts: u64, admin: Address, operation: Symbol) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "operation_unkilled"), ts, admin, operation), ());
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "operation_unkilled"),
+                ts,
+                admin,
+                operation,
+            ),
+            (),
+        );
     }
 
     // Enhanced component management event implementations
@@ -506,22 +506,20 @@ impl IndexEvents for Events {
         token: Address,
         weight: u128,
         initial_balance: u128,
-        nav_impact: u128
+        nav_impact: u128,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "component_added_detailed"),
-                    ts,
-                    admin,
-                    token,
-                    weight,
-                    initial_balance,
-                    nav_impact,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "component_added_detailed"),
+                ts,
+                admin,
+                token,
+                weight,
+                initial_balance,
+                nav_impact,
+            ),
+            (),
+        );
     }
 
     fn component_removed_detailed(
@@ -531,22 +529,20 @@ impl IndexEvents for Events {
         token: Address,
         final_balance: u128,
         proceeds_distributed: u128,
-        nav_impact: u128
+        nav_impact: u128,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "component_removed_detailed"),
-                    ts,
-                    admin,
-                    token,
-                    final_balance,
-                    proceeds_distributed,
-                    nav_impact,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "component_removed_detailed"),
+                ts,
+                admin,
+                token,
+                final_balance,
+                proceeds_distributed,
+                nav_impact,
+            ),
+            (),
+        );
     }
 
     fn component_weight_updated_detailed(
@@ -558,24 +554,22 @@ impl IndexEvents for Events {
         new_weight: u128,
         balance_before: u128,
         balance_after: u128,
-        nav_impact: u128
+        nav_impact: u128,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "component_weight_upd_detailed"),
-                    ts,
-                    admin,
-                    token,
-                    old_weight,
-                    new_weight,
-                    balance_before,
-                    balance_after,
-                    nav_impact,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "component_weight_upd_detailed"),
+                ts,
+                admin,
+                token,
+                old_weight,
+                new_weight,
+                balance_before,
+                balance_after,
+                nav_impact,
+            ),
+            (),
+        );
     }
 
     fn rebalance_authority_updated_detailed(
@@ -584,21 +578,19 @@ impl IndexEvents for Events {
         admin: Address,
         authority: Address,
         old_status: bool,
-        new_status: bool
+        new_status: bool,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "rebalance_auth_updated_detailed"),
-                    ts,
-                    admin,
-                    authority,
-                    old_status,
-                    new_status,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "rebalance_auth_updated_detailed"),
+                ts,
+                admin,
+                authority,
+                old_status,
+                new_status,
+            ),
+            (),
+        );
     }
 
     fn rebalance_completed_detailed(
@@ -611,25 +603,23 @@ impl IndexEvents for Events {
         performance_delta: i128,
         nav_before: u128,
         nav_after: u128,
-        duration_ms: u64
+        duration_ms: u64,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "rebalance_completed_detailed"),
-                    ts,
-                    caller,
-                    components_updated,
-                    total_swaps,
-                    total_gas_cost,
-                    performance_delta,
-                    nav_before,
-                    nav_after,
-                    duration_ms,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "rebalance_completed_detailed"),
+                ts,
+                caller,
+                components_updated,
+                total_swaps,
+                total_gas_cost,
+                performance_delta,
+                nav_before,
+                nav_after,
+                duration_ms,
+            ),
+            (),
+        );
     }
 
     // Legacy event implementations for backward compatibility
@@ -659,23 +649,21 @@ impl IndexEvents for Events {
         token_in: Address,
         token_out: Address,
         amount_in: u128,
-        amount_out: u128
+        amount_out: u128,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "swap"),
-                    tokens,
-                    user,
-                    pool_id,
-                    token_in,
-                    token_out,
-                    amount_in,
-                    amount_out,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "swap"),
+                tokens,
+                user,
+                pool_id,
+                token_in,
+                token_out,
+                amount_in,
+                amount_out,
+            ),
+            (),
+        );
     }
 
     fn swap_failed(
@@ -684,21 +672,19 @@ impl IndexEvents for Events {
         token_in: Address,
         token_out: Address,
         amount_in: u128,
-        error_code: u32
+        error_code: u32,
     ) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "swap_failed"),
-                    user,
-                    token_in,
-                    token_out,
-                    amount_in,
-                    error_code,
-                ),
-                ()
-            );
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "swap_failed"),
+                user,
+                token_in,
+                token_out,
+                amount_in,
+                error_code,
+            ),
+            (),
+        );
     }
 
     fn kill_deposit(&self) {
@@ -740,18 +726,21 @@ impl IndexEvents for Events {
     // Revenue Share Event Implementations
 
     fn manager_address_updated_legacy(&self, old_manager: Address, new_manager: Address) {
-        self.env()
-            .events()
-            .publish(
-                (Symbol::new(self.env(), "manager_address_updated"), old_manager, new_manager),
-                ()
-            )
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "manager_address_updated"),
+                old_manager,
+                new_manager,
+            ),
+            (),
+        )
     }
 
     fn component_added(&self, token: Address, weight: u128) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "component_added"), token, weight), ())
+        self.env().events().publish(
+            (Symbol::new(self.env(), "component_added"), token, weight),
+            (),
+        )
     }
 
     fn component_removed(&self, token: Address) {
@@ -761,39 +750,37 @@ impl IndexEvents for Events {
     }
 
     fn component_weight_updated(&self, token: Address, old_weight: u128, new_weight: u128) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "component_weight_updated"),
-                    token,
-                    old_weight,
-                    new_weight,
-                ),
-                ()
-            )
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "component_weight_updated"),
+                token,
+                old_weight,
+                new_weight,
+            ),
+            (),
+        )
     }
 
     fn rebalance_authority_updated(&self, authority: Address, status: bool) {
-        self.env()
-            .events()
-            .publish(
-                (Symbol::new(self.env(), "rebalance_authority_updated"), authority, status),
-                ()
-            )
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "rebalance_authority_updated"),
+                authority,
+                status,
+            ),
+            (),
+        )
     }
 
     fn rebalance_completed(&self, caller: Address, components_updated: u32, total_swaps: u32) {
-        self.env()
-            .events()
-            .publish(
-                (
-                    Symbol::new(self.env(), "rebalance_completed"),
-                    caller,
-                    components_updated,
-                    total_swaps,
-                ),
-                ()
-            )
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "rebalance_completed"),
+                caller,
+                components_updated,
+                total_swaps,
+            ),
+            (),
+        )
     }
 }
