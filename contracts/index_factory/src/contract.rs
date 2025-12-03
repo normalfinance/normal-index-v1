@@ -2,38 +2,45 @@ use crate::events::Events;
 use crate::events::FactoryConfigEvents;
 use crate::events::FactoryEvents;
 use crate::index_utils::get_index_salt;
-use crate::interface::{AdminInterface, IndexFactoryTrait};
+use crate::interface::{ AdminInterface, IndexFactoryTrait };
 use crate::storage::get_index_contract_wasm;
-use crate::storage::get_index_fee_enabled;
 use crate::storage::get_swap_utility;
 use crate::storage::set_index_contract_wasm;
-use crate::storage::set_index_fee_enabled;
 use crate::storage::set_is_killed_create;
 use crate::storage::set_swap_utility;
 use crate::storage::{
-    add_deployed_index, add_user_volume_entry, get_all_deployed_indexes, get_contract_sequence,
-    get_deployed_indexes, get_fee_tier_config_with_default, get_max_manager_fee_amount,
-    get_minimum_fee_threshold, get_oracle_registry, get_protocol_fee_amount,
-    get_protocol_fee_recipient, get_user_30_day_volume, set_contract_sequence, set_fee_tier_config,
-    set_max_manager_fee_amount, set_minimum_fee_threshold, set_oracle_registry,
-    set_protocol_fee_amount, set_protocol_fee_recipient,
+    add_deployed_index,
+    get_all_deployed_indexes,
+    get_contract_sequence,
+    get_deployed_indexes,
+    get_oracle_registry,
+    set_contract_sequence,
+    set_oracle_registry,
 };
-use access_control::access::{AccessControl, AccessControlTrait};
-use access_control::emergency::{get_emergency_mode, set_emergency_mode};
+use access_control::access::{ AccessControl, AccessControlTrait };
+use access_control::emergency::{ get_emergency_mode, set_emergency_mode };
 use access_control::errors::AccessControlError;
 use access_control::events::Events as AccessControlEvents;
 use access_control::interface::TransferableContract;
 use access_control::management::SingleAddressManagementTrait;
-use access_control::role::{Role, SymbolRepresentation};
+use access_control::role::{ Role, SymbolRepresentation };
 use access_control::transfer::TransferOwnershipTrait;
 use access_control::utils::require_admin;
 use soroban_sdk::Bytes;
 use soroban_sdk::{
-    contract, contractimpl, contracttype, panic_with_error, Address, BytesN, Env, Map, Symbol, Vec,
+    contract,
+    contractimpl,
+    contracttype,
+    panic_with_error,
+    Address,
+    BytesN,
+    Env,
+    Symbol,
+    Vec,
 };
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
-use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
+use upgrade::{ apply_upgrade, commit_upgrade, revert_upgrade };
 use utils::storage::IndexParams;
 
 #[contract]
@@ -44,10 +51,6 @@ pub struct IndexFactory;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FactoryConfig {
     pub swap_utility: Address,
-    pub protocol_fee_amount: u128,
-    pub max_manager_fee_amount: u128,
-    pub protocol_fee_recipient: Address,
-    pub minimum_fee_threshold: u128,
     pub index_contract_wasm: BytesN<32>,
 }
 
@@ -67,11 +70,7 @@ impl IndexFactory {
         admin: Address,
         emergency_admin: Address,
         swap_utility: Address,
-        index_contract_wasm: BytesN<32>,
-        max_manager_fee_amount: u128,
-        protocol_fee_amount: u128,
-        protocol_fee_recipient: Address,
-        minimum_fee_threshold: u128,
+        index_contract_wasm: BytesN<32>
     ) {
         let access_control = AccessControl::new(&e);
         access_control.set_role_address(&Role::Admin, &admin);
@@ -80,11 +79,6 @@ impl IndexFactory {
 
         set_swap_utility(&e, &swap_utility);
         set_index_contract_wasm(&e, &index_contract_wasm);
-        set_protocol_fee_amount(&e, &protocol_fee_amount);
-        set_max_manager_fee_amount(&e, &max_manager_fee_amount);
-        set_protocol_fee_recipient(&e, &protocol_fee_recipient);
-        // Set universal minimum fee threshold - IMMUTABLE after initialization
-        set_minimum_fee_threshold(&e, &minimum_fee_threshold);
     }
 }
 
@@ -107,14 +101,14 @@ impl IndexFactoryTrait for IndexFactory {
 
         let salt = get_index_salt(&e, &params.admin, &sequence);
 
-        let address = e.deployer().with_current_contract(salt).deploy_v2(
-            get_index_contract_wasm(&e),
-            (
+        let address = e
+            .deployer()
+            .with_current_contract(salt)
+            .deploy_v2(get_index_contract_wasm(&e), (
                 e.current_contract_address(),
                 serialized_asset.clone(),
                 params.clone(),
-            ),
-        );
+            ));
 
         // Add to index registry
         add_deployed_index(&e, &params.admin, &address);
@@ -135,14 +129,12 @@ impl IndexFactoryTrait for IndexFactory {
             address.clone(), // index_address
             params.admin.clone(),
             params.admin.clone(), // manager (using fee_destination as manager for now)
-            params.admin.clone(),
-            0,
             initial_components,
             initial_weights,
             base_nav,
             initial_price,
             is_public,
-            deployment_cost,
+            deployment_cost
         );
 
         address
@@ -159,19 +151,10 @@ impl AdminInterface for IndexFactory {
     // (:   _(  _|(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
     //  \_______)  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
 
-    // Gets the protocol fee recipient address.
-    fn get_protocol_fee_recipient(e: Env) -> Address {
-        get_protocol_fee_recipient(&e)
-    }
-
     // Query Methods - Factory Configuration
     fn get_factory_config(e: Env) -> FactoryConfig {
         FactoryConfig {
             swap_utility: get_swap_utility(&e),
-            protocol_fee_amount: get_protocol_fee_amount(&e),
-            max_manager_fee_amount: get_max_manager_fee_amount(&e),
-            protocol_fee_recipient: get_protocol_fee_recipient(&e),
-            minimum_fee_threshold: get_minimum_fee_threshold(&e),
             index_contract_wasm: get_index_contract_wasm(&e),
         }
     }
@@ -179,22 +162,6 @@ impl AdminInterface for IndexFactory {
     // Individual getters for factory configuration
     fn get_swap_utility(e: Env) -> Address {
         get_swap_utility(&e)
-    }
-
-    fn get_protocol_fee_amount(e: Env) -> u128 {
-        get_protocol_fee_amount(&e)
-    }
-
-    fn get_index_fee_enabled(e: Env, index_address: Address) -> bool {
-        get_index_fee_enabled(&e, &index_address)
-    }
-
-    fn get_max_manager_fee_amount(e: Env) -> u128 {
-        get_max_manager_fee_amount(&e)
-    }
-
-    fn get_minimum_fee_threshold(e: Env) -> u128 {
-        get_minimum_fee_threshold(&e)
     }
 
     fn get_index_contract_wasm(e: Env) -> BytesN<32> {
@@ -248,105 +215,8 @@ impl AdminInterface for IndexFactory {
             admin.clone(),
             old_wasm.clone(),
             index_contract_wasm.clone(),
-            1,
+            1
         );
-    }
-
-    fn set_protocol_fee_amount(e: Env, admin: Address, amount: u128) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-
-        let old_fee = get_protocol_fee_amount(&e);
-        set_protocol_fee_amount(&e, &amount);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).protocol_fee_updated(current_time, admin, old_fee, amount);
-    }
-
-    fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_protocol_fee_recipient(&e, &recipient);
-    }
-
-    // set_max_manager_fee_amount
-    // .
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - admin: The admin address (must be authorized).
-    //   - amount: The new max manager fee amount (u128) in token units.
-    fn set_max_manager_fee_amount(e: Env, admin: Address, amount: u128) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-
-        let old_max_fee = get_max_manager_fee_amount(&e);
-        set_max_manager_fee_amount(&e, &amount);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).max_management_fee_updated(current_time, admin, old_max_fee, amount);
-    }
-
-    // set_minimum_fee_threshold
-    // Updates the universal minimum fee threshold for all indexes.
-    // Only the protocol admin can call this function.
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - admin: The admin address (must be authorized).
-    //   - threshold: The new minimum fee threshold (u128) in token units.
-    fn set_minimum_fee_threshold(e: Env, admin: Address, threshold: u128) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-        set_minimum_fee_threshold(&e, &threshold);
-    }
-
-    // set_index_fee_enabled
-    // Toggle fee collection for a specific index.
-    // Only the factory admin can call this function.
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - admin: The admin address (must be authorized).
-    //   - index_address: The address of the index contract.
-    //   - enabled: Whether to enable (true) or disable (false) fees for this index.
-    fn set_index_fee_enabled(e: Env, admin: Address, index_address: Address, enabled: bool) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-
-        let old_status = get_index_fee_enabled(&e, &index_address);
-        set_index_fee_enabled(&e, &index_address, enabled);
-
-        // Emit event if status changed
-        if old_status != enabled {
-            Events::new(&e).index_fee_toggled(index_address, enabled);
-        }
-    }
-
-    // batch_set_index_fee_enabled
-    // Toggle fee collection for multiple indexes at once.
-    // Only the factory admin can call this function.
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - admin: The admin address (must be authorized).
-    //   - index_settings: Vec of (index_address, enabled) pairs.
-    fn batch_set_index_fee_enabled(e: Env, admin: Address, index_settings: Vec<(Address, bool)>) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-
-        for setting in index_settings.iter() {
-            let (index_address, enabled) = setting;
-            let old_status = get_index_fee_enabled(&e, &index_address);
-            set_index_fee_enabled(&e, &index_address, enabled);
-
-            // Emit event if status changed
-            if old_status != enabled {
-                Events::new(&e).index_fee_toggled(index_address, enabled);
-            }
-        }
     }
 
     //    _______     __       ____  ____   ________  _______  ________
@@ -391,39 +261,6 @@ impl AdminInterface for IndexFactory {
 
     fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128 {
         crate::oracle::OracleUtils::convert_token_to_usd(&e, &token, amount)
-    }
-
-    fn set_fee_tier_config(e: Env, admin: Address, tier_rates: Map<u128, u32>) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-
-        if !crate::tiers::TierCalculator::validate_tier_config(&tier_rates) {
-            panic_with_error!(&e, AccessControlError::Unauthorized);
-        }
-
-        let config = crate::storage::FeeTierConfig { tier_rates };
-
-        set_fee_tier_config(&e, &config);
-    }
-
-    fn get_fee_tier_config(e: Env) -> crate::storage::FeeTierConfig {
-        get_fee_tier_config_with_default(&e)
-    }
-
-    fn record_user_volume(e: Env, user: Address, usd_amount: u128, index_address: Address) {
-        add_user_volume_entry(&e, &user, usd_amount, &index_address);
-    }
-
-    fn get_user_fee_rate(e: Env, user: Address) -> u32 {
-        crate::tiers::TierCalculator::get_user_fee_rate(&e, &user)
-    }
-
-    fn get_user_tier_data(e: Env, user: Address) -> crate::storage::UserTierData {
-        crate::tiers::TierCalculator::get_user_tier_data(&e, &user)
-    }
-
-    fn get_user_30_day_volume(e: Env, user: Address) -> u128 {
-        get_user_30_day_volume(&e, &user)
     }
 }
 
@@ -594,10 +431,11 @@ impl TransferableContract for IndexFactory {
         let access_control = AccessControl::new(&e);
         let role = Role::from_symbol(&e, role_name);
         match access_control.get_transfer_ownership_deadline(&role) {
-            0 => match access_control.get_role_safe(&role) {
-                Some(address) => address,
-                None => panic_with_error!(&e, AccessControlError::RoleNotFound),
-            },
+            0 =>
+                match access_control.get_role_safe(&role) {
+                    Some(address) => address,
+                    None => panic_with_error!(&e, AccessControlError::RoleNotFound),
+                }
             _ => access_control.get_future_address(&role),
         }
     }

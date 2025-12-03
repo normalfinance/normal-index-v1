@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, BytesN, Env, Symbol, Vec};
+use soroban_sdk::{ Address, BytesN, Env, Symbol, Vec };
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -32,27 +32,15 @@ pub(crate) trait FactoryEvents {
         index_address: Address,
         operator: Address,
         manager: Address,
-        fee_destination: Address,
-        max_swap_fee_fraction: u32,
         initial_components: Vec<Address>,
         initial_weights: Vec<u128>,
         base_nav: u128,
         initial_price: u128,
         is_public: bool,
-        deployment_cost: u128,
+        deployment_cost: u128
     );
 
     // Factory configuration events
-    fn protocol_fee_updated(&self, ts: u64, admin: Address, old_fee: u128, new_fee: u128);
-
-    fn max_management_fee_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_max_fee: u128,
-        new_max_fee: u128,
-    );
-
     fn factory_admin_updated(&self, ts: u64, old_admin: Address, new_admin: Address);
 
     fn factory_paused(&self, ts: u64, admin: Address);
@@ -69,100 +57,67 @@ impl FactoryEvents for Events {
         index_address: Address,
         operator: Address,
         manager: Address,
-        fee_destination: Address,
-        max_swap_fee_fraction: u32,
         initial_components: Vec<Address>,
         initial_weights: Vec<u128>,
         base_nav: u128,
         initial_price: u128,
         is_public: bool,
-        deployment_cost: u128,
+        deployment_cost: u128
     ) {
         // Split into multiple events due to Soroban topic limits
         // Primary deployment event
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "index_deployed"),
-                ts,
-                deployer.clone(),
-                index_address.clone(),
-                operator,
-                manager,
-                fee_destination,
-            ),
-            (),
-        );
+        self.env()
+            .events()
+            .publish(
+                (
+                    Symbol::new(self.env(), "index_deployed"),
+                    ts,
+                    deployer.clone(),
+                    index_address.clone(),
+                    operator,
+                    manager,
+                ),
+                ()
+            );
 
         // Configuration event
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "index_config"),
-                ts,
-                index_address.clone(),
-                max_swap_fee_fraction,
-                base_nav,
-                initial_price,
-                is_public,
-                deployment_cost,
-            ),
-            (),
-        );
+        self.env()
+            .events()
+            .publish(
+                (
+                    Symbol::new(self.env(), "index_config"),
+                    ts,
+                    index_address.clone(),
+                    base_nav,
+                    initial_price,
+                    is_public,
+                    deployment_cost,
+                ),
+                ()
+            );
 
         // Components event
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "index_components"),
-                ts,
-                index_address,
-                initial_components,
-                initial_weights,
-            ),
-            (),
-        );
-    }
-
-    fn protocol_fee_updated(&self, ts: u64, admin: Address, old_fee: u128, new_fee: u128) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "protocol_fee_updated"),
-                ts,
-                admin,
-                old_fee,
-                new_fee,
-            ),
-            (),
-        );
-    }
-
-    fn max_management_fee_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_max_fee: u128,
-        new_max_fee: u128,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "max_management_fee_updated"),
-                ts,
-                admin,
-                old_max_fee,
-                new_max_fee,
-            ),
-            (),
-        );
+        self.env()
+            .events()
+            .publish(
+                (
+                    Symbol::new(self.env(), "index_components"),
+                    ts,
+                    index_address,
+                    initial_components,
+                    initial_weights,
+                ),
+                ()
+            );
     }
 
     fn factory_admin_updated(&self, ts: u64, old_admin: Address, new_admin: Address) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "factory_admin_updated"),
-                ts,
-                old_admin,
-                new_admin,
-            ),
-            (),
-        );
+        self.env()
+            .events()
+            .publish(
+                (Symbol::new(self.env(), "factory_admin_updated"), ts, old_admin, new_admin),
+                ()
+            );
     }
 
     fn factory_paused(&self, ts: u64, admin: Address) {
@@ -193,7 +148,7 @@ pub(crate) trait FactoryConfigEvents {
         admin: Address,
         old_wasm: BytesN<32>,
         new_wasm: BytesN<32>,
-        version: u32,
+        version: u32
     );
 
     fn token_wasm_updated(
@@ -202,10 +157,8 @@ pub(crate) trait FactoryConfigEvents {
         admin: Address,
         old_wasm: BytesN<32>,
         new_wasm: BytesN<32>,
-        version: u32,
+        version: u32
     );
-
-    fn index_fee_toggled(&self, index_address: Address, enabled: bool);
 }
 
 impl FactoryConfigEvents for Events {
@@ -215,19 +168,14 @@ impl FactoryConfigEvents for Events {
         admin: Address,
         old_wasm: BytesN<32>,
         new_wasm: BytesN<32>,
-        version: u32,
+        version: u32
     ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "wasm_updated"),
-                ts,
-                admin,
-                old_wasm,
-                new_wasm,
-                version,
-            ),
-            (),
-        );
+        self.env()
+            .events()
+            .publish(
+                (Symbol::new(self.env(), "wasm_updated"), ts, admin, old_wasm, new_wasm, version),
+                ()
+            );
     }
 
     fn token_wasm_updated(
@@ -236,25 +184,13 @@ impl FactoryConfigEvents for Events {
         admin: Address,
         old_wasm: BytesN<32>,
         new_wasm: BytesN<32>,
-        version: u32,
+        version: u32
     ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "wasm_updated"),
-                ts,
-                admin,
-                old_wasm,
-                new_wasm,
-                version,
-            ),
-            (),
-        );
-    }
-
-    fn index_fee_toggled(&self, index_address: Address, enabled: bool) {
-        self.env().events().publish(
-            (Symbol::new(self.env(), "index_fee_toggled"),),
-            (index_address, enabled),
-        );
+        self.env()
+            .events()
+            .publish(
+                (Symbol::new(self.env(), "wasm_updated"), ts, admin, old_wasm, new_wasm, version),
+                ()
+            );
     }
 }
