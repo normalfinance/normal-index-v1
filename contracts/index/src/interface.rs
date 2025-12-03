@@ -92,26 +92,6 @@ pub trait AdminInterface {
     fn set_manager_address(e: Env, admin: Address, manager: Address);
 
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64);
-
-    //    _______     __       ____  ____   ________  _______  ________
-    //   |   __ "\   /""\     ("  _||_ " | /"       )/"     "||"      "\
-    //   (. |__) :) /    \    |   (  ) : |(:   \___/(: ______)(.  ___  :)
-    //   |:  ____/ /' /\  \   (:  |  | . ) \___  \   \/    |  |: \   ) ||
-    //   (|  /    //  __'  \   \\ \__/ //   __/  \\  // ___)_ (| (___\ ||
-    //  /|__/ \  /   /  \\  \  /\\ __ //\  /" \   :)(:      "||:       :)
-    // (_______)(___/    \___)(__________)(_______/  \_______)(________/
-
-    fn kill_mint(e: Env, admin: Address);
-    fn kill_redeem(e: Env, admin: Address);
-    fn kill_rebalance(e: Env, admin: Address);
-
-    fn unkill_mint(e: Env, admin: Address);
-    fn unkill_redeem(e: Env, admin: Address);
-    fn unkill_rebalance(e: Env, admin: Address);
-
-    fn get_is_killed_mint(e: Env) -> bool;
-    fn get_is_killed_redeem(e: Env) -> bool;
-    fn get_is_killed_rebalance(e: Env) -> bool;
 }
 
 // Query Data Structures
@@ -129,9 +109,6 @@ pub struct IndexInfo {
     pub last_updated_ts: u64,
     pub total_mints: u128,
     pub total_redemptions: u128,
-    pub is_killed_mint: bool,
-    pub is_killed_redeem: bool,
-    pub is_killed_rebalance: bool,
 }
 
 #[contracttype]
@@ -147,9 +124,6 @@ pub struct IndexMetrics {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IndexStatus {
-    pub is_killed_mint: bool,
-    pub is_killed_redeem: bool,
-    pub is_killed_rebalance: bool,
     pub is_public: bool,
     pub can_rebalance: bool,
     pub last_rebalance_ts: u64,

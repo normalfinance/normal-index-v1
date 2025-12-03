@@ -42,11 +42,6 @@ enum DataKey {
     TotalMints,
     TotalRedemptions,
 
-    // Paused operations
-    IsKilledMint,
-    IsKilledRedeem,
-    IsKilledRebalance,
-
     // Component registry
     ComponentRegistry, // Vec<Address> - list of all component addresses
 
@@ -494,26 +489,6 @@ generate_instance_storage_getter_and_setter_with_default!(
     DataKey::TotalRedemptions,
     u128,
     0
-);
-
-// Paused operations
-generate_instance_storage_getter_and_setter_with_default!(
-    is_killed_mint,
-    DataKey::IsKilledMint,
-    bool,
-    false
-);
-generate_instance_storage_getter_and_setter_with_default!(
-    is_killed_redeem,
-    DataKey::IsKilledRedeem,
-    bool,
-    false
-);
-generate_instance_storage_getter_and_setter_with_default!(
-    is_killed_rebalance,
-    DataKey::IsKilledRebalance,
-    bool,
-    false
 );
 
 pub fn get_index_vault_amount(e: &Env, token: &Address) -> u128 {

@@ -526,51 +526,51 @@ fn test_generate_rebalance_swaps_multiple_components() {
     client.rebalance(&admin, &RebalanceParams { target_nav: None });
 }
 
-// ===== Kill Switch =====
+// // ===== Kill Switch =====
 
-#[test]
-#[should_panic(expected = "Error(Contract, #32)")]
-fn test_rebalance_killed_prevents_rebalance() {
-    let e = Env::default();
-    e.mock_all_auths();
+// #[test]
+// #[should_panic(expected = "Error(Contract, #32)")]
+// fn test_rebalance_killed_prevents_rebalance() {
+//     let e = Env::default();
+//     e.mock_all_auths();
 
-    let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+//     let (contract_address, admin, _) = create_test_index(&e);
+//     let client = IndexClient::new(&e, &contract_address);
 
-    let token = create_mock_token(&e);
-    setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
+//     let token = create_mock_token(&e);
+//     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
 
-    // Allow immediate rebalance (setup timing)
-    allow_immediate_rebalance(&e, &contract_address);
+//     // Allow immediate rebalance (setup timing)
+//     allow_immediate_rebalance(&e, &contract_address);
 
-    // Kill rebalance
-    client.kill_rebalance(&admin);
+//     // Kill rebalance
+//     client.kill_rebalance(&admin);
 
-    // Attempt rebalance - should fail
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
-}
+//     // Attempt rebalance - should fail
+//     client.rebalance(&admin, &RebalanceParams { target_nav: None });
+// }
 
-#[test]
-fn test_unkill_rebalance_restores_functionality() {
-    let e = Env::default();
-    e.mock_all_auths();
+// #[test]
+// fn test_unkill_rebalance_restores_functionality() {
+//     let e = Env::default();
+//     e.mock_all_auths();
 
-    let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+//     let (contract_address, admin, _) = create_test_index(&e);
+//     let client = IndexClient::new(&e, &contract_address);
 
-    let token = create_mock_token(&e);
-    setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
+//     let token = create_mock_token(&e);
+//     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
 
-    // Allow immediate rebalance
-    allow_immediate_rebalance(&e, &contract_address);
+//     // Allow immediate rebalance
+//     allow_immediate_rebalance(&e, &contract_address);
 
-    // Kill then unkill
-    client.kill_rebalance(&admin);
-    client.unkill_rebalance(&admin);
+//     // Kill then unkill
+//     client.kill_rebalance(&admin);
+//     client.unkill_rebalance(&admin);
 
-    // Rebalance should succeed
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
-}
+//     // Rebalance should succeed
+//     client.rebalance(&admin, &RebalanceParams { target_nav: None });
+// }
 
 // ===== Query Functions =====
 

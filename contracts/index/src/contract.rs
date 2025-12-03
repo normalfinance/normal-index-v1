@@ -41,18 +41,12 @@ use crate::storage::{
     get_component_safe,
     get_factory_safe,
     get_initial_price,
-    get_is_killed_mint,
-    get_is_killed_rebalance,
-    get_is_killed_redeem,
     get_last_rebalance_ts,
     get_last_updated_ts,
     get_public,
     get_rebalance_threshold,
     get_total_mints,
     get_total_redemptions,
-    set_is_killed_mint,
-    set_is_killed_rebalance,
-    set_is_killed_redeem,
     Component,
 };
 use crate::volume::VolumeTracker;
@@ -144,10 +138,6 @@ impl IndexTrait for Index {
     ) {
         user.require_auth();
 
-        if get_is_killed_mint(&e) {
-            panic_with_error!(e, IndexError::IndexMintKilled);
-        }
-
         if get_blacklist_status(&e, &user) {
             panic_with_error!(e, IndexError::Blacklisted);
         }
@@ -232,10 +222,6 @@ impl IndexTrait for Index {
 
     fn redeem(e: Env, user: Address, share_amount: u128) {
         user.require_auth();
-
-        if get_is_killed_redeem(&e) {
-            panic_with_error!(e, IndexError::IndexRedeemKilled);
-        }
 
         // TODO: Add actual redemption logic here
         // This would typically involve:
@@ -545,10 +531,6 @@ impl AdminInterface for Index {
     fn rebalance(e: Env, caller: Address, params: RebalanceParams) {
         caller.require_auth();
 
-        if get_is_killed_rebalance(&e) {
-            panic_with_error!(e, IndexError::IndexRebalanceKilled);
-        }
-
         if get_blacklist_status(&e, &caller) {
             panic_with_error!(e, IndexError::Blacklisted);
         }
@@ -649,133 +631,6 @@ impl AdminInterface for Index {
 
         // Also emit legacy event for backward compatibility
         Events::new(&e).rebalance_authority_updated(authority, status);
-    }
-
-    // Stops index mints instantly.
-    //
-    // # Arguments
-    //
-    // * `admin` - The address of the admin.
-    fn kill_mint(e: Env, admin: Address) {
-        admin.require_auth();
-        require_pause_or_emergency_pause_admin_or_owner(&e, &admin);
-
-        set_is_killed_mint(&e, &true);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).operation_killed(current_time, admin.clone(), Symbol::new(&e, "mint"));
-        // Also emit legacy event for backward compatibility
-        Events::new(&e).kill_deposit();
-    }
-
-    // Stops index redemptions instantly.
-    //
-    // # Arguments
-    //
-    // * `admin` - The address of the admin.
-    fn kill_redeem(e: Env, admin: Address) {
-        admin.require_auth();
-        require_pause_or_emergency_pause_admin_or_owner(&e, &admin);
-
-        set_is_killed_redeem(&e, &true);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).operation_killed(current_time, admin.clone(), Symbol::new(&e, "redeem"));
-        // Also emit legacy event for backward compatibility
-        Events::new(&e).kill_request_withdraw();
-    }
-
-    // Stops the pool swaps instantly.
-    //
-    // # Arguments
-    //
-    // * `admin` - The address of the admin.
-    fn kill_rebalance(e: Env, admin: Address) {
-        admin.require_auth();
-        require_pause_or_emergency_pause_admin_or_owner(&e, &admin);
-
-        set_is_killed_rebalance(&e, &true);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).operation_killed(current_time, admin.clone(), Symbol::new(&e, "rebalance"));
-        // Also emit legacy event for backward compatibility
-        Events::new(&e).kill_withdraw();
-    }
-
-    // Resumes the pool deposits.
-    //
-    // # Arguments
-    //
-    // * `admin` - The address of the admin.
-    fn unkill_mint(e: Env, admin: Address) {
-        admin.require_auth();
-        require_pause_admin_or_owner(&e, &admin);
-
-        set_is_killed_mint(&e, &false);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).operation_unkilled(current_time, admin.clone(), Symbol::new(&e, "mint"));
-        // Also emit legacy event for backward compatibility
-        Events::new(&e).unkill_deposit();
-    }
-
-    // Resumes the pool swaps.
-    //
-    // # Arguments
-    //
-    // * `admin` - The address of the admin.
-    fn unkill_redeem(e: Env, admin: Address) {
-        admin.require_auth();
-        require_pause_admin_or_owner(&e, &admin);
-
-        set_is_killed_redeem(&e, &false);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).operation_unkilled(current_time, admin.clone(), Symbol::new(&e, "redeem"));
-        // Also emit legacy event for backward compatibility
-        Events::new(&e).unkill_request_withdraw();
-    }
-
-    // Resumes the pool withdrawals.
-    //
-    // # Arguments
-    //
-    // * `admin` - The address of the admin.
-    fn unkill_rebalance(e: Env, admin: Address) {
-        admin.require_auth();
-        require_pause_admin_or_owner(&e, &admin);
-
-        set_is_killed_rebalance(&e, &false);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).operation_unkilled(
-            current_time,
-            admin.clone(),
-            Symbol::new(&e, "rebalance")
-        );
-        // Also emit legacy event for backward compatibility
-        Events::new(&e).unkill_withdraw();
-    }
-
-    // Get deposit killswitch status.
-    fn get_is_killed_mint(e: Env) -> bool {
-        get_is_killed_mint(&e)
-    }
-
-    // Get swap killswitch status.
-    fn get_is_killed_redeem(e: Env) -> bool {
-        get_is_killed_redeem(&e)
-    }
-
-    // Get withdraw killswitch status.
-    fn get_is_killed_rebalance(e: Env) -> bool {
-        get_is_killed_rebalance(&e)
     }
 
     fn set_manager_address(e: Env, admin: Address, manager: Address) {
@@ -984,9 +839,6 @@ impl QueryInterface for Index {
             last_updated_ts: get_last_updated_ts(&e),
             total_mints: get_total_mints(&e),
             total_redemptions: get_total_redemptions(&e),
-            is_killed_mint: get_is_killed_mint(&e),
-            is_killed_redeem: get_is_killed_redeem(&e),
-            is_killed_rebalance: get_is_killed_rebalance(&e),
         }
     }
 
@@ -1076,13 +928,9 @@ impl QueryInterface for Index {
         let current_time = e.ledger().timestamp();
         let last_rebalance = get_last_rebalance_ts(&e);
         let threshold = get_rebalance_threshold(&e);
-        let can_rebalance =
-            current_time >= last_rebalance + threshold && !get_is_killed_rebalance(&e);
+        let can_rebalance = current_time >= last_rebalance + threshold;
 
         IndexStatus {
-            is_killed_mint: get_is_killed_mint(&e),
-            is_killed_redeem: get_is_killed_redeem(&e),
-            is_killed_rebalance: get_is_killed_rebalance(&e),
             is_public: get_public(&e),
             can_rebalance,
             last_rebalance_ts: get_last_rebalance_ts(&e),
@@ -1091,10 +939,6 @@ impl QueryInterface for Index {
     }
 
     fn can_rebalance(e: Env) -> bool {
-        if get_is_killed_rebalance(&e) {
-            return false;
-        }
-
         let current_time = e.ledger().timestamp();
         let last_rebalance = get_last_rebalance_ts(&e);
         let threshold = get_rebalance_threshold(&e);
@@ -1107,8 +951,7 @@ impl QueryInterface for Index {
         let current_time = e.ledger().timestamp();
         let last_rebalance = get_last_rebalance_ts(&e);
         let threshold = get_rebalance_threshold(&e);
-        let can_rebalance =
-            current_time >= last_rebalance + threshold && !get_is_killed_rebalance(&e);
+        let can_rebalance = current_time >= last_rebalance + threshold;
         let time_until_next = if can_rebalance {
             0
         } else {
@@ -1133,10 +976,6 @@ impl QueryInterface for Index {
     }
 
     fn can_address_rebalance(e: Env, caller: Address) -> bool {
-        if get_is_killed_rebalance(&e) {
-            return false;
-        }
-
         let current_time = e.ledger().timestamp();
         let last_rebalance = get_last_rebalance_ts(&e);
         let threshold = get_rebalance_threshold(&e);
