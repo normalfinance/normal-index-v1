@@ -3,13 +3,10 @@
 mod contract;
 pub mod errors;
 mod events;
-mod fees;
 mod index;
 mod interface;
 mod storage;
 mod volume;
-#[cfg(test)]
-mod test_fees;
 #[cfg(test)]
 mod test_refactor;
 #[cfg(test)]

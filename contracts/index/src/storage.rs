@@ -1,13 +1,15 @@
 use paste::paste;
 use soroban_sdk::token::TokenClient as SorobanTokenClient;
-use soroban_sdk::{contracttype, panic_with_error, log, Address, Env, Map, Symbol, Vec};
-use utils::bump::{bump_instance, bump_persistent};
+use soroban_sdk::{ contracttype, panic_with_error, log, Address, Env, Map, Symbol, Vec };
+use utils::bump::{ bump_instance, bump_persistent };
 use utils::constant::THIRTY_DAY;
 use utils::errors::storage_errors::StorageError;
 use utils::{
-    generate_instance_storage_getter, generate_instance_storage_getter_and_setter,
+    generate_instance_storage_getter,
+    generate_instance_storage_getter_and_setter,
     generate_instance_storage_getter_and_setter_with_default,
-    generate_instance_storage_getter_with_default, generate_instance_storage_setter,
+    generate_instance_storage_getter_with_default,
+    generate_instance_storage_setter,
 };
 
 #[derive(Clone)]
@@ -15,7 +17,7 @@ use utils::{
 enum DataKey {
     Factory,
     SwapUtility, // Address of the SwapUtility contract for cross-contract swaps
-    TokenIndex,  //
+    TokenIndex, //
 
     BaseNAV, // The Net Asset Value (NAV) at the inception of the index - what the creator deposits (e.g. $1,000)
     InitialPrice, // The price assigned to the index at inception (e.g. $100)
@@ -25,19 +27,8 @@ enum DataKey {
 
     Public, // Private indexes are mutable and can only be minted by the admin and whitelist. Pubilic indexes are immutabel and can be minted by anyone
 
-    ManagerFeeFraction, // A custom annual fee set by the admin
-
-    // Flat fees
-    ManagerFeeAmount,  // The amount of the manager fee to be paid in the token
-    ProtocolFeeAmount, // The amount of the protocol fee to be paid in the token
-    MinimumSharesForFeeCollection, // The minimum number of shares that must be held before fees can be collected
-
     // Revenue Share
-    ManagerAddress,          // Address of the index manager who receives fees
-    ProtocolFeeRecipient,    // Address where protocol fees are sent
-    AccumulatedManagerFees,  // Total manager fees accumulated but not yet distributed
-    AccumulatedProtocolFees, // Total protocol fees accumulated but not yet distributed
-    LastFeeCollection,       // Timestamp of last fee collection
+    ManagerAddress, // Address of the index manager who receives fees
 
     Whitelist(Address), // List of accounts explicitly allowed to mint the index
     Blacklist(Address), // List of accounts blocked from minting the index
@@ -45,12 +36,11 @@ enum DataKey {
     RebalanceThreshold, // Minimum amount of time that must pass before the index can be rebalanced again
 
     LastRebalanceTs, // The ts when the index was last rebalanced
-    LastUpdatedTs,   // The ts when the index was last updated (any property)
+    LastUpdatedTs, // The ts when the index was last updated (any property)
 
     // Metrics
     TotalMints,
     TotalRedemptions,
-    TotalFees,
 
     // Paused operations
     IsKilledMint,
@@ -62,7 +52,7 @@ enum DataKey {
 
     // Rebalancing authorities (for private indexes)
     RebalanceAuthority(Address), // Address -> bool mapping for rebalance authorities
-    RebalanceAuthorityRegistry,  // Vec<Address> - list of all rebalance authority addresses
+    RebalanceAuthorityRegistry, // Vec<Address> - list of all rebalance authority addresses
 
     // Swap utility contract address
     SwapUtilityAddress,
@@ -74,11 +64,7 @@ generate_instance_storage_getter_and_setter_with_default!(
     Address,
     Address::from_str(&Env::default(), "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOAFM")
 );
-generate_instance_storage_setter!(
-    swap_utility,
-    DataKey::SwapUtility,
-    Address
-);
+generate_instance_storage_setter!(swap_utility, DataKey::SwapUtility, Address);
 
 pub fn get_swap_utility(e: &Env) -> Address {
     bump_instance(e);
@@ -102,28 +88,6 @@ generate_instance_storage_getter_and_setter_with_default!(
 );
 
 // State
-generate_instance_storage_getter_and_setter_with_default!(
-    manager_fee_fraction,
-    DataKey::ManagerFeeFraction,
-    u32,
-    0
-);
-
-// manager flat fees
-generate_instance_storage_getter_and_setter_with_default!(
-    manager_fee_amount,
-    DataKey::ManagerFeeAmount,
-    u128,
-    0
-);
-
-// minimum shares for fee collection
-generate_instance_storage_getter_and_setter_with_default!(
-    minimum_shares_for_fee_collection,
-    DataKey::MinimumSharesForFeeCollection,
-    u128,
-    25_000_000_000 // 25k tokens
-);
 
 // Revenue Share storage
 generate_instance_storage_getter_and_setter_with_default!(
@@ -131,42 +95,6 @@ generate_instance_storage_getter_and_setter_with_default!(
     DataKey::ManagerAddress,
     Address,
     Address::from_str(&Env::default(), "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOAFM")
-);
-// Custom implementation for protocol_fee_recipient with safe default handling
-pub fn get_protocol_fee_recipient(e: &Env) -> Address {
-    let key = DataKey::ProtocolFeeRecipient;
-    match e.storage().instance().get(&key) {
-        Some(value) => value,
-        None => {
-            // Is this a good fallback for testing
-            use soroban_sdk::testutils::Address as _;
-            Address::generate(e)
-        }
-    }
-}
-
-pub fn set_protocol_fee_recipient(e: &Env, protocol_fee_recipient: &Address) {
-    let key = DataKey::ProtocolFeeRecipient;
-    e.storage().instance().set(&key, protocol_fee_recipient);
-}
-
-generate_instance_storage_getter_and_setter_with_default!(
-    accumulated_manager_fees,
-    DataKey::AccumulatedManagerFees,
-    u128,
-    0
-);
-generate_instance_storage_getter_and_setter_with_default!(
-    accumulated_protocol_fees,
-    DataKey::AccumulatedProtocolFees,
-    u128,
-    0
-);
-generate_instance_storage_getter_and_setter_with_default!(
-    last_fee_collection,
-    DataKey::LastFeeCollection,
-    u64,
-    0
 );
 
 generate_instance_storage_getter_and_setter_with_default!(public, DataKey::Public, bool, false);
@@ -220,7 +148,7 @@ pub fn get_blacklist_status(e: &Env, address: &Address) -> bool {
     }
 }
 
-/// Sets blacklist status for an address  
+/// Sets blacklist status for an address
 /// If status is true, adds the address to blacklist; if false, removes it
 pub fn set_blacklist_status(e: &Env, address: &Address, status: bool) {
     let key = DataKey::Blacklist(address.clone());
@@ -296,7 +224,9 @@ pub fn remove_rebalance_authority_from_registry(e: &Env, address: Address) {
     let key = DataKey::RebalanceAuthorityRegistry;
     let registry: Vec<Address> = match e.storage().persistent().get(&key) {
         Some(reg) => reg,
-        None => return,
+        None => {
+            return;
+        }
     };
 
     let mut new_registry = Vec::new(e);
@@ -521,7 +451,9 @@ pub fn remove_component_from_registry(env: &Env, token: Address) {
     let key = DataKey::ComponentRegistry;
     let registry: Vec<Address> = match env.storage().persistent().get(&key) {
         Some(reg) => reg,
-        None => return, // No registry exists
+        None => {
+            return;
+        } // No registry exists
     };
 
     // Find and remove the component
@@ -551,7 +483,6 @@ pub fn get_factory_safe(e: &Env) -> Option<Address> {
 }
 
 // Metrics
-generate_instance_storage_getter_and_setter_with_default!(total_fees, DataKey::TotalFees, u128, 0);
 generate_instance_storage_getter_and_setter_with_default!(
     total_mints,
     DataKey::TotalMints,
@@ -590,11 +521,7 @@ pub fn get_index_vault_amount(e: &Env, token: &Address) -> u128 {
 }
 
 // Swap utility contract address management
-generate_instance_storage_setter!(
-    swap_utility_address,
-    DataKey::SwapUtilityAddress,
-    Address
-);
+generate_instance_storage_setter!(swap_utility_address, DataKey::SwapUtilityAddress, Address);
 
 pub fn get_swap_utility_address(e: &Env) -> Address {
     bump_instance(e);
