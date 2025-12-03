@@ -45,21 +45,4 @@ pub trait AdminInterface {
     fn get_oracle_registry(e: Env) -> Address;
 
     fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128;
-
-    //    _______     __       ____  ____   ________  _______  ________
-    //   |   __ "\   /""\     ("  _||_ " | /"       )/"     "||"      "\
-    //   (. |__) :) /    \    |   (  ) : |(:   \___/(: ______)(.  ___  :)
-    //   |:  ____/ /' /\  \   (:  |  | . ) \___  \   \/    |  |: \   ) ||
-    //   (|  /    //  __'  \   \\ \__/ //   __/  \\  // ___)_ (| (___\ ||
-    //  /|__/ \  /   /  \\  \  /\\ __ //\  /" \   :)(:      "||:       :)
-    // (_______)(___/    \___)(__________)(_______/  \_______)(________/
-
-    // Stop index creation instantly
-    fn kill_create(e: Env, admin: Address);
-
-    // Resume index creation
-    fn unkill_create(e: Env, admin: Address);
-
-    // Get killswitch status
-    fn get_is_killed_create(e: Env) -> bool;
 }

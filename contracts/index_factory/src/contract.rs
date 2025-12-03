@@ -6,7 +6,6 @@ use crate::interface::{ AdminInterface, IndexFactoryTrait };
 use crate::storage::get_index_contract_wasm;
 use crate::storage::get_swap_utility;
 use crate::storage::set_index_contract_wasm;
-use crate::storage::set_is_killed_create;
 use crate::storage::set_swap_utility;
 use crate::storage::{
     add_deployed_index,
@@ -217,35 +216,6 @@ impl AdminInterface for IndexFactory {
             index_contract_wasm.clone(),
             1
         );
-    }
-
-    //    _______     __       ____  ____   ________  _______  ________
-    //   |   __ "\   /""\     ("  _||_ " | /"       )/"     "||"      "\
-    //   (. |__) :) /    \    |   (  ) : |(:   \___/(: ______)(.  ___  :)
-    //   |:  ____/ /' /\  \   (:  |  | . ) \___  \   \/    |  |: \   ) ||
-    //   (|  /    //  __'  \   \\ \__/ //   __/  \\  // ___)_ (| (___\ ||
-    //  /|__/ \  /   /  \\  \  /\\ __ //\  /" \   :)(:      "||:       :)
-    // (_______)(___/    \___)(__________)(_______/  \_______)(________/
-
-    fn kill_create(e: Env, admin: Address) {
-        admin.require_auth();
-        require_admin(&e, &admin);
-
-        set_is_killed_create(&e, &true);
-        // FactoryEvents::new(&e).kill_create();
-    }
-
-    fn unkill_create(e: Env, admin: Address) {
-        admin.require_auth();
-        require_admin(&e, &admin);
-
-        set_is_killed_create(&e, &false);
-        // FactoryEvents::new(&e).unkill_create();
-    }
-
-    fn get_is_killed_create(_e: Env) -> bool {
-        return false;
-        // get_is_killed_create(&e)
     }
 
     fn set_oracle_registry(e: Env, admin: Address, oracle_registry: Address) {

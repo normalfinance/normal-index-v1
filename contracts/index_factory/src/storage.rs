@@ -39,9 +39,6 @@ enum DataKey {
     // Index registry storage
     DeployedIndexes(Address), // manager -> Vec<Address>
     AllDeployedIndexes, // global registry -> Vec<Address>
-
-    // paused
-    IsKilledCreate,
 }
 
 generate_instance_storage_getter_and_setter!(swap_utility, DataKey::SwapUtility, Address);
@@ -52,14 +49,6 @@ generate_instance_storage_getter_and_setter!(
     index_contract_wasm,
     DataKey::IndexContractWASM,
     BytesN<32>
-);
-
-// paused ops
-generate_instance_storage_getter_and_setter_with_default!(
-    is_killed_create,
-    DataKey::IsKilledCreate,
-    bool,
-    false
 );
 
 pub(crate) fn get_contract_sequence(env: &Env, manager: Address) -> u32 {
