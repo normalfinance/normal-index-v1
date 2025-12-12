@@ -32,8 +32,6 @@ pub(crate) trait FactoryEvents {
         index_address: Address,
         operator: Address,
         manager: Address,
-        fee_destination: Address,
-        max_swap_fee_fraction: u32,
         initial_components: Vec<Address>,
         initial_weights: Vec<u128>,
         base_nav: u128,
@@ -43,16 +41,6 @@ pub(crate) trait FactoryEvents {
     );
 
     // Factory configuration events
-    fn protocol_fee_updated(&self, ts: u64, admin: Address, old_fee: u128, new_fee: u128);
-
-    fn max_management_fee_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_max_fee: u128,
-        new_max_fee: u128,
-    );
-
     fn factory_admin_updated(&self, ts: u64, old_admin: Address, new_admin: Address);
 
     fn factory_paused(&self, ts: u64, admin: Address);
@@ -69,8 +57,6 @@ impl FactoryEvents for Events {
         index_address: Address,
         operator: Address,
         manager: Address,
-        fee_destination: Address,
-        max_swap_fee_fraction: u32,
         initial_components: Vec<Address>,
         initial_weights: Vec<u128>,
         base_nav: u128,
@@ -88,7 +74,6 @@ impl FactoryEvents for Events {
                 index_address.clone(),
                 operator,
                 manager,
-                fee_destination,
             ),
             (),
         );
@@ -99,7 +84,6 @@ impl FactoryEvents for Events {
                 Symbol::new(self.env(), "index_config"),
                 ts,
                 index_address.clone(),
-                max_swap_fee_fraction,
                 base_nav,
                 initial_price,
                 is_public,
@@ -116,38 +100,6 @@ impl FactoryEvents for Events {
                 index_address,
                 initial_components,
                 initial_weights,
-            ),
-            (),
-        );
-    }
-
-    fn protocol_fee_updated(&self, ts: u64, admin: Address, old_fee: u128, new_fee: u128) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "protocol_fee_updated"),
-                ts,
-                admin,
-                old_fee,
-                new_fee,
-            ),
-            (),
-        );
-    }
-
-    fn max_management_fee_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_max_fee: u128,
-        new_max_fee: u128,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "max_management_fee_updated"),
-                ts,
-                admin,
-                old_max_fee,
-                new_max_fee,
             ),
             (),
         );
@@ -204,8 +156,6 @@ pub(crate) trait FactoryConfigEvents {
         new_wasm: BytesN<32>,
         version: u32,
     );
-
-    fn index_fee_toggled(&self, index_address: Address, enabled: bool);
 }
 
 impl FactoryConfigEvents for Events {
@@ -248,13 +198,6 @@ impl FactoryConfigEvents for Events {
                 version,
             ),
             (),
-        );
-    }
-
-    fn index_fee_toggled(&self, index_address: Address, enabled: bool) {
-        self.env().events().publish(
-            (Symbol::new(self.env(), "index_fee_toggled"),),
-            (index_address, enabled),
         );
     }
 }

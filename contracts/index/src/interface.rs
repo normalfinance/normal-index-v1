@@ -47,8 +47,6 @@ pub trait IndexTrait {
 
     fn get_blacklist_status(e: Env, address: Address) -> bool;
 
-    fn get_manager_fee_amount(e: Env) -> u128;
-
     fn get_rebalance_threshold(e: Env) -> u64;
 
     fn get_last_rebalance_timestamp(e: Env) -> u64;
@@ -59,18 +57,14 @@ pub trait IndexTrait {
 
     fn get_total_redemptions(e: Env) -> u128;
 
-    fn get_total_fees(e: Env) -> u128;
-
     fn get_component(e: Env, token: Address) -> crate::storage::Component;
 
     fn get_component_balance(e: Env, token: Address) -> u128;
 
-    fn get_last_fee_collection(e: Env) -> u64;
-
     /// Transfer shares between users with proper fee handling
     fn transfer_shares(e: Env, from: Address, to: Address, amount: u128);
 
-    /// Transfer shares from allowance with proper fee handling  
+    /// Transfer shares from allowance with proper fee handling
     fn transfer_shares_from(e: Env, spender: Address, from: Address, to: Address, amount: u128);
 }
 
@@ -82,10 +76,6 @@ pub trait AdminInterface {
     fn rebalance(e: Env, caller: Address, params: RebalanceParams);
 
     fn set_rebalance_authority(e: Env, admin: Address, authority: Address, status: bool);
-
-    fn distribute_manager_fees(e: Env, admin: Address);
-
-    fn distribute_protocol_fees(e: Env, admin: Address);
 
     fn set_factory(e: Env, admin: Address, factory: Address);
 
@@ -101,34 +91,7 @@ pub trait AdminInterface {
 
     fn set_manager_address(e: Env, admin: Address, manager: Address);
 
-    fn set_protocol_fee_recipient(e: Env, admin: Address, recipient: Address);
-
-    fn set_manager_fee_amount(e: Env, admin: Address, fee_amount: u128);
-
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64);
-
-    //    _______     __       ____  ____   ________  _______  ________
-    //   |   __ "\   /""\     ("  _||_ " | /"       )/"     "||"      "\
-    //   (. |__) :) /    \    |   (  ) : |(:   \___/(: ______)(.  ___  :)
-    //   |:  ____/ /' /\  \   (:  |  | . ) \___  \   \/    |  |: \   ) ||
-    //   (|  /    //  __'  \   \\ \__/ //   __/  \\  // ___)_ (| (___\ ||
-    //  /|__/ \  /   /  \\  \  /\\ __ //\  /" \   :)(:      "||:       :)
-    // (_______)(___/    \___)(__________)(_______/  \_______)(________/
-
-    fn kill_mint(e: Env, admin: Address);
-    fn kill_redeem(e: Env, admin: Address);
-    fn kill_rebalance(e: Env, admin: Address);
-
-    fn unkill_mint(e: Env, admin: Address);
-    fn unkill_redeem(e: Env, admin: Address);
-    fn unkill_rebalance(e: Env, admin: Address);
-
-    fn get_is_killed_mint(e: Env) -> bool;
-    fn get_is_killed_redeem(e: Env) -> bool;
-    fn get_is_killed_rebalance(e: Env) -> bool;
-
-    fn get_accumulated_manager_fees(e: Env) -> u128;
-    fn get_accumulated_protocol_fees(e: Env) -> u128;
 }
 
 // Query Data Structures
@@ -141,19 +104,11 @@ pub struct IndexInfo {
     pub base_nav: u128,
     pub initial_price: u128,
     pub is_public: bool,
-    pub manager_fee_amount: u128,
     pub manager_address: Address,
-    pub protocol_fee_recipient: Address,
-    pub accumulated_manager_fees: u128,
-    pub accumulated_protocol_fees: u128,
     pub last_rebalance_ts: u64,
     pub last_updated_ts: u64,
     pub total_mints: u128,
     pub total_redemptions: u128,
-    pub total_fees: u128,
-    pub is_killed_mint: bool,
-    pub is_killed_redeem: bool,
-    pub is_killed_rebalance: bool,
 }
 
 #[contracttype]
@@ -162,9 +117,6 @@ pub struct IndexMetrics {
     pub total_shares: u128,
     pub total_mints: u128,
     pub total_redemptions: u128,
-    pub total_fees: u128,
-    pub accumulated_manager_fees: u128,
-    pub accumulated_protocol_fees: u128,
     pub current_nav: u128,
     pub share_price: u128,
 }
@@ -172,9 +124,6 @@ pub struct IndexMetrics {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IndexStatus {
-    pub is_killed_mint: bool,
-    pub is_killed_redeem: bool,
-    pub is_killed_rebalance: bool,
     pub is_public: bool,
     pub can_rebalance: bool,
     pub last_rebalance_ts: u64,

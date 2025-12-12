@@ -6,7 +6,6 @@ mod index_utils;
 mod interface;
 mod oracle;
 mod storage;
-mod tiers;
 // mod test;
 // mod test_permissions;
 // mod testutils;

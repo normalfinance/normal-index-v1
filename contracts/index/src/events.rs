@@ -31,7 +31,7 @@ pub(crate) trait IndexEvents {
         nav_after: u128,
         total_shares_before: u128,
         total_shares_after: u128,
-        fees_collected: u128,
+        // fees_collected: u128,
         destination: Option<Address>,
     );
 
@@ -46,8 +46,7 @@ pub(crate) trait IndexEvents {
         nav_after: u128,
         total_shares_before: u128,
         total_shares_after: u128,
-        component_payouts: Map<Address, u128>,
-        fees_deducted: u128,
+        component_payouts: Map<Address, u128>, // fees_deducted: u128,
     );
 
     // Enhanced rebalancing event with detailed swap and performance data
@@ -112,39 +111,6 @@ pub(crate) trait IndexEvents {
 
     fn unkill_withdraw(&self);
 
-    // Enhanced fee collection events with user tracking and periods
-    fn accrued_fees_collected(
-        &self,
-        ts: u64,
-        user: Address,
-        shares_before: u128,
-        shares_after: u128,
-        fee_period_start: u64,
-        fee_period_end: u64,
-        annual_fee_amount: u128,
-        total_fee_collected: u128,
-        manager_fee_portion: u128,
-        protocol_fee_portion: u128,
-    );
-
-    fn fees_distributed_to_manager(
-        &self,
-        ts: u64,
-        manager: Address,
-        amount: u128,
-        total_accumulated_before: u128,
-        total_accumulated_after: u128,
-    );
-
-    fn fees_distributed_to_protocol(
-        &self,
-        ts: u64,
-        recipient: Address,
-        amount: u128,
-        total_accumulated_before: u128,
-        total_accumulated_after: u128,
-    );
-
     // Enhanced configuration update events
     fn manager_address_updated(
         &self,
@@ -152,22 +118,6 @@ pub(crate) trait IndexEvents {
         admin: Address,
         old_manager: Address,
         new_manager: Address,
-    );
-
-    fn protocol_fee_recipient_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_recipient: Address,
-        new_recipient: Address,
-    );
-
-    fn manager_fee_amount_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_fee_amount: u128,
-        new_fee_amount: u128,
     );
 
     fn public_status_updated(&self, ts: u64, admin: Address, old_status: bool, new_status: bool);
@@ -273,26 +223,7 @@ pub(crate) trait IndexEvents {
         duration_ms: u64,
     );
 
-    // Legacy Revenue Share Events (for backward compatibility)
-    fn fee_collected(
-        &self,
-        user: Address,
-        token: Address,
-        amount: u128,
-        manager_fee: u128,
-        protocol_fee: u128,
-    );
-
-    fn manager_fees_distributed(&self, manager: Address, amount: u128);
-
-    fn protocol_fees_distributed(&self, recipient: Address, amount: u128);
-
     fn manager_address_updated_legacy(&self, old_manager: Address, new_manager: Address);
-
-    fn protocol_fee_recipient_updated_legacy(&self, old_recipient: Address, new_recipient: Address);
-
-    // Legacy Rebalancing Events (for backward compatibility)
-    fn fee_collection_toggled(&self, enabled: bool);
 
     // Rebalancing Events
     fn component_added(&self, token: Address, weight: u128);
@@ -320,7 +251,7 @@ impl IndexEvents for Events {
         nav_after: u128,
         total_shares_before: u128,
         total_shares_after: u128,
-        fees_collected: u128,
+        // fees_collected: u128,
         destination: Option<Address>,
     ) {
         self.env().events().publish(
@@ -336,7 +267,7 @@ impl IndexEvents for Events {
                 nav_after,
                 total_shares_before,
                 total_shares_after,
-                fees_collected,
+                // fees_collected,
                 destination.unwrap_or(user),
             ),
             (),
@@ -353,8 +284,7 @@ impl IndexEvents for Events {
         nav_after: u128,
         total_shares_before: u128,
         total_shares_after: u128,
-        component_payouts: Map<Address, u128>,
-        fees_deducted: u128,
+        component_payouts: Map<Address, u128>, // fees_deducted: u128,
     ) {
         self.env().events().publish(
             (
@@ -368,7 +298,7 @@ impl IndexEvents for Events {
                 total_shares_before,
                 total_shares_after,
                 component_payouts,
-                fees_deducted,
+                // fees_deducted,
             ),
             (),
         );
@@ -424,79 +354,6 @@ impl IndexEvents for Events {
         );
     }
 
-    fn accrued_fees_collected(
-        &self,
-        ts: u64,
-        user: Address,
-        shares_before: u128,
-        shares_after: u128,
-        fee_period_start: u64,
-        fee_period_end: u64,
-        annual_fee_amount: u128,
-        total_fee_collected: u128,
-        manager_fee_portion: u128,
-        protocol_fee_portion: u128,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "accrued_fees_collected"),
-                ts,
-                user,
-                shares_before,
-                shares_after,
-                fee_period_start,
-                fee_period_end,
-                annual_fee_amount,
-                total_fee_collected,
-                manager_fee_portion,
-                protocol_fee_portion,
-            ),
-            (),
-        );
-    }
-
-    fn fees_distributed_to_manager(
-        &self,
-        ts: u64,
-        manager: Address,
-        amount: u128,
-        total_accumulated_before: u128,
-        total_accumulated_after: u128,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "fees_distributed_to_manager"),
-                ts,
-                manager,
-                amount,
-                total_accumulated_before,
-                total_accumulated_after,
-            ),
-            (),
-        );
-    }
-
-    fn fees_distributed_to_protocol(
-        &self,
-        ts: u64,
-        recipient: Address,
-        amount: u128,
-        total_accumulated_before: u128,
-        total_accumulated_after: u128,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "fees_distributed_to_protocol"),
-                ts,
-                recipient,
-                amount,
-                total_accumulated_before,
-                total_accumulated_after,
-            ),
-            (),
-        );
-    }
-
     // Configuration update event implementations
     fn manager_address_updated(
         &self,
@@ -512,44 +369,6 @@ impl IndexEvents for Events {
                 admin,
                 old_manager,
                 new_manager,
-            ),
-            (),
-        );
-    }
-
-    fn protocol_fee_recipient_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_recipient: Address,
-        new_recipient: Address,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "protocol_fee_recipient_updated"),
-                ts,
-                admin,
-                old_recipient,
-                new_recipient,
-            ),
-            (),
-        );
-    }
-
-    fn manager_fee_amount_updated(
-        &self,
-        ts: u64,
-        admin: Address,
-        old_fee_amount: u128,
-        new_fee_amount: u128,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "manager_fee_amount_updated"),
-                ts,
-                admin,
-                old_fee_amount,
-                new_fee_amount,
             ),
             (),
         );
@@ -905,48 +724,6 @@ impl IndexEvents for Events {
     }
 
     // Revenue Share Event Implementations
-    fn fee_collected(
-        &self,
-        user: Address,
-        token: Address,
-        amount: u128,
-        manager_fee: u128,
-        protocol_fee: u128,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "fee_collected"),
-                user,
-                token,
-                amount,
-                manager_fee,
-                protocol_fee,
-            ),
-            (),
-        )
-    }
-
-    fn manager_fees_distributed(&self, manager: Address, amount: u128) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "manager_fees_distributed"),
-                manager,
-                amount,
-            ),
-            (),
-        )
-    }
-
-    fn protocol_fees_distributed(&self, recipient: Address, amount: u128) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "protocol_fees_distributed"),
-                recipient,
-                amount,
-            ),
-            (),
-        )
-    }
 
     fn manager_address_updated_legacy(&self, old_manager: Address, new_manager: Address) {
         self.env().events().publish(
@@ -955,28 +732,6 @@ impl IndexEvents for Events {
                 old_manager,
                 new_manager,
             ),
-            (),
-        )
-    }
-
-    fn protocol_fee_recipient_updated_legacy(
-        &self,
-        old_recipient: Address,
-        new_recipient: Address,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "protocol_fee_recipient_updated"),
-                old_recipient,
-                new_recipient,
-            ),
-            (),
-        )
-    }
-
-    fn fee_collection_toggled(&self, enabled: bool) {
-        self.env().events().publish(
-            (Symbol::new(self.env(), "fee_collection_toggled"), enabled),
             (),
         )
     }

@@ -2,30 +2,6 @@
 # yarn lockfile v1
 
 
-"@anthropic-ai/claude-code@^1.0.80":
-  version "1.0.80"
-  resolved "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-1.0.80.tgz"
-  integrity sha512-OpJb8LZBYuQ21lmT71c65NwUKGtQiva8dyKmCIPWnRIXHDaZ/31zzpDqcxgONUKUiZrnHqoMXwEwWyPyhD0+dA==
-  optionalDependencies:
-    "@img/sharp-darwin-arm64" "^0.33.5"
-    "@img/sharp-darwin-x64" "^0.33.5"
-    "@img/sharp-linux-arm" "^0.33.5"
-    "@img/sharp-linux-arm64" "^0.33.5"
-    "@img/sharp-linux-x64" "^0.33.5"
-    "@img/sharp-win32-x64" "^0.33.5"
-
-"@img/sharp-darwin-arm64@^0.33.5":
-  version "0.33.5"
-  resolved "https://registry.npmjs.org/@img/sharp-darwin-arm64/-/sharp-darwin-arm64-0.33.5.tgz"
-  integrity sha512-UT4p+iz/2H4twwAoLCqfA9UH5pI6DggwKEGuaPy7nCVQ8ZsiY5PIcrRvD1DzuY3qYL07NtIQcWnBSY/heikIFQ==
-  optionalDependencies:
-    "@img/sharp-libvips-darwin-arm64" "1.0.4"
-
-"@img/sharp-libvips-darwin-arm64@1.0.4":
-  version "1.0.4"
-  resolved "https://registry.npmjs.org/@img/sharp-libvips-darwin-arm64/-/sharp-libvips-darwin-arm64-1.0.4.tgz"
-  integrity sha512-XblONe153h0O2zuFfTAbQYAX2JhYmDHeWikp1LM9Hul9gVPjFY427k6dFEcOL72O01QxQsWi761svJ/ev9xEDg==
-
 "@isaacs/cliui@^8.0.2":
   version "8.0.2"
   resolved "https://registry.npmjs.org/@isaacs/cliui/-/cliui-8.0.2.tgz"

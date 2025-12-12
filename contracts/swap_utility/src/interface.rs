@@ -11,15 +11,15 @@ pub struct DexDistribution {
 }
 
 #[contracttype]
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum SwapDirection {
-    Buy,
-    Sell,
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DexProvider {
+    Normal,
+    Soroswap,
 }
 
-impl Default for SwapDirection {
+impl Default for DexProvider {
     fn default() -> Self {
-        Self::Buy
+        Self::Normal
     }
 }
 
@@ -33,21 +33,7 @@ pub struct SwapParams {
     pub amount_out_min: u128,
     pub to: Address,
     pub asset: Symbol,
-    pub direction: SwapDirection,
     pub fee_enabled: Option<bool>,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum DexProvider {
-    Normal,
-    Soroswap,
-}
-
-impl Default for DexProvider {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 #[contracttype]

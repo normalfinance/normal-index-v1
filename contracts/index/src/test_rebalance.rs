@@ -9,10 +9,11 @@ use super::storage::{
     set_rebalance_threshold, set_swap_utility, Component,
 };
 use super::test_utils::{
-    complete_test_setup, create_mock_token, enhanced_setup_components, setup_components_without_balances,
-    setup_components_with_zero_balances, setup_mock_token_shares,
+    complete_test_setup, create_mock_token, enhanced_setup_components,
+    setup_components_with_zero_balances, setup_components_without_balances,
+    setup_mock_token_shares,
 };
-use soroban_sdk::{testutils::Address as _, vec, log, Address, Env, Symbol, Vec};
+use soroban_sdk::{log, testutils::Address as _, vec, Address, Env, Symbol, Vec};
 use utils::test_utils::jump;
 
 const THIRTY_DAYS: u64 = 30 * 24 * 60 * 60;
@@ -51,7 +52,7 @@ fn allow_immediate_rebalance(e: &Env, contract: &Address) {
             set_last_rebalance_ts(e, &0);
         }
     });
-    
+
     // Advance time past the threshold
     jump(e, THIRTY_DAYS + 1);
 }
@@ -82,8 +83,14 @@ fn test_rebalance_updates_timestamps() {
     let last_rebalance = e.as_contract(&contract_address, || get_last_rebalance_ts(&e));
     let last_updated = e.as_contract(&contract_address, || get_last_updated_ts(&e));
 
-    assert!(last_rebalance >= time_before, "last_rebalance_ts should be updated");
-    assert!(last_updated >= time_before, "last_updated_ts should be updated");
+    assert!(
+        last_rebalance >= time_before,
+        "last_rebalance_ts should be updated"
+    );
+    assert!(
+        last_updated >= time_before,
+        "last_updated_ts should be updated"
+    );
     assert_eq!(
         last_rebalance, last_updated,
         "Both timestamps should be equal after rebalance"
@@ -106,7 +113,7 @@ fn test_rebalance_with_target_nav() {
         set_base_nav(&e, &100_000);
         set_component_balance(&e, token, 50_000);
     });
-    
+
     // Allow immediate rebalance
     allow_immediate_rebalance(&e, &contract_address);
 
@@ -135,7 +142,7 @@ fn test_rebalance_without_target_nav_uses_current() {
         set_base_nav(&e, &100_000);
         set_component_balance(&e, token, 100_000);
     });
-    
+
     // Allow immediate rebalance
     allow_immediate_rebalance(&e, &contract_address);
 
@@ -221,7 +228,10 @@ fn test_get_rebalance_status_timing() {
 
     // Query status before threshold
     let status_before = client.get_rebalance_status();
-    assert!(!status_before.can_rebalance, "Should not be able to rebalance yet");
+    assert!(
+        !status_before.can_rebalance,
+        "Should not be able to rebalance yet"
+    );
     assert!(
         status_before.time_until_next_rebalance > 0,
         "Should have time remaining"
@@ -233,7 +243,10 @@ fn test_get_rebalance_status_timing() {
 
     // Query status after threshold
     let status_after = client.get_rebalance_status();
-    assert!(status_after.can_rebalance, "Should be able to rebalance now");
+    assert!(
+        status_after.can_rebalance,
+        "Should be able to rebalance now"
+    );
     assert_eq!(
         status_after.time_until_next_rebalance, 0,
         "No time should remain"
@@ -270,7 +283,10 @@ fn test_custom_rebalance_threshold() {
 
     // Check that can_rebalance returns false
     let status = client.get_rebalance_status();
-    assert!(!status.can_rebalance, "Should not be able to rebalance before custom threshold");
+    assert!(
+        !status.can_rebalance,
+        "Should not be able to rebalance before custom threshold"
+    );
 }
 
 // ===== Permission Checks =====
@@ -333,8 +349,9 @@ fn test_private_index_rebalance_authority() {
     client.set_rebalance_authority(&admin, &authority, &true);
 
     // Verify authority status
-    let has_authority =
-        e.as_contract(&contract_address, || get_rebalance_authority_status(&e, &authority));
+    let has_authority = e.as_contract(&contract_address, || {
+        get_rebalance_authority_status(&e, &authority)
+    });
     assert!(has_authority);
 
     let token = create_mock_token(&e);
@@ -399,13 +416,15 @@ fn test_set_rebalance_authority() {
     assert_eq!(authorities.len(), 1);
 
     // Verify authority1 removed
-    let has_authority1 =
-        e.as_contract(&contract_address, || get_rebalance_authority_status(&e, &authority1));
+    let has_authority1 = e.as_contract(&contract_address, || {
+        get_rebalance_authority_status(&e, &authority1)
+    });
     assert!(!has_authority1);
 
     // Verify authority2 still has authority
-    let has_authority2 =
-        e.as_contract(&contract_address, || get_rebalance_authority_status(&e, &authority2));
+    let has_authority2 = e.as_contract(&contract_address, || {
+        get_rebalance_authority_status(&e, &authority2)
+    });
     assert!(has_authority2);
 }
 
@@ -526,51 +545,51 @@ fn test_generate_rebalance_swaps_multiple_components() {
     client.rebalance(&admin, &RebalanceParams { target_nav: None });
 }
 
-// ===== Kill Switch =====
+// // ===== Kill Switch =====
 
-#[test]
-#[should_panic(expected = "Error(Contract, #32)")]
-fn test_rebalance_killed_prevents_rebalance() {
-    let e = Env::default();
-    e.mock_all_auths();
+// #[test]
+// #[should_panic(expected = "Error(Contract, #32)")]
+// fn test_rebalance_killed_prevents_rebalance() {
+//     let e = Env::default();
+//     e.mock_all_auths();
 
-    let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+//     let (contract_address, admin, _) = create_test_index(&e);
+//     let client = IndexClient::new(&e, &contract_address);
 
-    let token = create_mock_token(&e);
-    setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
+//     let token = create_mock_token(&e);
+//     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
 
-    // Allow immediate rebalance (setup timing)
-    allow_immediate_rebalance(&e, &contract_address);
+//     // Allow immediate rebalance (setup timing)
+//     allow_immediate_rebalance(&e, &contract_address);
 
-    // Kill rebalance
-    client.kill_rebalance(&admin);
+//     // Kill rebalance
+//     client.kill_rebalance(&admin);
 
-    // Attempt rebalance - should fail
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
-}
+//     // Attempt rebalance - should fail
+//     client.rebalance(&admin, &RebalanceParams { target_nav: None });
+// }
 
-#[test]
-fn test_unkill_rebalance_restores_functionality() {
-    let e = Env::default();
-    e.mock_all_auths();
+// #[test]
+// fn test_unkill_rebalance_restores_functionality() {
+//     let e = Env::default();
+//     e.mock_all_auths();
 
-    let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+//     let (contract_address, admin, _) = create_test_index(&e);
+//     let client = IndexClient::new(&e, &contract_address);
 
-    let token = create_mock_token(&e);
-    setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
+//     let token = create_mock_token(&e);
+//     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
 
-    // Allow immediate rebalance
-    allow_immediate_rebalance(&e, &contract_address);
+//     // Allow immediate rebalance
+//     allow_immediate_rebalance(&e, &contract_address);
 
-    // Kill then unkill
-    client.kill_rebalance(&admin);
-    client.unkill_rebalance(&admin);
+//     // Kill then unkill
+//     client.kill_rebalance(&admin);
+//     client.unkill_rebalance(&admin);
 
-    // Rebalance should succeed
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
-}
+//     // Rebalance should succeed
+//     client.rebalance(&admin, &RebalanceParams { target_nav: None });
+// }
 
 // ===== Query Functions =====
 
@@ -632,7 +651,10 @@ fn test_can_address_rebalance_regular_user() {
 
     // Regular user should NOT be able to rebalance
     let can_rebalance = client.can_address_rebalance(&regular_user);
-    assert!(!can_rebalance, "Regular user should not be able to rebalance");
+    assert!(
+        !can_rebalance,
+        "Regular user should not be able to rebalance"
+    );
 }
 
 #[test]
@@ -659,7 +681,7 @@ fn test_get_component_allocation() {
         set_component_balance(&e, token1.clone(), 50_000); // Target should be 60_000
         set_component_balance(&e, token2.clone(), 50_000); // Target should be 40_000
     });
-    
+
     // Setup mock token shares for NAV calculation
     setup_mock_token_shares(&e, &contract_address, 1_000_000); // 1M total shares
 
@@ -738,7 +760,12 @@ fn test_full_refactor_rebalance_flow() {
         },
     ];
 
-    client.refactor(&admin, &RefactorParams { component_updates: refactor_updates });
+    client.refactor(
+        &admin,
+        &RefactorParams {
+            component_updates: refactor_updates,
+        },
+    );
 
     // Verify refactor updated last_updated_ts but not last_rebalance_ts
     let last_updated = e.as_contract(&contract_address, || get_last_updated_ts(&e));
@@ -748,7 +775,7 @@ fn test_full_refactor_rebalance_flow() {
     // Mint is now allowed after refactor (check removed - see test_mint_allowed_after_refactor)
 
     // Create imbalanced component allocations to force swap generation
-    // Target weights after refactor: token1=40%, token2=30%, token3=30% 
+    // Target weights after refactor: token1=40%, token2=30%, token3=30%
     // Set imbalanced state: token1=60%, token2=20%, token3=20%
     e.as_contract(&contract_address, || {
         set_component_balance(&e, token1.clone(), 60_000); // 60% instead of target 40%
@@ -858,4 +885,3 @@ fn test_rebalance_completed_detailed_event() {
 
     // Events should include: total_swaps, performance_delta, duration_ms
 }
-

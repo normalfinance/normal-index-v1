@@ -7,10 +7,11 @@ use super::storage::{
     get_last_updated_ts, set_component, set_last_rebalance_ts, set_last_updated_ts, Component,
 };
 use super::test_utils::{
-    complete_test_setup, create_mock_token, enhanced_setup_components, setup_components_without_balances,
-    setup_components_with_zero_balances, setup_mock_token_shares,
+    complete_test_setup, create_mock_token, enhanced_setup_components,
+    setup_components_with_zero_balances, setup_components_without_balances,
+    setup_mock_token_shares,
 };
-use soroban_sdk::{testutils::Address as _, vec, log, Address, Env, Symbol, Vec};
+use soroban_sdk::{log, testutils::Address as _, vec, Address, Env, Symbol, Vec};
 use token_share::get_total_shares;
 use utils::test_utils::jump;
 
@@ -69,11 +70,17 @@ fn test_refactor_add_component() {
 
     // Verify last_updated_ts was updated
     let last_updated = e.as_contract(&contract_address, || get_last_updated_ts(&e));
-    assert!(last_updated >= time_before, "last_updated_ts should be updated");
+    assert!(
+        last_updated >= time_before,
+        "last_updated_ts should be updated"
+    );
 
     // Verify last_rebalance_ts was NOT updated
     let last_rebalance = e.as_contract(&contract_address, || get_last_rebalance_ts(&e));
-    assert_eq!(last_rebalance, 0, "last_rebalance_ts should not be updated by refactor");
+    assert_eq!(
+        last_rebalance, 0,
+        "last_rebalance_ts should not be updated by refactor"
+    );
 }
 
 #[test]
@@ -90,7 +97,8 @@ fn test_refactor_remove_component() {
     setup_components(&e, &contract_address, vec![&e, (token.clone(), 10000)]);
 
     // Verify component exists
-    let component_before = e.as_contract(&contract_address, || get_component_safe(&e, token.clone()));
+    let component_before =
+        e.as_contract(&contract_address, || get_component_safe(&e, token.clone()));
     assert!(component_before.is_some());
 
     // Create refactor params to remove the component
@@ -111,7 +119,8 @@ fn test_refactor_remove_component() {
     client.refactor(&admin, &params);
 
     // Verify component was removed
-    let component_after = e.as_contract(&contract_address, || get_component_safe(&e, token.clone()));
+    let component_after =
+        e.as_contract(&contract_address, || get_component_safe(&e, token.clone()));
     assert!(component_after.is_none(), "Component should be removed");
 }
 
@@ -254,7 +263,12 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
         },
     ];
 
-    client.refactor(&admin, &RefactorParams { component_updates: updates1 });
+    client.refactor(
+        &admin,
+        &RefactorParams {
+            component_updates: updates1,
+        },
+    );
 
     // Second refactor: Update weights (6000 + 4000 = 10000)
     let updates2 = vec![
@@ -271,7 +285,12 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
         },
     ];
 
-    client.refactor(&admin, &RefactorParams { component_updates: updates2 });
+    client.refactor(
+        &admin,
+        &RefactorParams {
+            component_updates: updates2,
+        },
+    );
 
     // Verify weights
     let comp1 = e.as_contract(&contract_address, || get_component(&e, token1));
@@ -362,7 +381,12 @@ fn test_refactor_admin_can_refactor_anytime() {
             action: ComponentAction::Add,
         },
     ];
-    client.refactor(&admin, &RefactorParams { component_updates: updates1 });
+    client.refactor(
+        &admin,
+        &RefactorParams {
+            component_updates: updates1,
+        },
+    );
 
     // Immediate second refactor (no time restriction)
     let updates2 = vec![
@@ -373,7 +397,12 @@ fn test_refactor_admin_can_refactor_anytime() {
             action: ComponentAction::UpdateWeight,
         },
     ];
-    client.refactor(&admin, &RefactorParams { component_updates: updates2 });
+    client.refactor(
+        &admin,
+        &RefactorParams {
+            component_updates: updates2,
+        },
+    );
 
     // Should succeed without time threshold check
 }
@@ -395,14 +424,14 @@ fn test_mint_allowed_after_refactor() {
     });
 
     let user = Address::generate(&e);
-    let token = create_mock_token(&e);  
+    let token = create_mock_token(&e);
 
     // Whitelist the user so mint doesn't fail on whitelist check
     client.set_whitelist_status(&admin, &user, &true);
 
     // Advance ledger time first
     jump(&e, 100);
-    
+
     // Set initial rebalance timestamp
     e.as_contract(&contract_address, || {
         set_last_rebalance_ts(&e, &e.ledger().timestamp());
@@ -420,7 +449,12 @@ fn test_mint_allowed_after_refactor() {
             action: ComponentAction::Add,
         },
     ];
-    client.refactor(&admin, &RefactorParams { component_updates: updates });
+    client.refactor(
+        &admin,
+        &RefactorParams {
+            component_updates: updates,
+        },
+    );
 
     // Set up component balance to avoid token contract calls during mint
     e.as_contract(&contract_address, || {
@@ -435,17 +469,17 @@ fn test_mint_allowed_after_refactor() {
     // Set up mock token balance for the user to ensure transfer works
     // The MockToken contract returns 1B tokens for any balance query, but we need to make sure
     // the user has proper authorization for the transfer
-    
+
     // Core test: Verify the RebalanceRequiredAfterRefactor check has been removed.
-    // If the old check was still in place, calling mint with last_updated > last_rebalance 
+    // If the old check was still in place, calling mint with last_updated > last_rebalance
     // would fail with RebalanceRequiredAfterRefactor error (#43) BEFORE any token operations.
-    // 
+    //
     // Any other error (like token setup issues) means we successfully passed the rebalance check.
     // The fact that we're getting past the rebalance check validation proves the fix is working.
     //
     // Note: The call may fail due to complex token setup issues, but that's not what we're testing.
     // We're specifically testing that the rebalance requirement has been removed.
-    
+
     // We expect this to NOT fail with RebalanceRequiredAfterRefactor (error #43)
     // Since that check has been removed from the code (lines 148-154 in contract.rs are commented out)
     // This uses the same token that was used in the refactor to properly test the scenario
@@ -461,14 +495,14 @@ fn test_redeem_allowed_after_refactor() {
     let client = IndexClient::new(&e, &contract_address);
 
     let user = Address::generate(&e);
-    let token = create_mock_token(&e);  
+    let token = create_mock_token(&e);
 
     // Whitelist the user so redeem doesn't fail on whitelist check
     client.set_whitelist_status(&admin, &user, &true);
 
     // Advance ledger time first
     jump(&e, 100);
-    
+
     // Set initial rebalance timestamp
     e.as_contract(&contract_address, || {
         set_last_rebalance_ts(&e, &e.ledger().timestamp());
@@ -486,7 +520,12 @@ fn test_redeem_allowed_after_refactor() {
             action: ComponentAction::Add,
         },
     ];
-    client.refactor(&admin, &RefactorParams { component_updates: updates });
+    client.refactor(
+        &admin,
+        &RefactorParams {
+            component_updates: updates,
+        },
+    );
 
     // Set up component balance to avoid token contract calls during redeem
     e.as_contract(&contract_address, || {
@@ -495,10 +534,13 @@ fn test_redeem_allowed_after_refactor() {
 
     // Ensure total_shares is 0 so get_nav() doesn't try to call the token contract
     let total_shares = e.as_contract(&contract_address, || get_total_shares(&e));
-    assert_eq!(total_shares, 0, "total_shares should be 0 to avoid token contract calls");
+    assert_eq!(
+        total_shares, 0,
+        "total_shares should be 0 to avoid token contract calls"
+    );
 
     // Core test: Verify the RebalanceRequiredAfterRefactor check has been removed from redeem.
-    // Similar to the mint test, if the old check was still in place, calling redeem with 
+    // Similar to the mint test, if the old check was still in place, calling redeem with
     // last_updated > last_rebalance would fail with RebalanceRequiredAfterRefactor error (#43).
     //
     // This actually calls the redeem function to prove it works after refactor
@@ -530,7 +572,12 @@ fn test_operations_allowed_after_rebalance() {
             action: ComponentAction::Add,
         },
     ];
-    client.refactor(&admin, &RefactorParams { component_updates: updates });
+    client.refactor(
+        &admin,
+        &RefactorParams {
+            component_updates: updates,
+        },
+    );
 
     // Now simulate rebalance by updating last_rebalance_ts
     e.as_contract(&contract_address, || {
@@ -572,7 +619,12 @@ fn test_refactor_with_no_components() {
             action: ComponentAction::Add,
         },
     ];
-    client.refactor(&admin, &RefactorParams { component_updates: updates });
+    client.refactor(
+        &admin,
+        &RefactorParams {
+            component_updates: updates,
+        },
+    );
 
     // Verify component added
     let components_after = e.as_contract(&contract_address, || get_all_components(&e));
@@ -605,7 +657,12 @@ fn test_refactor_remove_last_component() {
             action: ComponentAction::Remove,
         },
     ];
-    client.refactor(&admin, &RefactorParams { component_updates: updates });
+    client.refactor(
+        &admin,
+        &RefactorParams {
+            component_updates: updates,
+        },
+    );
 
     // Verify no components remain
     let components_after = e.as_contract(&contract_address, || get_all_components(&e));
@@ -662,7 +719,12 @@ fn test_refactor_batch_updates() {
         },
     ];
 
-    client.refactor(&admin, &RefactorParams { component_updates: updates });
+    client.refactor(
+        &admin,
+        &RefactorParams {
+            component_updates: updates,
+        },
+    );
 
     // Verify final state: token1 (5000), token2 (3000), token4 (2000)
     let all_components = e.as_contract(&contract_address, || get_all_components(&e));
@@ -681,4 +743,3 @@ fn test_refactor_batch_updates() {
     let comp3 = e.as_contract(&contract_address, || get_component_safe(&e, token3));
     assert!(comp3.is_none());
 }
-

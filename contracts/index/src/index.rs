@@ -1,30 +1,17 @@
 use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{contracttype, panic_with_error, Address, Env, IntoVal, log, String, Symbol, Vec};
+use soroban_sdk::{
+    contracttype, log, panic_with_error, Address, Env, IntoVal, String, Symbol, Vec,
+};
 use token_share::get_token_share;
 use utils::validate;
 
-// Types to match the SwapUtility contract
-#[derive(Clone)]
-#[contracttype]
-pub struct SwapUtilityParams {
-    pub provider: Option<String>, // DexProvider as string
-    pub token_in: Address,
-    pub token_out: Address,
-    pub amount_in: i128,
-    pub amount_out_min: i128,
-    pub to: Address,
-    pub asset: Symbol,
-    pub direction: SwapDirection,
-    pub fee_enabled: bool, // Fee toggle from index contract
-}
-
 use crate::errors::IndexError;
 use crate::events::{Events, IndexEvents};
-use crate::fees::get_fee_enabled_from_factory;
 use crate::storage::{get_all_components, get_swap_utility, get_swap_utility_address};
 
+// Define enums first (before structs that use them)
 #[contracttype]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DexProvider {
     Normal,
     Soroswap,
@@ -36,26 +23,29 @@ impl Default for DexProvider {
     }
 }
 
+// Types to match the SwapUtility contract interface
+// Note: provider uses String because Option<Enum> has test-compilation issues
+// When provider is None, it triggers auto-selection regardless of type
+#[derive(Clone)]
 #[contracttype]
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum SwapDirection {
-    Buy,
-    Sell,
-}
-
-impl Default for SwapDirection {
-    fn default() -> Self {
-        Self::Buy
-    }
+pub struct SwapUtilityParams {
+    pub provider: Option<String>,
+    pub token_in: Address,
+    pub token_out: Address,
+    pub amount_in: u128,
+    pub amount_out_min: u128,
+    pub to: Address,
+    pub asset: Symbol,
+    pub fee_enabled: Option<bool>,
 }
 
 #[contracttype]
 pub struct SwapParams {
-    pub provider: Option<String>, // DexProvider as string (Option<Enum> not supported by contracttype)
+    pub provider: Option<String>,
     pub token_in: Address,
     pub token_out: Address,
-    pub amount_in: i128,
-    pub amount_out_min: i128,
+    pub amount_in: u128,
+    pub amount_out_min: u128,
     pub to: Address,
 }
 
@@ -80,7 +70,7 @@ pub fn generate_swap_params(
     for (component_address, component) in components.iter() {
         // Calculate target allocation based on component weight
         // component.weight is in basis points (10000 = 100%)
-        let target_allocation = (total_deposit * component.weight as u128) / 10000;
+        let target_allocation = (total_deposit * (component.weight as u128)) / 10000;
 
         // Only create swap if we need to buy this component and allocation > 0
         if target_allocation > 0 {
@@ -90,7 +80,7 @@ pub fn generate_swap_params(
             }
 
             // Calculate minimum output with 5% slippage tolerance
-            let min_output = (target_allocation as i128 * 95) / 100;
+            let min_output = (target_allocation * 95) / 100;
             validate!(e, min_output > 0, IndexError::PathIsEmpty);
 
             //Revisit this param generation here
@@ -98,7 +88,7 @@ pub fn generate_swap_params(
                 provider: None, // Use default provider
                 token_in: deposit_token.clone(),
                 token_out: component_address.clone(),
-                amount_in: target_allocation as i128,
+                amount_in: target_allocation,
                 amount_out_min: min_output,
                 to: e.current_contract_address(),
             };
@@ -120,11 +110,6 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
         let params = swaps.get(i).unwrap();
 
         log!(&e, "Executing swap with params: {:?}", params);
-
-        // Get fee enabled status from factory contract
-        let fee_enabled = get_fee_enabled_from_factory(e);
-
-        log!(&e, "Fee enabled in execute_swaps: {:?}", fee_enabled);
 
         // Get the component info to extract the asset symbol
         // For buy swaps: token_out is the component, for sell swaps: token_in is the component
@@ -149,8 +134,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
             amount_out_min: params.amount_out_min,
             to: params.to.clone(),
             asset: component.asset.clone(),
-            direction: SwapDirection::Buy, // We're always buying components
-            fee_enabled,                   // Pass the fee toggle to SwapUtility
+            fee_enabled: None,
         };
 
         // Execute individual swap via cross-contract call to swap utility
@@ -182,7 +166,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
                     e.current_contract_address(),
                     params.token_in,
                     params.token_out,
-                    params.amount_in.try_into().unwrap(),
+                    params.amount_in,
                     1000u32, // Convert error enum to numeric code
                 );
 
@@ -195,7 +179,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
                     e.current_contract_address(),
                     params.token_in,
                     params.token_out,
-                    params.amount_in.try_into().unwrap(),
+                    params.amount_in,
                     999u32, // Generic contract call failure
                 );
 
@@ -281,13 +265,13 @@ pub fn generate_rebalance_swaps(
 
     // Get component addresses for iteration
     let component_addresses = crate::storage::get_component_registry(e);
-    
+
     // For each component, check if current balance matches target allocation
     let len = component_addresses.len();
     for i in 0..len {
         let token_address = component_addresses.get_unchecked(i);
         let component = components.get(token_address.clone()).unwrap();
-        
+
         let current_balance =
             crate::storage::get_component_balance_safe(e, token_address.clone()).unwrap_or(0);
 
@@ -326,8 +310,8 @@ fn create_buy_swap(e: &Env, token_out: Address, amount_needed: u128) -> SwapPara
         provider: None, // Use default provider
         token_in: base_token,
         token_out,
-        amount_in: amount_needed as i128, // Simplified 1:1 ratio
-        amount_out_min: (amount_needed as i128 * 95) / 100, // 5% slippage tolerance
+        amount_in: amount_needed,
+        amount_out_min: (amount_needed * 95) / 100, // 5% slippage tolerance
         to: e.current_contract_address(),
     }
 }
@@ -339,8 +323,8 @@ fn create_sell_swap(e: &Env, token_in: Address, amount_to_sell: u128) -> SwapPar
         provider: None, // Use default provider
         token_in,
         token_out: base_token,
-        amount_in: amount_to_sell as i128,
-        amount_out_min: (amount_to_sell as i128 * 95) / 100, // 5% slippage tolerance
+        amount_in: amount_to_sell,
+        amount_out_min: (amount_to_sell * 95) / 100, // 5% slippage tolerance
         to: e.current_contract_address(),
     }
 }
