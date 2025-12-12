@@ -1375,8 +1375,8 @@ impl Index {
                         provider: None,
                         token_in: deposited_token.clone(),
                         token_out: component_token.clone(),
-                        amount_in: target_amount as i128,
-                        amount_out_min: ((target_amount as i128) * 95) / 100, // 5% slippage tolerance
+                        amount_in: target_amount,
+                        amount_out_min: (target_amount * 95) / 100, // 5% slippage tolerance
                         to: e.current_contract_address(),
                     };
                     swaps.push_back(swap);
