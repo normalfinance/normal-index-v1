@@ -23,19 +23,6 @@ impl Default for DexProvider {
     }
 }
 
-#[contracttype]
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum SwapDirection {
-    Buy,
-    Sell,
-}
-
-impl Default for SwapDirection {
-    fn default() -> Self {
-        Self::Buy
-    }
-}
-
 // Types to match the SwapUtility contract interface
 // Note: provider uses String because Option<Enum> has test-compilation issues
 // When provider is None, it triggers auto-selection regardless of type
@@ -49,7 +36,6 @@ pub struct SwapUtilityParams {
     pub amount_out_min: u128,
     pub to: Address,
     pub asset: Symbol,
-    pub direction: SwapDirection,
     pub fee_enabled: Option<bool>,
 }
 
@@ -148,7 +134,6 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
             amount_out_min: params.amount_out_min,
             to: params.to.clone(),
             asset: component.asset.clone(),
-            direction: SwapDirection::Buy, // We're always buying components
             fee_enabled: None,
         };
 
