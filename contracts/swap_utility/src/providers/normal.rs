@@ -1,9 +1,9 @@
-use soroban_sdk::{Address, Env, IntoVal, Symbol, Vec};
+use soroban_sdk::{Address, BytesN, Env, IntoVal, Map, Symbol, Vec};
 
 use crate::{
     errors::SwapError,
     interface::{DexProvider, ProviderConfig, SwapParams, SwapResult},
-    providers::base::SwapProvider,
+    providers::base::{build_simple_path, SwapProvider},
 };
 
 pub struct NormalProvider;
@@ -21,16 +21,39 @@ impl SwapProvider for NormalProvider {
             return Err(SwapError::ProviderNotConfigured);
         }
 
+        // Build sorted tokens vector for pool lookup
+        let tokens = build_simple_path(env, &params.token_in, &params.token_out);
+
+        // Get available pools for this token pair
+        let pools_result = env.try_invoke_contract::<Map<BytesN<32>, Address>, SwapError>(
+            &config.contract_address,
+            &Symbol::new(env, "get_pools"),
+            Vec::from_array(env, [tokens.clone().into_val(env)]),
+        );
+
+        let pool_index = match pools_result {
+            Ok(Ok(pools)) => {
+                match pools.iter().next() {
+                    Some((index, _)) => index,
+                    None => return Err(SwapError::NormalDexFailed),
+                }
+            }
+            _ => return Err(SwapError::NormalDexFailed),
+        };
+
         // Execute swap through the Normal Pool Router
+        // swap(user, tokens, token_in, token_out, pool_index, in_amount, out_min) -> u128
         let swap_result: Result<u128, soroban_sdk::Error> = env.invoke_contract(
             &config.contract_address,
             &Symbol::new(env, "swap"),
             Vec::from_array(
                 env,
                 [
-                    env.current_contract_address().into_val(env),
-                    params.asset.clone().into_val(env),
-                    params.direction.clone().into_val(env),
+                    params.to.clone().into_val(env),
+                    tokens.into_val(env),
+                    params.token_in.clone().into_val(env),
+                    params.token_out.clone().into_val(env),
+                    pool_index.into_val(env),
                     params.amount_in.into_val(env),
                     params.amount_out_min.into_val(env),
                 ],
@@ -78,43 +101,43 @@ impl SwapProvider for NormalProvider {
             return Err(SwapError::ProviderNotConfigured);
         }
 
-        // Try to get a quote from Normal DEX's get_swap_quote function
-        let quote_result = env.try_invoke_contract::<u128, SwapError>(
+        // Build sorted tokens vector for pool lookup
+        let tokens = build_simple_path(env, token_in, token_out);
+
+        // First, get available pools for this token pair
+        let pools_result = env.try_invoke_contract::<Map<BytesN<32>, Address>, SwapError>(
             &config.contract_address,
-            &Symbol::new(env, "get_swap_quote"),
-            Vec::from_array(
-                env,
-                [
-                    token_in.clone().into_val(env),
-                    token_out.clone().into_val(env),
-                    amount_in.into_val(env),
-                ],
-            ),
+            &Symbol::new(env, "get_pools"),
+            Vec::from_array(env, [tokens.clone().into_val(env)]),
         );
 
-        if let Ok(Ok(amount_out)) = quote_result {
-            return Ok(amount_out);
+        if let Ok(Ok(pools)) = pools_result {
+            // Use the first available pool
+            if let Some((pool_index, _)) = pools.iter().next() {
+                // Call estimate_swap with correct parameters:
+                // estimate_swap(tokens, token_in, token_out, pool_index, in_amount) -> u128
+                let quote_result = env.try_invoke_contract::<u128, SwapError>(
+                    &config.contract_address,
+                    &Symbol::new(env, "estimate_swap"),
+                    Vec::from_array(
+                        env,
+                        [
+                            tokens.into_val(env),
+                            token_in.clone().into_val(env),
+                            token_out.clone().into_val(env),
+                            pool_index.into_val(env),
+                            amount_in.into_val(env),
+                        ],
+                    ),
+                );
+
+                if let Ok(Ok(amount_out)) = quote_result {
+                    return Ok(amount_out);
+                }
+            }
         }
 
-        // Fallback: try alternative quote function name, TODO: Remove this once we have a proper quote function
-        let alt_quote_result = env.try_invoke_contract::<u128, SwapError>(
-            &config.contract_address,
-            &Symbol::new(env, "get_amount_out"),
-            Vec::from_array(
-                env,
-                [
-                    amount_in.into_val(env),
-                    token_in.clone().into_val(env),
-                    token_out.clone().into_val(env),
-                ],
-            ),
-        );
-
-        if let Ok(Ok(amount_out)) = alt_quote_result {
-            return Ok(amount_out);
-        }
-
-        // Final fallback: estimate with 5% slippage
+        // Fallback: estimate with 5% slippage if pool lookup or estimate fails
         Ok(amount_in * 95 / 100)
     }
 }

@@ -196,7 +196,6 @@ impl SwapUtility {
             amount_out_min: 0,
             to: env.current_contract_address(), // placeholder
             asset: asset.clone(),
-            direction: crate::interface::SwapDirection::default(),
             fee_enabled: None,
         };
 
