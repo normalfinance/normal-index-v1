@@ -20,12 +20,13 @@ use crate::storage::set_last_updated_ts;
 use crate::storage::set_public;
 use crate::storage::set_rebalance_authority_status;
 use crate::storage::set_total_mints;
+use crate::storage::set_total_redemptions;
 use crate::storage::update_component_weight;
 use crate::storage::{
     get_all_component_balances, get_all_components, get_base_nav, get_component,
     get_component_balance_safe, get_component_registry, get_component_safe, get_factory_safe,
     get_initial_price, get_last_rebalance_ts, get_last_updated_ts, get_public,
-    get_rebalance_threshold, get_total_mints, get_total_redemptions, Component,
+    get_rebalance_threshold, get_total_mints, get_total_redemptions, set_component_balance, Component,
 };
 use crate::storage::{get_manager_address, set_manager_address};
 use crate::volume::VolumeTracker;
@@ -46,7 +47,7 @@ use soroban_sdk::{
     contract, contractimpl, log, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
     Address, BytesN, Env, Map, Symbol, Vec,
 };
-use token_share::{get_token_share, get_total_shares, mint_shares, put_token_share};
+use token_share::{burn_shares, get_token_share, get_total_shares, mint_shares, put_token_share};
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
@@ -197,23 +198,9 @@ impl IndexTrait for Index {
     fn redeem(e: Env, user: Address, share_amount: u128) {
         user.require_auth();
 
-        // TODO: Add actual redemption logic here
-        // This would typically involve:
-        // 1. Calculating redemption value
-        // 2. Burning share tokens
-        // 3. Transferring underlying assets back to user
-
         if get_blacklist_status(&e, &user) {
             panic_with_error!(e, IndexError::Blacklisted);
         }
-
-        // // Check if rebalancing is required after refactoring
-        // let last_updated = get_last_updated_ts(&e);
-        // let last_rebalance = get_last_rebalance_ts(&e);
-
-        // if last_updated > last_rebalance {
-        //     panic_with_error!(e, IndexError::RebalanceRequiredAfterRefactor); // no need of this, they can still redeem
-        // }
 
         let is_public = get_public(&e);
         if !is_public {
@@ -226,14 +213,65 @@ impl IndexTrait for Index {
             }
         }
 
-        // Emit enhanced redemption event
+        if share_amount == 0 {
+            panic_with_error!(e, IndexError::InvalidAmount);
+        }
+
         let current_time = e.ledger().timestamp();
-        let nav_before = Self::get_nav(e.clone()) as u128;
         let total_shares_before = get_total_shares(&e);
+        let nav_before = Self::get_nav(e.clone()) as u128;
         let share_price = Self::get_price(e.clone()) as u128;
 
-        // TODO: Implement actual redemption logic to get accurate values
-        let component_payouts = Map::new(&e); // Empty map for now
+        let user_balance = token_share::get_user_balance_shares(&e, &user);
+        if user_balance < share_amount {
+            panic_with_error!(e, IndexError::InsufficientBalance);
+        }
+
+        if total_shares_before < share_amount {
+            panic_with_error!(e, IndexError::InsufficientBalance);
+        }
+
+        let redemption_ratio = if total_shares_before > 0 {
+            (share_amount * 10000) / total_shares_before
+        } else {
+            panic_with_error!(e, IndexError::InvalidSharesDetected);
+        };
+
+        let component_registry = get_component_registry(&e);
+        let mut component_payouts = Map::new(&e);
+        let registry_len = component_registry.len();
+
+        for i in 0..registry_len {
+            let component_token = component_registry.get_unchecked(i);
+            let current_balance = get_component_balance_safe(&e, component_token.clone()).unwrap_or(0);
+
+            if current_balance > 0 {
+                let user_component_amount = (current_balance * redemption_ratio) / 10000;
+
+                if user_component_amount > 0 {
+                    transfer_token(
+                        &e,
+                        &component_token,
+                        &e.current_contract_address(),
+                        &user,
+                        &(user_component_amount as i128),
+                    );
+
+                    let new_balance = current_balance - user_component_amount;
+                    set_component_balance(&e, component_token.clone(), new_balance);
+
+                    component_payouts.set(component_token, user_component_amount);
+                }
+            }
+        }
+
+        burn_shares(&e, &user, share_amount);
+
+        let current_total_redemptions = get_total_redemptions(&e);
+        set_total_redemptions(&e, &(current_total_redemptions + share_amount));
+
+        let nav_after = Self::get_nav(e.clone()) as u128;
+        let total_shares_after = get_total_shares(&e);
 
         let redemption_usd_value =
             VolumeTracker::calculate_redeem_usd_value(&e, share_amount, share_price);
@@ -245,10 +283,10 @@ impl IndexTrait for Index {
             share_amount,
             share_price,
             nav_before,
-            nav_before, // TODO: Calculate nav_after after redemption
+            nav_after,
             total_shares_before,
-            total_shares_before.saturating_sub(share_amount), // Approximation - prevent underflow
-            component_payouts,                                // manager_fees + protocol_fees
+            total_shares_after,
+            component_payouts,
         );
 
         // Also emit legacy event for backward compatibility
@@ -278,9 +316,9 @@ impl IndexTrait for Index {
             return base_nav;
         }
 
-        let token = get_token_share(&e);
-        let vault_amount = crate::storage::get_index_vault_amount(&e, &token) as i128;
-        vault_amount
+        // Calculate NAV based on actual component values
+        let total_component_value = Index::get_total_component_value(&e);
+        total_component_value as i128
     }
 
     fn get_price(e: Env) -> i128 {
@@ -1012,6 +1050,37 @@ impl QueryInterface for Index {
 
 // Additional helper functions for Index
 impl Index {
+    // Helper function to calculate total value of all component holdings
+    pub fn get_total_component_value(e: &Env) -> u128 {
+        let mut total_value: u128 = 0;
+
+        // Get all component addresses from registry
+        let component_addresses = get_component_registry(&e);
+
+        // Iterate through each component to calculate total portfolio value
+        let len = component_addresses.len();
+        for i in 0..len {
+            let component_address = component_addresses.get_unchecked(i);
+            // Get the component balance (how much of this token the index holds)
+            let balance = match get_component_balance_safe(&e, component_address.clone()) {
+                Some(bal) => bal,
+                None => 0u128, // If no balance stored, treat as 0
+            };
+
+            if balance > 0 {
+                // Get the token price - for now we'll use a placeholder approach
+                let token_price =
+                    Index::get_token_price_in_base_currency(&e, component_address.clone());
+
+                // Calculate value: balance * price
+                let component_value = balance.saturating_mul(token_price);
+                total_value = total_value.saturating_add(component_value);
+            }
+        }
+
+        total_value
+    }
+
     // Helper function to get token price in base currency
     // This is where oracle integration would happen
     pub fn get_token_price_in_base_currency(e: &Env, token: Address) -> u128 {
