@@ -26,7 +26,8 @@ use crate::storage::{
     get_all_component_balances, get_all_components, get_base_nav, get_component,
     get_component_balance_safe, get_component_registry, get_component_safe, get_factory_safe,
     get_initial_price, get_last_rebalance_ts, get_last_updated_ts, get_public,
-    get_rebalance_threshold, get_total_mints, get_total_redemptions, set_component_balance, Component,
+    get_rebalance_threshold, get_total_mints, get_total_redemptions, set_component_balance,
+    Component,
 };
 use crate::storage::{get_manager_address, set_manager_address};
 use crate::volume::VolumeTracker;
@@ -243,7 +244,8 @@ impl IndexTrait for Index {
 
         for i in 0..registry_len {
             let component_token = component_registry.get_unchecked(i);
-            let current_balance = get_component_balance_safe(&e, component_token.clone()).unwrap_or(0);
+            let current_balance =
+                get_component_balance_safe(&e, component_token.clone()).unwrap_or(0);
 
             if current_balance > 0 {
                 let user_component_amount = (current_balance * redemption_ratio) / 10000;
@@ -1121,10 +1123,7 @@ impl Index {
         let result = e.try_invoke_contract::<Option<u128>, IndexError>(
             factory_address,
             &Symbol::new(e, "convert_token_to_usd_safe"),
-            Vec::from_array(
-                e,
-                [token.clone().into_val(e), one_token_unit.into_val(e)],
-            ),
+            Vec::from_array(e, [token.clone().into_val(e), one_token_unit.into_val(e)]),
         );
 
         match result {

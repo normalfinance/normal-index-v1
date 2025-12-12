@@ -375,6 +375,26 @@ export interface Client {
   }) => Promise<AssembledTransaction<u128>>
 
   /**
+   * Construct and simulate a convert_token_to_usd_safe transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  convert_token_to_usd_safe: ({token, amount}: {token: string, amount: u128}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<Option<u128>>>
+
+  /**
    * Construct and simulate a version transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
   version: (options?: {
@@ -608,6 +628,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAATc2V0X29yYWNsZV9yZWdpc3RyeQAAAAACAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAAD29yYWNsZV9yZWdpc3RyeQAAAAATAAAAAA==",
         "AAAAAAAAAAAAAAATZ2V0X29yYWNsZV9yZWdpc3RyeQAAAAAAAAAAAQAAABM=",
         "AAAAAAAAAAAAAAAUY29udmVydF90b2tlbl90b191c2QAAAACAAAAAAAAAAV0b2tlbgAAAAAAABMAAAAAAAAABmFtb3VudAAAAAAACgAAAAEAAAAK",
+        "AAAAAAAAAAAAAAAZY29udmVydF90b2tlbl90b191c2Rfc2FmZQAAAAAAAAIAAAAAAAAABXRva2VuAAAAAAAAEwAAAAAAAAAGYW1vdW50AAAAAAAKAAAAAQAAA+gAAAAK",
         "AAAAAAAAAAAAAAAHdmVyc2lvbgAAAAAAAAAAAQAAAAQ=",
         "AAAAAAAAAAAAAAAOY29tbWl0X3VwZ3JhZGUAAAAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAANbmV3X3dhc21faGFzaAAAAAAAA+4AAAAgAAAAAA==",
         "AAAAAAAAAAAAAAANYXBwbHlfdXBncmFkZQAAAAAAAAEAAAAAAAAABWFkbWluAAAAAAAAEwAAAAEAAAPuAAAAIA==",
@@ -645,6 +666,7 @@ export class Client extends ContractClient {
         set_oracle_registry: this.txFromJSON<null>,
         get_oracle_registry: this.txFromJSON<string>,
         convert_token_to_usd: this.txFromJSON<u128>,
+        convert_token_to_usd_safe: this.txFromJSON<Option<u128>>,
         version: this.txFromJSON<u32>,
         commit_upgrade: this.txFromJSON<null>,
         apply_upgrade: this.txFromJSON<Buffer>,

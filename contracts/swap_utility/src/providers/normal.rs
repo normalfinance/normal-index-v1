@@ -32,12 +32,10 @@ impl SwapProvider for NormalProvider {
         );
 
         let pool_index = match pools_result {
-            Ok(Ok(pools)) => {
-                match pools.iter().next() {
-                    Some((index, _)) => index,
-                    None => return Err(SwapError::NormalDexFailed),
-                }
-            }
+            Ok(Ok(pools)) => match pools.iter().next() {
+                Some((index, _)) => index,
+                None => return Err(SwapError::NormalDexFailed),
+            },
             _ => return Err(SwapError::NormalDexFailed),
         };
 

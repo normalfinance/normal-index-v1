@@ -86,11 +86,12 @@ impl OracleUtils {
         asset: &Symbol,
         oracle_registry: &Address,
     ) -> Option<u128> {
-        let result = env.try_invoke_contract::<(HistoricalOracleData, OracleValidity), AccessControlError>(
-            oracle_registry,
-            &Symbol::new(env, "get_price"),
-            Vec::from_array(env, [asset.clone().into_val(env)]),
-        );
+        let result = env
+            .try_invoke_contract::<(HistoricalOracleData, OracleValidity), AccessControlError>(
+                oracle_registry,
+                &Symbol::new(env, "get_price"),
+                Vec::from_array(env, [asset.clone().into_val(env)]),
+            );
 
         match result {
             Ok(Ok((historical_data, validity))) => match validity {

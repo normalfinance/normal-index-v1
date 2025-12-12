@@ -30,7 +30,7 @@ pub enum IndexError {
 
     NotWhitelisted = 43,
     Blacklisted = 44,
-    
+
     // Redemption Errors
     InvalidAmount = 47,
     InsufficientBalance = 48,
