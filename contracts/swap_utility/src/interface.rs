@@ -25,6 +25,19 @@ impl Default for SwapDirection {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DexProvider {
+    Normal,
+    Soroswap,
+}
+
+impl Default for DexProvider {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SwapParams {
     pub provider: Option<DexProvider>,
     pub token_in: Address,
@@ -35,19 +48,6 @@ pub struct SwapParams {
     pub asset: Symbol,
     pub direction: SwapDirection,
     pub fee_enabled: Option<bool>,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum DexProvider {
-    Normal,
-    Soroswap,
-}
-
-impl Default for DexProvider {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 #[contracttype]

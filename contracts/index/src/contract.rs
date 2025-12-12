@@ -45,7 +45,7 @@ use access_control::utils::{
 use soroban_sdk::Bytes;
 use soroban_sdk::{
     contract, contractimpl, log, panic_with_error, token::TokenClient as SorobanTokenClient, vec,
-    Address, BytesN, Env, Map, Symbol, Vec,
+    Address, BytesN, Env, IntoVal, Map, Symbol, Vec,
 };
 use token_share::{burn_shares, get_token_share, get_total_shares, mint_shares, put_token_share};
 use upgrade::events::Events as UpgradeEvents;
@@ -1108,15 +1108,33 @@ impl Index {
         }
     }
 
-    // Helper function to get price via factory aggregator (simulation)
+    // Helper function to get price via factory's oracle
     fn get_price_via_factory_aggregator(
         e: &Env,
-        _factory_address: &Address,
+        factory_address: &Address,
         token: &Address,
     ) -> Option<u128> {
-        // Placeholder: aggregator not implemented yet. Return None to fall back to weight-based pricing.
-        let _ = (e, token);
-        None
+        // Call factory's convert_token_to_usd_safe function
+        // We query the price for 1 token unit (with 7 decimals = 10_000_000)
+        let one_token_unit = 10_000_000u128;
+
+        let result = e.try_invoke_contract::<Option<u128>, IndexError>(
+            factory_address,
+            &Symbol::new(e, "convert_token_to_usd_safe"),
+            Vec::from_array(
+                e,
+                [token.clone().into_val(e), one_token_unit.into_val(e)],
+            ),
+        );
+
+        match result {
+            Ok(Ok(Some(price_usd))) => {
+                // Price returned is for 1 token unit in USD (7 decimals)
+                // Convert to our internal price format (6 decimals)
+                Some(price_usd / 10) // 7 decimals -> 6 decimals
+            }
+            _ => None, // Fall back to weight-based pricing
+        }
     }
 
     // Helper function to get price based on component weight

@@ -95,23 +95,20 @@ impl SwapProvider for SoroswapProvider {
         // Build path for quote
         let path = build_simple_path(env, token_in, token_out);
 
-        // Try to get a quote from Soroswap aggregator
-        let quote_result: Result<Vec<i128>, soroban_sdk::Error> = env.invoke_contract(
+        // Try to get a quote from Soroswap aggregator using try_invoke for safety
+        let quote_result = env.try_invoke_contract::<Vec<i128>, SwapError>(
             &config.contract_address,
             &Symbol::new(env, "get_amounts_out"),
             Vec::from_array(env, [amount_in.into_val(env), path.into_val(env)]),
         );
 
-        match quote_result {
-            Ok(amounts) => {
-                let estimated_amount = amounts.last().unwrap_or(0) as u128;
-                Ok(estimated_amount)
-            }
-            Err(_) => {
-                // Fallback to simple estimation if quote fails
-                Ok(amount_in * 95 / 100) // Assume 5% slippage for estimation
-            }
+        if let Ok(Ok(amounts)) = quote_result {
+            let estimated_amount = amounts.last().unwrap_or(0) as u128;
+            return Ok(estimated_amount);
         }
+
+        // Fallback to simple estimation if quote fails
+        Ok(amount_in * 95 / 100) // Assume 5% slippage for estimation
     }
 }
 

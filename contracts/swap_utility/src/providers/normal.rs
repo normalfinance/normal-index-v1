@@ -68,9 +68,9 @@ impl SwapProvider for NormalProvider {
     }
 
     fn get_estimated_output(
-        _env: &Env,
-        _token_in: &Address,
-        _token_out: &Address,
+        env: &Env,
+        token_in: &Address,
+        token_out: &Address,
         amount_in: u128,
         config: &ProviderConfig,
     ) -> Result<u128, SwapError> {
@@ -78,9 +78,43 @@ impl SwapProvider for NormalProvider {
             return Err(SwapError::ProviderNotConfigured);
         }
 
-        // TODO: Implement proper quote estimation for Normal DEX
-        // For now, return a simple estimate based on input amount
-        // This should be replaced with actual Normal DEX quote logic
-        Ok(amount_in * 95 / 100) // Slippage assumed
+        // Try to get a quote from Normal DEX's get_swap_quote function
+        let quote_result = env.try_invoke_contract::<u128, SwapError>(
+            &config.contract_address,
+            &Symbol::new(env, "get_swap_quote"),
+            Vec::from_array(
+                env,
+                [
+                    token_in.clone().into_val(env),
+                    token_out.clone().into_val(env),
+                    amount_in.into_val(env),
+                ],
+            ),
+        );
+
+        if let Ok(Ok(amount_out)) = quote_result {
+            return Ok(amount_out);
+        }
+
+        // Fallback: try alternative quote function name, TODO: Remove this once we have a proper quote function
+        let alt_quote_result = env.try_invoke_contract::<u128, SwapError>(
+            &config.contract_address,
+            &Symbol::new(env, "get_amount_out"),
+            Vec::from_array(
+                env,
+                [
+                    amount_in.into_val(env),
+                    token_in.clone().into_val(env),
+                    token_out.clone().into_val(env),
+                ],
+            ),
+        );
+
+        if let Ok(Ok(amount_out)) = alt_quote_result {
+            return Ok(amount_out);
+        }
+
+        // Final fallback: estimate with 5% slippage
+        Ok(amount_in * 95 / 100)
     }
 }

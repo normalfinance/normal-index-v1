@@ -219,6 +219,10 @@ impl AdminInterface for IndexFactory {
     fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128 {
         crate::oracle::OracleUtils::convert_token_to_usd(&e, &token, amount)
     }
+
+    fn convert_token_to_usd_safe(e: Env, token: Address, amount: u128) -> Option<u128> {
+        crate::oracle::OracleUtils::convert_token_to_usd_safe(&e, &token, amount)
+    }
 }
 
 #[contractimpl]

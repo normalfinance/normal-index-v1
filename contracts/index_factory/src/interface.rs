@@ -45,4 +45,7 @@ pub trait AdminInterface {
     fn get_oracle_registry(e: Env) -> Address;
 
     fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128;
+
+    // Safe version that returns Option instead of panicking, for use in index contract
+    fn convert_token_to_usd_safe(e: Env, token: Address, amount: u128) -> Option<u128>;
 }
