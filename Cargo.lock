@@ -660,7 +660,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
-name = "index"
+name = "index-factory"
+version = "0.1.0"
+dependencies = [
+ "access_control",
+ "paste",
+ "soroban-sdk",
+ "upgrade",
+ "utils",
+]
+
+[[package]]
+name = "index_fund"
 version = "0.1.0"
 dependencies = [
  "access_control",
@@ -668,17 +679,6 @@ dependencies = [
  "soroban-fixed-point-math",
  "soroban-sdk",
  "token_share",
- "upgrade",
- "utils",
-]
-
-[[package]]
-name = "index-factory"
-version = "0.1.0"
-dependencies = [
- "access_control",
- "paste",
- "soroban-sdk",
  "upgrade",
  "utils",
 ]

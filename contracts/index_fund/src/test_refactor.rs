@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use super::contract::{Index, IndexClient};
+use super::contract::{IndexFund, IndexFundClient};
 use super::interface::{ComponentAction, ComponentUpdate, RefactorParams};
 use super::storage::{
     get_all_components, get_component, get_component_safe, get_last_rebalance_ts,
@@ -18,7 +18,7 @@ use utils::test_utils::jump;
 // Test utilities
 
 fn register_test_contract(e: &Env) -> Address {
-    e.register(Index, ())
+    e.register(IndexFund, ())
 }
 
 fn create_test_index(e: &Env) -> (Address, Address, Address) {
@@ -40,7 +40,7 @@ fn test_refactor_add_component() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
 
@@ -89,7 +89,7 @@ fn test_refactor_remove_component() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
 
@@ -130,7 +130,7 @@ fn test_refactor_update_weight() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
 
@@ -170,7 +170,7 @@ fn test_refactor_weight_sum_must_equal_10000() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token1 = create_mock_token(&e);
     let token2 = create_mock_token(&e);
@@ -209,7 +209,7 @@ fn test_refactor_weight_sum_not_10000_fails() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token1 = create_mock_token(&e);
     let token2 = create_mock_token(&e);
@@ -243,7 +243,7 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token1 = create_mock_token(&e);
     let token2 = create_mock_token(&e);
@@ -310,7 +310,7 @@ fn test_refactor_requires_admin() {
     e.mock_all_auths();
 
     let (contract_address, _, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let non_admin = Address::generate(&e);
     let token = create_mock_token(&e);
@@ -339,7 +339,7 @@ fn test_refactor_blacklisted_admin_fails() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     // Blacklist the admin
     client.set_blacklist_status(&admin, &admin, &true);
@@ -368,7 +368,7 @@ fn test_refactor_admin_can_refactor_anytime() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token1 = create_mock_token(&e);
 
@@ -415,7 +415,7 @@ fn test_mint_allowed_after_refactor() {
     e.mock_all_auths();
 
     let (contract_address, admin, base_token) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     // Create a proper mock token for the share token
     let share_token = create_mock_token(&e);
@@ -492,7 +492,7 @@ fn test_redeem_allowed_after_refactor() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let user = Address::generate(&e);
     let token = create_mock_token(&e);
@@ -553,7 +553,7 @@ fn test_operations_allowed_after_rebalance() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let comp_token = create_mock_token(&e);
 
@@ -602,7 +602,7 @@ fn test_refactor_with_no_components() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
 
@@ -637,7 +637,7 @@ fn test_refactor_remove_last_component() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
 
@@ -675,7 +675,7 @@ fn test_refactor_batch_updates() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token1 = create_mock_token(&e);
     let token2 = create_mock_token(&e);

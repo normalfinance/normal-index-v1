@@ -11,7 +11,7 @@ tasks:
 
   build:
     cmds:
-      - task -d ../index build || exit 1
+      - task -d ../index_fund build || exit 1
       - soroban contract build --package index-factory
       - soroban contract optimize --wasm ../../target/wasm32v1-none/release/index_factory.wasm --wasm-out ../../target/wasm32v1-none/release/index_factory.wasm
       - cp ../../target/wasm32v1-none/release/index_factory.wasm ../../wasm/index_factory.wasm

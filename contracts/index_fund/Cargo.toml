@@ -1,5 +1,5 @@
 [package]
-name = "index"
+name = "index_fund"
 version.workspace = true
 edition = "2021"
 publish = false

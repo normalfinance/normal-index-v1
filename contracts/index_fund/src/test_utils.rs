@@ -91,13 +91,13 @@ pub fn create_mock_factory(e: &Env) -> Address {
 }
 
 pub fn setup_test_contracts(e: &Env) -> (Address, Address, Address, Address) {
-    let index_contract = e.register(crate::contract::Index, ());
+    let index_contract = e.register(crate::contract::IndexFund, ());
 
     let admin = Address::generate(e);
     let token = Address::generate(e);
     let swap_utility = create_mock_swap_utility(e);
 
-    let client = crate::contract::IndexClient::new(e, &index_contract);
+    let client = crate::contract::IndexFundClient::new(e, &index_contract);
     client.initialize(&admin, &token);
 
     e.as_contract(&index_contract, || {

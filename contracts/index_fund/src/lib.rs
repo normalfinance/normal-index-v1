@@ -20,4 +20,4 @@ mod test_utils;
 // mod test_permissions;
 // mod testutils;
 
-pub use crate::contract::{Index, IndexClient};
+pub use crate::contract::{IndexFund, IndexFundClient};

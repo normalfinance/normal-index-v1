@@ -4,8 +4,9 @@ use crate::events::IndexEvents;
 
 use crate::index::vault_amount_to_shares;
 use crate::interface::{
-    AdminInterface, ComponentAction, ComponentAllocation, IndexInfo, IndexMetrics, IndexStatus,
-    IndexTrait, QueryInterface, RebalanceParams, RebalanceStatus, RefactorParams,
+    AdminInterface, ComponentAction, ComponentAllocation, IndexFundInfo, IndexFundMetrics,
+    IndexFundStatus, IndexFundTrait, QueryInterface, RebalanceParams, RebalanceStatus,
+    RefactorParams,
 };
 use crate::storage::get_all_rebalance_authorities;
 use crate::storage::get_blacklist_status;
@@ -57,9 +58,9 @@ use utils::token::transfer_token;
 use utils::token::validate_token_contracts;
 
 #[contract]
-pub struct Index;
+pub struct IndexFund;
 
-impl Index {
+impl IndexFund {
     // __constructor
     // Initializes the ProviderSwapFeeCollector contract.
     //
@@ -97,7 +98,7 @@ impl Index {
 
 // The `IndexTrait` trait provides the interface for interacting with a liquidity pool.
 #[contractimpl]
-impl IndexTrait for Index {
+impl IndexFundTrait for IndexFund {
     fn mint(
         e: Env,
         user: Address,
@@ -157,7 +158,7 @@ impl IndexTrait for Index {
         );
 
         // Execute weight-based allocation
-        Index::execute_weight_based_mint(&e, token.clone(), amount);
+        IndexFund::execute_weight_based_mint(&e, token.clone(), amount);
 
         // Mint share tokens
         let value = match &destination {
@@ -319,7 +320,7 @@ impl IndexTrait for Index {
         }
 
         // Calculate NAV based on actual component values
-        let total_component_value = Index::get_total_component_value(&e);
+        let total_component_value = IndexFund::get_total_component_value(&e);
         total_component_value as i128
     }
 
@@ -402,7 +403,7 @@ impl IndexTrait for Index {
 
 // The `UpgradeableContract` trait provides the interface for upgrading the contract.
 #[contractimpl]
-impl UpgradeableContract for Index {
+impl UpgradeableContract for IndexFund {
     // Returns the version of the contract.
     //
     // # Returns
@@ -480,7 +481,7 @@ impl UpgradeableContract for Index {
 
 // The `AdminInterface` trait provides the interface for administrative actions.
 #[contractimpl]
-impl AdminInterface for Index {
+impl AdminInterface for IndexFund {
     // Initializes the admin user.
     //
     // # Arguments
@@ -519,7 +520,7 @@ impl AdminInterface for Index {
         let current_time = e.ledger().timestamp();
 
         // Execute component updates without swap operations
-        Index::execute_refactoring(&e, caller.clone(), params.clone());
+        IndexFund::execute_refactoring(&e, caller.clone(), params.clone());
 
         // Capture post-refactor state
         // let components_after = get_all_components(&e);
@@ -575,10 +576,10 @@ impl AdminInterface for Index {
         // Permission checks based on index type
         if is_public {
             // Public index: requires DAO proposal approval (for now, only admin)
-            Index::validate_public_rebalance(&e, &caller, &params);
+            IndexFund::validate_public_rebalance(&e, &caller, &params);
         } else {
             // Private index: admin or rebalance authority
-            Index::validate_private_rebalance(&e, &caller);
+            IndexFund::validate_private_rebalance(&e, &caller);
         }
 
         log!(&e, "Rebalance validated");
@@ -591,7 +592,7 @@ impl AdminInterface for Index {
         log!(&e, "Components before: {:?}", components_before);
 
         // Execute rebalancing logic (swaps only)
-        Index::execute_rebalancing(&e, caller.clone(), params.clone());
+        IndexFund::execute_rebalancing(&e, caller.clone(), params.clone());
 
         log!(&e, "Rebalancing executed");
 
@@ -752,7 +753,7 @@ impl AdminInterface for Index {
 
 // The `TransferableContract` trait provides the interface for transferring ownership of the contract.
 #[contractimpl]
-impl TransferableContract for Index {
+impl TransferableContract for IndexFund {
     // Commits an ownership transfer.
     //
     // # Arguments
@@ -833,10 +834,10 @@ impl TransferableContract for Index {
 
 // Implementation of QueryInterface trait for Index contract
 #[contractimpl]
-impl QueryInterface for Index {
+impl QueryInterface for IndexFund {
     // Comprehensive index information
-    fn get_index_info(e: Env) -> IndexInfo {
-        IndexInfo {
+    fn get_index_info(e: Env) -> IndexFundInfo {
+        IndexFundInfo {
             address: e.current_contract_address(),
             token_address: get_token_share(&e),
             total_shares: get_total_shares(&e),
@@ -883,7 +884,7 @@ impl QueryInterface for Index {
             if balance > 0 {
                 // Get the token price - for now we'll use a placeholder approach
                 let token_price =
-                    Index::get_token_price_in_base_currency(&e, component_address.clone());
+                    IndexFund::get_token_price_in_base_currency(&e, component_address.clone());
 
                 // Calculate value: balance * price
                 let component_value = balance.saturating_mul(token_price);
@@ -894,11 +895,11 @@ impl QueryInterface for Index {
         total_value
     }
     // Financial metrics
-    fn get_index_metrics(e: Env) -> IndexMetrics {
-        let current_nav = Index::get_current_nav(e.clone());
-        let share_price = Index::get_share_price(e.clone());
+    fn get_index_metrics(e: Env) -> IndexFundMetrics {
+        let current_nav = IndexFund::get_current_nav(e.clone());
+        let share_price = IndexFund::get_share_price(e.clone());
 
-        IndexMetrics {
+        IndexFundMetrics {
             total_shares: get_total_shares(&e),
             total_mints: get_total_mints(&e),
             total_redemptions: get_total_redemptions(&e),
@@ -914,7 +915,7 @@ impl QueryInterface for Index {
             return if ip < 0 { 0 } else { ip as u128 };
         }
 
-        let total_value = Index::get_total_index_value(e.clone());
+        let total_value = IndexFund::get_total_index_value(e.clone());
         if total_value == 0 {
             let ip = get_initial_price(&e);
             return if ip < 0 { 0 } else { ip as u128 };
@@ -926,18 +927,18 @@ impl QueryInterface for Index {
 
     fn get_current_nav(e: Env) -> u128 {
         // NAV (Net Asset Value) is the total value of all holdings
-        Index::get_total_index_value(e)
+        IndexFund::get_total_index_value(e)
     }
     //  get_is_killed_rebalance
 
     // Operational status
-    fn get_index_status(e: Env) -> IndexStatus {
+    fn get_index_status(e: Env) -> IndexFundStatus {
         let current_time = e.ledger().timestamp();
         let last_rebalance = get_last_rebalance_ts(&e);
         let threshold = get_rebalance_threshold(&e);
         let can_rebalance = current_time >= last_rebalance + threshold;
 
-        IndexStatus {
+        IndexFundStatus {
             is_public: get_public(&e),
             can_rebalance,
             last_rebalance_ts: get_last_rebalance_ts(&e),
@@ -1007,7 +1008,7 @@ impl QueryInterface for Index {
     fn get_component_allocation(e: Env) -> Map<Address, ComponentAllocation> {
         let mut allocations = Map::new(&e);
         let components = get_all_components(&e);
-        let current_nav = Index::get_current_nav(e.clone());
+        let current_nav = IndexFund::get_current_nav(e.clone());
         let base_nav = get_base_nav(&e);
 
         // Get component addresses for iteration
@@ -1051,7 +1052,7 @@ impl QueryInterface for Index {
 }
 
 // Additional helper functions for Index
-impl Index {
+impl IndexFund {
     // Helper function to calculate total value of all component holdings
     pub fn get_total_component_value(e: &Env) -> u128 {
         let mut total_value: u128 = 0;
@@ -1072,7 +1073,7 @@ impl Index {
             if balance > 0 {
                 // Get the token price - for now we'll use a placeholder approach
                 let token_price =
-                    Index::get_token_price_in_base_currency(&e, component_address.clone());
+                    IndexFund::get_token_price_in_base_currency(&e, component_address.clone());
 
                 // Calculate value: balance * price
                 let component_value = balance.saturating_mul(token_price);
@@ -1095,17 +1096,17 @@ impl Index {
         match get_factory_safe(&e) {
             Some(factory_address) => {
                 // Try to get a realistic price using the factory's aggregator
-                match Index::get_price_via_factory_aggregator(&e, &factory_address, &token) {
+                match IndexFund::get_price_via_factory_aggregator(&e, &factory_address, &token) {
                     Some(price) => price,
                     None => {
                         // Fall back to component weight-based pricing
-                        Index::get_price_from_component_weight(&e, &token)
+                        IndexFund::get_price_from_component_weight(&e, &token)
                     }
                 }
             }
             None => {
                 // No factory connection, use component weight-based pricing
-                Index::get_price_from_component_weight(&e, &token)
+                IndexFund::get_price_from_component_weight(&e, &token)
             }
         }
     }
@@ -1193,7 +1194,7 @@ impl Index {
         let start_time = e.ledger().timestamp();
         let nav_before = Self::get_nav(e.clone()) as u128;
 
-        let can_rebalance = Index::can_rebalance(e.clone());
+        let can_rebalance = IndexFund::can_rebalance(e.clone());
         if !can_rebalance {
             panic_with_error!(e, IndexError::RebalanceNotAllowed);
         }

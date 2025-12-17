@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use super::contract::{Index, IndexClient};
+use super::contract::{IndexFund, IndexFundClient};
 use super::interface::RebalanceParams;
 use super::storage::{
     add_component_to_registry, get_component, get_last_rebalance_ts, get_last_updated_ts,
@@ -21,7 +21,7 @@ const THIRTY_DAYS: u64 = 30 * 24 * 60 * 60;
 // Test utilities
 
 fn register_test_contract(e: &Env) -> Address {
-    e.register(Index, ())
+    e.register(IndexFund, ())
 }
 
 fn create_test_index(e: &Env) -> (Address, Address, Address) {
@@ -65,7 +65,7 @@ fn test_rebalance_updates_timestamps() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
@@ -103,7 +103,7 @@ fn test_rebalance_with_target_nav() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token.clone(), 10000)]);
@@ -132,7 +132,7 @@ fn test_rebalance_without_target_nav_uses_current() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token.clone(), 10000)]);
@@ -162,7 +162,7 @@ fn test_rebalance_too_soon_fails() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
@@ -188,7 +188,7 @@ fn test_rebalance_after_threshold_succeeds() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
@@ -214,7 +214,7 @@ fn test_get_rebalance_status_timing() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
@@ -259,7 +259,7 @@ fn test_custom_rebalance_threshold() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     // Set custom threshold (7 days)
     let custom_threshold = 7 * 24 * 60 * 60;
@@ -298,7 +298,7 @@ fn test_public_index_rebalance_requires_admin() {
     e.mock_all_auths();
 
     let (contract_address, _, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     // Set as public index
     e.as_contract(&contract_address, || {
@@ -323,7 +323,7 @@ fn test_private_index_admin_can_rebalance() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
@@ -341,7 +341,7 @@ fn test_private_index_rebalance_authority() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let authority = Address::generate(&e);
 
@@ -371,7 +371,7 @@ fn test_unauthorized_cannot_rebalance_private_index() {
     e.mock_all_auths();
 
     let (contract_address, _, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
@@ -391,7 +391,7 @@ fn test_set_rebalance_authority() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let authority1 = Address::generate(&e);
     let authority2 = Address::generate(&e);
@@ -436,7 +436,7 @@ fn test_generate_rebalance_swaps_buy() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
 
@@ -463,7 +463,7 @@ fn test_generate_rebalance_swaps_sell() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
 
@@ -488,7 +488,7 @@ fn test_generate_rebalance_swaps_no_change() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
 
@@ -513,7 +513,7 @@ fn test_generate_rebalance_swaps_multiple_components() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token1 = create_mock_token(&e);
     let token2 = create_mock_token(&e);
@@ -554,7 +554,7 @@ fn test_generate_rebalance_swaps_multiple_components() {
 //     e.mock_all_auths();
 
 //     let (contract_address, admin, _) = create_test_index(&e);
-//     let client = IndexClient::new(&e, &contract_address);
+//     let client = IndexFundClient::new(&e, &contract_address);
 
 //     let token = create_mock_token(&e);
 //     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
@@ -575,7 +575,7 @@ fn test_generate_rebalance_swaps_multiple_components() {
 //     e.mock_all_auths();
 
 //     let (contract_address, admin, _) = create_test_index(&e);
-//     let client = IndexClient::new(&e, &contract_address);
+//     let client = IndexFundClient::new(&e, &contract_address);
 
 //     let token = create_mock_token(&e);
 //     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
@@ -599,7 +599,7 @@ fn test_can_address_rebalance_admin() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
@@ -618,7 +618,7 @@ fn test_can_address_rebalance_authority() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let authority = Address::generate(&e);
 
@@ -642,7 +642,7 @@ fn test_can_address_rebalance_regular_user() {
     e.mock_all_auths();
 
     let (contract_address, _, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let regular_user = Address::generate(&e);
 
@@ -663,7 +663,7 @@ fn test_get_component_allocation() {
     e.mock_all_auths();
 
     let (contract_address, _, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token1 = create_mock_token(&e);
     let token2 = create_mock_token(&e);
@@ -709,7 +709,7 @@ fn test_full_refactor_rebalance_flow() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token1 = create_mock_token(&e);
     let token2 = create_mock_token(&e);
@@ -811,7 +811,7 @@ fn test_rebalance_after_initial_setup() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
@@ -843,7 +843,7 @@ fn test_rebalance_executed_event() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
@@ -866,7 +866,7 @@ fn test_rebalance_completed_detailed_event() {
     e.mock_all_auths();
 
     let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexClient::new(&e, &contract_address);
+    let client = IndexFundClient::new(&e, &contract_address);
 
     let token = create_mock_token(&e);
     setup_components(&e, &contract_address, vec![&e, (token.clone(), 10000)]);

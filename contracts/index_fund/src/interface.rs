@@ -15,7 +15,7 @@ impl Default for DexProvider {
     }
 }
 
-pub trait IndexTrait {
+pub trait IndexFundTrait {
     fn mint(
         e: Env,
         user: Address,
@@ -97,7 +97,7 @@ pub trait AdminInterface {
 // Query Data Structures
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexInfo {
+pub struct IndexFundInfo {
     pub address: Address,
     pub token_address: Address,
     pub total_shares: u128,
@@ -113,7 +113,7 @@ pub struct IndexInfo {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexMetrics {
+pub struct IndexFundMetrics {
     pub total_shares: u128,
     pub total_mints: u128,
     pub total_redemptions: u128,
@@ -123,7 +123,7 @@ pub struct IndexMetrics {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexStatus {
+pub struct IndexFundStatus {
     pub is_public: bool,
     pub can_rebalance: bool,
     pub last_rebalance_ts: u64,
@@ -182,7 +182,7 @@ pub struct RebalanceStatus {
 // Query Interface
 pub trait QueryInterface {
     // Comprehensive index information
-    fn get_index_info(e: Env) -> IndexInfo;
+    fn get_index_info(e: Env) -> IndexFundInfo;
 
     // Component and balance queries
     fn get_all_components(e: Env) -> Map<Address, Component>;
@@ -191,12 +191,12 @@ pub trait QueryInterface {
     fn get_total_index_value(e: Env) -> u128;
 
     // Financial metrics
-    fn get_index_metrics(e: Env) -> IndexMetrics;
+    fn get_index_metrics(e: Env) -> IndexFundMetrics;
     fn get_share_price(e: Env) -> u128;
     fn get_current_nav(e: Env) -> u128;
 
     // Operational status
-    fn get_index_status(e: Env) -> IndexStatus;
+    fn get_index_status(e: Env) -> IndexFundStatus;
     fn can_rebalance(e: Env) -> bool;
 
     // Rebalancing queries
