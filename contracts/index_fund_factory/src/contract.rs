@@ -71,14 +71,14 @@ impl IndexFundFactory {
 #[contractimpl]
 impl IndexFundFactoryTrait for IndexFundFactory {
     // deploy_index_contract
-    // Deploys a new swap fee contract instance.
+    // Deploys a new Index Fund contract instance.
     //
     // Arguments:
     //   - e: The Soroban environment.
-    //   - params: The address where fees are sent (params.admin must be authorized).
+    //   - params: ... (params.admin must be authorized).
     //
     // Returns:
-    //   - The address of the newly deployed swap fee contract.
+    //   - The address of the newly deployed Index Fund contract.
     fn deploy_index_contract(e: Env, serialized_asset: Bytes, params: IndexParams) -> Address {
         params.admin.require_auth();
 
@@ -178,12 +178,12 @@ impl AdminInterface for IndexFundFactory {
     // (_______/  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
 
     // set_index_contract_wasm
-    // Updates the WASM hash for the swap fee contract.
+    // Updates the WASM hash for the Index Fund contract.
     //
     // Arguments:
     //   - e: The Soroban environment.
     //   - admin: The admin address (must be authorized).
-    //   - index_contract_wasm: The new WASM hash (BytesN<32>) for the swap fee contract.
+    //   - index_contract_wasm: The new WASM hash (BytesN<32>) for the Index Fund contract.
     fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
