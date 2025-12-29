@@ -1,9 +1,9 @@
-use soroban_sdk::{Address, Bytes, BytesN, Env, Map, Vec};
-use utils::storage::IndexParams;
+use soroban_sdk::{Address, Bytes, BytesN, Env, Vec};
+use types::index_fund::IndexParams;
 
 use crate::contract::FactoryConfig;
 
-pub trait IndexFactoryTrait {
+pub trait IndexFundFactoryTrait {
     fn deploy_index_contract(e: Env, serialized_asset: Bytes, params: IndexParams) -> Address;
 }
 

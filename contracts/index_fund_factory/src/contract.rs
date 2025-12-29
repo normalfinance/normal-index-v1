@@ -2,7 +2,7 @@ use crate::events::Events;
 use crate::events::FactoryConfigEvents;
 use crate::events::FactoryEvents;
 use crate::index_utils::get_index_salt;
-use crate::interface::{AdminInterface, IndexFactoryTrait};
+use crate::interface::{AdminInterface, IndexFundFactoryTrait};
 use crate::storage::get_index_contract_wasm;
 use crate::storage::get_swap_utility;
 use crate::storage::set_index_contract_wasm;
@@ -24,13 +24,13 @@ use soroban_sdk::Bytes;
 use soroban_sdk::{
     contract, contractimpl, contracttype, panic_with_error, Address, BytesN, Env, Symbol, Vec,
 };
+use types::index_fund::IndexParams;
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
-use utils::storage::IndexParams;
 
 #[contract]
-pub struct IndexFactory;
+pub struct IndexFundFactory;
 
 // Factory configuration struct for query methods
 #[contracttype]
@@ -41,7 +41,7 @@ pub struct FactoryConfig {
 }
 
 #[contractimpl]
-impl IndexFactory {
+impl IndexFundFactory {
     // __constructor
     // Initializes the factory by setting the admin roles and storing critical parameters.
     //
@@ -69,7 +69,7 @@ impl IndexFactory {
 }
 
 #[contractimpl]
-impl IndexFactoryTrait for IndexFactory {
+impl IndexFundFactoryTrait for IndexFundFactory {
     // deploy_index_contract
     // Deploys a new swap fee contract instance.
     //
@@ -103,10 +103,8 @@ impl IndexFactoryTrait for IndexFactory {
         let current_time = e.ledger().timestamp();
         let initial_components = Vec::new(&e); // Empty initially
         let initial_weights = Vec::new(&e); // Empty initially
-        let base_nav = 0; // TODO: Get from contract parameters
         let initial_price = 0; // TODO: Get from contract parameters
         let is_public = false; // TODO: Get from contract parameters
-        let deployment_cost = 0; // TODO: Calculate actual deployment cost
 
         // TODO: fix correctly
         Events::new(&e).index_deployed(
@@ -117,10 +115,8 @@ impl IndexFactoryTrait for IndexFactory {
             params.admin.clone(), // manager (using fee_destination as manager for now)
             initial_components,
             initial_weights,
-            base_nav,
             initial_price,
             is_public,
-            deployment_cost,
         );
 
         address
@@ -128,7 +124,7 @@ impl IndexFactoryTrait for IndexFactory {
 }
 
 #[contractimpl]
-impl AdminInterface for IndexFactory {
+impl AdminInterface for IndexFundFactory {
     //   _______    _______  ___________  ___________  _______   _______    ________
     //  /" _   "|  /"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
     // (: ( \___) (: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
@@ -226,7 +222,7 @@ impl AdminInterface for IndexFactory {
 }
 
 #[contractimpl]
-impl UpgradeableContract for IndexFactory {
+impl UpgradeableContract for IndexFundFactory {
     // version
     // Returns the current version number of the contract.
     //
@@ -234,6 +230,11 @@ impl UpgradeableContract for IndexFactory {
     //   - A u32 representing the version.
     fn version() -> u32 {
         100
+    }
+
+    // Get contract type symbolic name
+    fn contract_name(e: Env) -> Symbol {
+        Symbol::new(&e, "IndexFundFactory")
     }
 
     // commit_upgrade
@@ -317,7 +318,7 @@ impl UpgradeableContract for IndexFactory {
 }
 
 #[contractimpl]
-impl TransferableContract for IndexFactory {
+impl TransferableContract for IndexFundFactory {
     // commit_transfer_ownership
     // Commits to transferring ownership of a given role.
     //

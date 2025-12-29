@@ -37,3 +37,10 @@ pub fn require_pause_admin_or_owner(e: &Env, address: &Address) {
         || access_control.address_has_role(address, &Role::Admin)
         || panic_with_error!(e, AccessControlError::Unauthorized);
 }
+
+pub fn require_fee_admin_or_owner(e: &Env, address: &Address) {
+    let access_control = AccessControl::new(e);
+    let _ = access_control.address_has_role(address, &Role::FeeAdmin)
+        || access_control.address_has_role(address, &Role::Admin)
+        || panic_with_error!(e, AccessControlError::Unauthorized);
+}

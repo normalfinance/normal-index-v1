@@ -12,6 +12,7 @@ pub(crate) enum DataKey {
     OperationsAdmin, // operations admin - add/remove pools, ramp A, set fees, etc
     PauseAdmin,      // pause admin - pause/unpause pools
     EmPauseAdmins,   // emergency pause admin - pause pools in emergency
+    FeeAdmin,
 
     // transfer ownership - pending values
     FutureAdmin,
@@ -36,6 +37,7 @@ impl StorageTrait for AccessControl {
         match role {
             Role::Admin => DataKey::Admin,
             Role::EmergencyAdmin => DataKey::EmergencyAdmin,
+            Role::FeeAdmin => DataKey::FeeAdmin,
             Role::RewardsAdmin => DataKey::Operator,
             Role::OperationsAdmin => DataKey::OperationsAdmin,
             Role::PauseAdmin => DataKey::PauseAdmin,

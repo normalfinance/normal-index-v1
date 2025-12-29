@@ -1,4 +1,4 @@
-use crate::errors::IndexError;
+use crate::errors::IndexFundError;
 use crate::storage::get_factory_safe;
 use soroban_sdk::{Address, Env, IntoVal, Symbol};
 
@@ -35,7 +35,7 @@ impl VolumeTracker {
     fn convert_to_usd(env: &Env, token: &Address, amount: u128) -> Option<u128> {
         let factory_address = get_factory_safe(env)?;
 
-        let result = env.try_invoke_contract::<u128, IndexError>(
+        let result = env.try_invoke_contract::<u128, IndexFundError>(
             &factory_address,
             &Symbol::new(env, "convert_token_to_usd"),
             soroban_sdk::Vec::from_array(env, [token.clone().into_val(env), amount.into_val(env)]),

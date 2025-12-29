@@ -3,11 +3,13 @@ use soroban_sdk::{
     contracttype, log, panic_with_error, Address, Env, IntoVal, String, Symbol, Vec,
 };
 use token_share::get_token_share;
+use types::index_fund::RebalanceParams;
 use utils::validate;
 
-use crate::errors::IndexError;
+use crate::errors::IndexFundError;
 use crate::events::{Events, IndexEvents};
-use crate::storage::{get_all_components, get_swap_utility, get_swap_utility_address};
+use crate::interface::QueryInterface;
+use crate::storage::{get_all_components, get_swap_utility};
 
 // Define enums first (before structs that use them)
 #[contracttype]
@@ -55,7 +57,7 @@ pub fn generate_swap_params(
     deposit_amount: u128,
 ) -> Vec<SwapParams> {
     // Validate inputs
-    validate!(e, deposit_amount > 0, IndexError::PathIsEmpty);
+    validate!(e, deposit_amount > 0, IndexFundError::PathIsEmpty);
 
     let components = get_all_components(e);
     let mut swaps: Vec<SwapParams> = Vec::new(e);
@@ -81,7 +83,7 @@ pub fn generate_swap_params(
 
             // Calculate minimum output with 5% slippage tolerance
             let min_output = (target_allocation * 95) / 100;
-            validate!(e, min_output > 0, IndexError::PathIsEmpty);
+            validate!(e, min_output > 0, IndexFundError::PathIsEmpty);
 
             //Revisit this param generation here
             let swap = SwapParams {
@@ -104,7 +106,7 @@ pub fn execute_swaps(e: &Env, swaps: Vec<SwapParams>) -> Vec<u128> {
     let mut results: Vec<u128> = Vec::new(e);
 
     // Get swap utility contract address (stored for potential future use)
-    let _swap_utility_address = get_swap_utility_address(e);
+    let _swap_utility_address = get_swap_utility(e);
 
     for i in 0..swaps.len() {
         let params = swaps.get(i).unwrap();
@@ -227,22 +229,36 @@ impl From<soroban_sdk::Error> for SwapError {
     }
 }
 
-pub fn vault_amount_to_shares(
-    e: &Env,
-    amount: u128,
-    total_shares: u128,
-    vault_amount: u128,
-) -> u128 {
-    // relative to the entire pool + total amount minted
-    let n_shares = if vault_amount > 0 {
-        // assumes total_shares != 0 (in most cases) for nice result for user
+pub fn shares_to_nav(e: &Env, n_shares: u128, total_shares: u128, current_nav: u128) -> u128 {
+    validate!(
+        e,
+        n_shares <= total_shares,
+        IndexFundError::InvalidSharesDetected
+    );
+
+    let amount = if total_shares > 0 {
+        // Use round-to-nearest for fair withdrawal calculation
+        // current_nav.safe_fixed_mul_round(e, n_shares, total_shares)
+        current_nav
+            .fixed_mul_floor(n_shares, total_shares)
+            .unwrap_or(0)
+    } else {
+        0
+    };
+
+    amount
+}
+
+pub fn nav_amount_to_shares(e: &Env, amount: u128, total_shares: u128, current_nav: u128) -> u128 {
+    let n_shares = if current_nav > 0 {
+        // Use round-to-nearest for fair share calculation
+        // amount.safe_fixed_mul_round(e, reserve.total_shares, reserve.balance)
         amount
-            .fixed_mul_floor(total_shares, vault_amount)
+            .fixed_mul_floor(total_shares, current_nav)
             .unwrap_or(amount)
-        // get_proportion_u128(e, amount, total_shares, vault_amount)
     } else {
         // must be case that total_shares == 0 for nice result for user
-        validate!(e, total_shares == 0, IndexError::InvalidSharesDetected);
+        validate!(e, total_shares == 0, IndexFundError::InvalidSharesDetected);
 
         amount
     };
@@ -251,11 +267,8 @@ pub fn vault_amount_to_shares(
 }
 
 // Enhanced rebalancing swap generation - now focuses on balancing existing components
-pub fn generate_rebalance_swaps(
-    e: &Env,
-    params: &crate::interface::RebalanceParams,
-) -> Vec<SwapParams> {
-    let current_nav = crate::storage::get_base_nav(e) as u128; // Simplified NAV calculation
+pub fn generate_rebalance_swaps(e: &Env, params: &RebalanceParams) -> Vec<SwapParams> {
+    let current_nav = crate::IndexFund::get_current_nav(e.clone()); // Simplified NAV calculation
     let target_nav = params.target_nav.map(|n| n as u128).unwrap_or(current_nav);
 
     let mut swaps = Vec::new(e);

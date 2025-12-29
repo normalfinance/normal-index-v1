@@ -1,6 +1,8 @@
 use soroban_sdk::{contracttype, Address, Env, Map, Vec};
-
-use crate::storage::Component;
+use types::index_fund::{
+    Component, ComponentAllocation, IndexFundInfo, IndexFundMetrics, IndexFundStatus,
+    RebalanceParams, RebalanceStatus, RefactorParams,
+};
 
 #[contracttype]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -16,61 +18,19 @@ impl Default for DexProvider {
 }
 
 pub trait IndexFundTrait {
-    fn mint(
-        e: Env,
-        user: Address,
-        token: Address,
-        amount: u128,
-        destination: Option<Address>,
-        max_slippage: Option<u64>,
-    );
-
+    fn mint(e: Env, user: Address, amount: u128);
     fn redeem(e: Env, user: Address, share_amount: u128);
-
-    fn get_token(e: Env) -> Address;
-
-    fn get_factory(e: Env) -> Address;
-
-    fn get_base_nav(e: Env) -> u128;
-
-    fn get_initial_price(e: Env) -> u128;
-
-    fn get_nav(e: Env) -> i128;
-
-    fn get_price(e: Env) -> i128;
-
-    fn get_total_shares(e: Env) -> u128;
-
-    fn get_public_status(e: Env) -> bool;
-
     fn get_whitelist_status(e: Env, address: Address) -> bool;
-
     fn get_blacklist_status(e: Env, address: Address) -> bool;
-
-    fn get_rebalance_threshold(e: Env) -> u64;
-
-    fn get_last_rebalance_timestamp(e: Env) -> u64;
-
-    fn get_last_updated_timestamp(e: Env) -> u64;
-
-    fn get_total_mints(e: Env) -> u128;
-
-    fn get_total_redemptions(e: Env) -> u128;
-
-    fn get_component(e: Env, token: Address) -> crate::storage::Component;
-
+    fn get_component(e: Env, token: Address) -> Component;
     fn get_component_balance(e: Env, token: Address) -> u128;
-
     /// Transfer shares between users with proper fee handling
     fn transfer_shares(e: Env, from: Address, to: Address, amount: u128);
-
     /// Transfer shares from allowance with proper fee handling
     fn transfer_shares_from(e: Env, spender: Address, from: Address, to: Address, amount: u128);
 }
 
 pub trait AdminInterface {
-    fn initialize(e: Env, admin: Address, token: Address);
-
     fn refactor(e: Env, caller: Address, params: RefactorParams);
 
     fn rebalance(e: Env, caller: Address, params: RebalanceParams);
@@ -79,104 +39,15 @@ pub trait AdminInterface {
 
     fn set_factory(e: Env, admin: Address, factory: Address);
 
-    fn set_base_nav(e: Env, admin: Address, base_nav: u128);
-
     fn set_initial_price(e: Env, admin: Address, initial_price: u128);
-
-    fn set_public_status(e: Env, admin: Address, is_public: bool);
 
     fn set_whitelist_status(e: Env, admin: Address, address: Address, status: bool);
 
     fn set_blacklist_status(e: Env, admin: Address, address: Address, status: bool);
 
-    fn set_manager_address(e: Env, admin: Address, manager: Address);
-
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64);
-}
 
-// Query Data Structures
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexFundInfo {
-    pub address: Address,
-    pub token_address: Address,
-    pub total_shares: u128,
-    pub base_nav: u128,
-    pub initial_price: u128,
-    pub is_public: bool,
-    pub manager_address: Address,
-    pub last_rebalance_ts: u64,
-    pub last_updated_ts: u64,
-    pub total_mints: u128,
-    pub total_redemptions: u128,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexFundMetrics {
-    pub total_shares: u128,
-    pub total_mints: u128,
-    pub total_redemptions: u128,
-    pub current_nav: u128,
-    pub share_price: u128,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexFundStatus {
-    pub is_public: bool,
-    pub can_rebalance: bool,
-    pub last_rebalance_ts: u64,
-    pub rebalance_threshold: u64,
-}
-
-// Rebalancing Data Structures
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ComponentAction {
-    Add,
-    Remove,
-    UpdateWeight,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ComponentUpdate {
-    pub token: Address,
-    pub new_weight: u128,
-    pub action: ComponentAction,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RefactorParams {
-    pub component_updates: Vec<ComponentUpdate>,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RebalanceParams {
-    pub target_nav: Option<i128>, // Optional NAV target for rebalancing
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ComponentAllocation {
-    pub component: Component,
-    pub current_balance: u128,
-    pub target_balance: u128,
-    pub percentage_of_nav: u128, // In basis points
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RebalanceStatus {
-    pub can_rebalance: bool,
-    pub time_until_next_rebalance: u64,
-    pub last_rebalance_ts: u64,
-    pub rebalance_threshold: u64,
-    pub is_public: bool,
-    pub authorized_rebalancers: Vec<Address>, // For private indexes
+    // TODO: add priv addrs
 }
 
 // Query Interface

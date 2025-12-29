@@ -5,6 +5,7 @@ use soroban_sdk::{panic_with_error, Env, Symbol};
 pub enum Role {
     Admin,
     EmergencyAdmin,
+    FeeAdmin,
     RewardsAdmin,
     OperationsAdmin,
     PauseAdmin,
@@ -16,6 +17,7 @@ impl Role {
         match self {
             Role::Admin => false,
             Role::EmergencyAdmin => false,
+            Role::FeeAdmin => false,
             Role::RewardsAdmin => false,
             Role::OperationsAdmin => false,
             Role::PauseAdmin => false,
@@ -27,6 +29,7 @@ impl Role {
         match self {
             Role::Admin => true,
             Role::EmergencyAdmin => true,
+            Role::FeeAdmin => false,
             Role::RewardsAdmin => false,
             Role::OperationsAdmin => false,
             Role::PauseAdmin => false,
@@ -45,6 +48,7 @@ impl SymbolRepresentation for Role {
         match self {
             Role::Admin => Symbol::new(&e, "Admin"),
             Role::EmergencyAdmin => Symbol::new(&e, "EmergencyAdmin"),
+            Role::FeeAdmin => Symbol::new(&e, "FeeAdmin"),
             Role::RewardsAdmin => Symbol::new(&e, "RewardsAdmin"),
             Role::OperationsAdmin => Symbol::new(&e, "OperationsAdmin"),
             Role::PauseAdmin => Symbol::new(&e, "PauseAdmin"),
@@ -59,6 +63,8 @@ impl SymbolRepresentation for Role {
             return Role::EmergencyAdmin;
         } else if value == Symbol::new(e, "RewardsAdmin") {
             return Role::RewardsAdmin;
+        } else if value == Symbol::new(e, "FeeAdmin") {
+            return Role::FeeAdmin;
         } else if value == Symbol::new(e, "OperationsAdmin") {
             return Role::OperationsAdmin;
         } else if value == Symbol::new(e, "PauseAdmin") {

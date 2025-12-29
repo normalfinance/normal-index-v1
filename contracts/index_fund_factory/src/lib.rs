@@ -10,4 +10,4 @@ mod storage;
 // mod test_permissions;
 // mod testutils;
 
-pub use crate::contract::{IndexFactory, IndexFactoryClient};
+pub use crate::contract::{IndexFundFactory, IndexFundFactoryClient};

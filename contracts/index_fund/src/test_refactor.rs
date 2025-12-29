@@ -1,10 +1,9 @@
 #![cfg(test)]
 
 use super::contract::{IndexFund, IndexFundClient};
-use super::interface::{ComponentAction, ComponentUpdate, RefactorParams};
 use super::storage::{
     get_all_components, get_component, get_component_safe, get_last_rebalance_ts,
-    get_last_updated_ts, set_component, set_last_rebalance_ts, set_last_updated_ts, Component,
+    get_last_updated_ts, set_component, set_last_rebalance_ts, set_last_updated_ts,
 };
 use super::test_utils::{
     complete_test_setup, create_mock_token, enhanced_setup_components,
@@ -13,6 +12,7 @@ use super::test_utils::{
 };
 use soroban_sdk::{log, testutils::Address as _, vec, Address, Env, Symbol, Vec};
 use token_share::get_total_shares;
+use types::index_fund::{Component, ComponentAction, ComponentUpdate, RefactorParams};
 use utils::test_utils::jump;
 
 // Test utilities
@@ -265,9 +265,9 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
 
     client.refactor(
         &admin,
-        &RefactorParams {
+        &(RefactorParams {
             component_updates: updates1,
-        },
+        }),
     );
 
     // Second refactor: Update weights (6000 + 4000 = 10000)
@@ -287,9 +287,9 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
 
     client.refactor(
         &admin,
-        &RefactorParams {
+        &(RefactorParams {
             component_updates: updates2,
-        },
+        }),
     );
 
     // Verify weights
@@ -383,9 +383,9 @@ fn test_refactor_admin_can_refactor_anytime() {
     ];
     client.refactor(
         &admin,
-        &RefactorParams {
+        &(RefactorParams {
             component_updates: updates1,
-        },
+        }),
     );
 
     // Immediate second refactor (no time restriction)
@@ -399,9 +399,9 @@ fn test_refactor_admin_can_refactor_anytime() {
     ];
     client.refactor(
         &admin,
-        &RefactorParams {
+        &(RefactorParams {
             component_updates: updates2,
-        },
+        }),
     );
 
     // Should succeed without time threshold check
@@ -451,9 +451,9 @@ fn test_mint_allowed_after_refactor() {
     ];
     client.refactor(
         &admin,
-        &RefactorParams {
+        &(RefactorParams {
             component_updates: updates,
-        },
+        }),
     );
 
     // Set up component balance to avoid token contract calls during mint
@@ -483,7 +483,7 @@ fn test_mint_allowed_after_refactor() {
     // We expect this to NOT fail with RebalanceRequiredAfterRefactor (error #43)
     // Since that check has been removed from the code (lines 148-154 in contract.rs are commented out)
     // This uses the same token that was used in the refactor to properly test the scenario
-    client.mint(&user, &token, &1000, &None, &None);
+    client.mint(&user, &token, &1000);
 }
 
 #[test]
@@ -522,9 +522,9 @@ fn test_redeem_allowed_after_refactor() {
     ];
     client.refactor(
         &admin,
-        &RefactorParams {
+        &(RefactorParams {
             component_updates: updates,
-        },
+        }),
     );
 
     // Set up component balance to avoid token contract calls during redeem
@@ -574,9 +574,9 @@ fn test_operations_allowed_after_rebalance() {
     ];
     client.refactor(
         &admin,
-        &RefactorParams {
+        &(RefactorParams {
             component_updates: updates,
-        },
+        }),
     );
 
     // Now simulate rebalance by updating last_rebalance_ts
@@ -621,9 +621,9 @@ fn test_refactor_with_no_components() {
     ];
     client.refactor(
         &admin,
-        &RefactorParams {
+        &(RefactorParams {
             component_updates: updates,
-        },
+        }),
     );
 
     // Verify component added
@@ -659,9 +659,9 @@ fn test_refactor_remove_last_component() {
     ];
     client.refactor(
         &admin,
-        &RefactorParams {
+        &(RefactorParams {
             component_updates: updates,
-        },
+        }),
     );
 
     // Verify no components remain
@@ -721,9 +721,9 @@ fn test_refactor_batch_updates() {
 
     client.refactor(
         &admin,
-        &RefactorParams {
+        &(RefactorParams {
             component_updates: updates,
-        },
+        }),
     );
 
     // Verify final state: token1 (5000), token2 (3000), token4 (2000)

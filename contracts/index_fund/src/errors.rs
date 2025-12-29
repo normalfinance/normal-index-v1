@@ -3,8 +3,8 @@ use soroban_sdk::contracterror;
 #[contracterror]
 #[derive(Copy, Clone)]
 #[repr(u32)]
-pub enum IndexError {
-    #[doc = "IndexError"]
+pub enum IndexFundError {
+    #[doc = "IndexFundError"]
     PathIsEmpty = 29,
     IndexMintKilled = 30,
     IndexRedeemKilled = 31,

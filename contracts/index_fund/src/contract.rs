@@ -1,36 +1,33 @@
-use crate::errors::IndexError;
+use crate::errors::IndexFundError;
 use crate::events::Events;
 use crate::events::IndexEvents;
+use crate::storage::get_admin;
+use crate::storage::get_token_quote;
+use crate::storage::set_token_quote;
+use utils::validate;
 
-use crate::index::vault_amount_to_shares;
-use crate::interface::{
-    AdminInterface, ComponentAction, ComponentAllocation, IndexFundInfo, IndexFundMetrics,
-    IndexFundStatus, IndexFundTrait, QueryInterface, RebalanceParams, RebalanceStatus,
-    RefactorParams,
-};
+use crate::interface::{AdminInterface, IndexFundTrait, QueryInterface};
 use crate::storage::get_all_rebalance_authorities;
 use crate::storage::get_blacklist_status;
-use crate::storage::get_index_vault_amount;
 use crate::storage::get_rebalance_authority_status;
 use crate::storage::get_whitelist_status;
 use crate::storage::remove_component;
 use crate::storage::set_component;
 use crate::storage::set_factory;
+use crate::storage::set_initial_price;
 use crate::storage::set_last_rebalance_ts;
 use crate::storage::set_last_updated_ts;
 use crate::storage::set_public;
-use crate::storage::set_rebalance_authority_status;
+use crate::storage::set_rebalance_admin_status;
 use crate::storage::set_total_mints;
 use crate::storage::set_total_redemptions;
 use crate::storage::update_component_weight;
 use crate::storage::{
-    get_all_component_balances, get_all_components, get_base_nav, get_component,
-    get_component_balance_safe, get_component_registry, get_component_safe, get_factory_safe,
-    get_initial_price, get_last_rebalance_ts, get_last_updated_ts, get_public,
-    get_rebalance_threshold, get_total_mints, get_total_redemptions, set_component_balance,
-    Component,
+    get_all_component_balances, get_all_components, get_component, get_component_balance_safe,
+    get_component_registry, get_component_safe, get_factory_safe, get_initial_price,
+    get_last_rebalance_ts, get_last_updated_ts, get_public, get_rebalance_threshold,
+    get_total_mints, get_total_redemptions, set_component_balance,
 };
-use crate::storage::{get_manager_address, set_manager_address};
 use crate::volume::VolumeTracker;
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -50,10 +47,15 @@ use soroban_sdk::{
     Address, BytesN, Env, IntoVal, Map, Symbol, Vec,
 };
 use token_share::{burn_shares, get_token_share, get_total_shares, mint_shares, put_token_share};
+use types::index_fund::Component;
+use types::index_fund::IndexParams;
+use types::index_fund::{
+    ComponentAction, ComponentAllocation, IndexFundInfo, IndexFundMetrics, IndexFundStatus,
+    RebalanceParams, RebalanceStatus, RefactorParams,
+};
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
-use utils::storage::IndexParams;
 use utils::token::transfer_token;
 use utils::token::validate_token_contracts;
 
@@ -69,8 +71,14 @@ impl IndexFund {
     //   - factory: The address of the factory contract.
     //   - params: The address authorized to claim funds.
     pub fn __constructor(e: Env, factory: Address, serialized_asset: Bytes, params: IndexParams) {
-        // set admin
         set_factory(&e, &factory);
+        set_token_quote(&e, &params.token_quote);
+
+        // init_admin via AccessControl
+        let access_control = AccessControl::new(&e);
+        if !access_control.get_role_safe(&Role::Admin).is_some() {
+            access_control.set_role_address(&Role::Admin, &params.admin);
+        }
 
         // Create the Deployer with Asset
         let deployer = e.deployer().with_stellar_asset(serialized_asset);
@@ -79,38 +87,28 @@ impl IndexFund {
         let sac_address = deployer.deploy();
 
         put_token_share(&e, sac_address);
-
         set_public(&e, &params.is_public);
+        set_initial_price(&e, &params.initial_price);
 
-        // Set the admin as the initial manager who will receive fees
-        set_manager_address(&e, &params.admin);
-
-        // Set up rebalance authorities for private indexes
-        if !params.is_public {
-            let len = params.rebalance_authorities.len();
-            for i in 0..len {
-                let authority = params.rebalance_authorities.get_unchecked(i);
-                set_rebalance_authority_status(&e, &authority, true);
-            }
-        }
+        // Execute component updates without swap operations
+        IndexFund::execute_refactoring(
+            &e,
+            params.admin.clone(),
+            RefactorParams {
+                component_updates: params.components,
+            },
+        );
     }
 }
 
 // The `IndexTrait` trait provides the interface for interacting with a liquidity pool.
 #[contractimpl]
 impl IndexFundTrait for IndexFund {
-    fn mint(
-        e: Env,
-        user: Address,
-        token: Address,
-        amount: u128,
-        destination: Option<Address>,
-        _max_slippage: Option<u64>,
-    ) {
+    fn mint(e: Env, user: Address, amount: u128) {
         user.require_auth();
 
         if get_blacklist_status(&e, &user) {
-            panic_with_error!(e, IndexError::Blacklisted);
+            panic_with_error!(e, IndexFundError::Blacklisted);
         }
 
         let is_public = get_public(&e);
@@ -120,77 +118,55 @@ impl IndexFundTrait for IndexFund {
             let is_whitelisted = get_whitelist_status(&e, &user);
 
             if !is_admin && !is_whitelisted {
-                panic_with_error!(e, IndexError::NotWhitelisted);
+                panic_with_error!(e, IndexFundError::NotWhitelisted);
             }
         }
 
-        // // Check if rebalancing is required after refactoring
-        // let last_updated = get_last_updated_ts(&e);
-        // let last_rebalance = get_last_rebalance_ts(&e);
+        let token_quote = get_token_quote(&e);
 
-        // if last_updated > last_rebalance {
-        //     panic_with_error!(e, IndexError::RebalanceRequiredAfterRefactor); // no need of this, they can still mint
-        // }
-
-        validate_token_contracts(&e, &vec![&e, token.clone()]);
-
-        // ...
-
-        let total_shares = get_total_shares(&e);
-
-        let vault_amount = get_index_vault_amount(&e, &token);
-
-        // validate!(
-        //     &e,
-        //     !(insurance_vault_amount == 0 && total_shares != 0),
-        //     IndexError::InvalidIFForNewStakes
-        // );
-
-        let n_shares = vault_amount_to_shares(&e, amount, total_shares, vault_amount);
-
-        // Deposit the token first
+        // Deposit token from user to fund
         transfer_token(
             &e,
-            &token,
+            &token_quote,
             &user,
             &e.current_contract_address(),
             &(amount as i128),
         );
 
+        // Create swap ops
         // Execute weight-based allocation
-        IndexFund::execute_weight_based_mint(&e, token.clone(), amount);
+        IndexFund::execute_weight_based_mint(&e, token_quote.clone(), amount);
+
+        //
+        let total_shares = get_total_shares(&e);
+        let nav = Self::get_current_nav(e.clone()) as u128;
+        // FIXME: this assumes USDC is always $1
+        let n_shares = crate::index::nav_amount_to_shares(&e, amount, total_shares, nav);
 
         // Mint share tokens
-        let value = match &destination {
-            Some(v) => v.clone(),
-            None => user.clone(),
-        };
-        mint_shares(&e, &value, n_shares as i128);
+        mint_shares(&e, &user, n_shares as i128);
 
-        // Metrics
+        // Update metrics
         set_total_mints(&e, &n_shares);
-
-        VolumeTracker::record_mint_volume(&e, &user, &token, amount);
+        VolumeTracker::record_mint_volume(&e, &user, &token_quote, amount);
 
         // Emit enhanced mint event
         let current_time = e.ledger().timestamp();
-        let nav_after = Self::get_nav(e.clone()) as u128;
+        let nav_after = Self::get_current_nav(e.clone()) as u128;
         let total_shares_after = get_total_shares(&e);
-        let share_price = Self::get_price(e.clone()) as u128;
+        let share_price = Self::get_share_price(e.clone()) as u128;
 
         Events::new(&e).mint_executed(
             current_time,
             user.clone(),
-            token,
+            token_quote,
             amount,
             n_shares,
             share_price,
-            nav_after - amount, // Approximation of nav_before
+            nav, // Approximation of nav_before
             nav_after,
             total_shares,
             total_shares_after,
-            // 0, // TODO: Calculate actual fees collected during mint
-            destination,
         );
 
         // Also emit legacy event for backward compatibility
@@ -201,7 +177,7 @@ impl IndexFundTrait for IndexFund {
         user.require_auth();
 
         if get_blacklist_status(&e, &user) {
-            panic_with_error!(e, IndexError::Blacklisted);
+            panic_with_error!(e, IndexFundError::Blacklisted);
         }
 
         let is_public = get_public(&e);
@@ -211,32 +187,32 @@ impl IndexFundTrait for IndexFund {
             let is_whitelisted = get_whitelist_status(&e, &user);
 
             if !is_admin && !is_whitelisted {
-                panic_with_error!(e, IndexError::NotWhitelisted);
+                panic_with_error!(e, IndexFundError::NotWhitelisted);
             }
         }
 
         if share_amount == 0 {
-            panic_with_error!(e, IndexError::InvalidAmount);
+            panic_with_error!(e, IndexFundError::InvalidAmount);
         }
 
         let current_time = e.ledger().timestamp();
         let total_shares_before = get_total_shares(&e);
-        let nav_before = Self::get_nav(e.clone()) as u128;
-        let share_price = Self::get_price(e.clone()) as u128;
+        let nav_before = Self::get_current_nav(e.clone()) as u128;
+        let share_price = Self::get_share_price(e.clone()) as u128;
 
         let user_balance = token_share::get_user_balance_shares(&e, &user);
         if user_balance < share_amount {
-            panic_with_error!(e, IndexError::InsufficientBalance);
+            panic_with_error!(e, IndexFundError::InsufficientBalance);
         }
 
         if total_shares_before < share_amount {
-            panic_with_error!(e, IndexError::InsufficientBalance);
+            panic_with_error!(e, IndexFundError::InsufficientBalance);
         }
 
         let redemption_ratio = if total_shares_before > 0 {
             (share_amount * 10000) / total_shares_before
         } else {
-            panic_with_error!(e, IndexError::InvalidSharesDetected);
+            panic_with_error!(e, IndexFundError::InvalidSharesDetected);
         };
 
         let component_registry = get_component_registry(&e);
@@ -273,7 +249,7 @@ impl IndexFundTrait for IndexFund {
         let current_total_redemptions = get_total_redemptions(&e);
         set_total_redemptions(&e, &(current_total_redemptions + share_amount));
 
-        let nav_after = Self::get_nav(e.clone()) as u128;
+        let nav_after = Self::get_current_nav(e.clone()) as u128;
         let total_shares_after = get_total_shares(&e);
 
         let redemption_usd_value =
@@ -296,50 +272,9 @@ impl IndexFundTrait for IndexFund {
         Events::new(&e).redeem(current_time, user);
     }
 
-    fn get_token(e: Env) -> Address {
-        get_token_share(&e)
-    }
-
-    fn get_factory(e: Env) -> Address {
-        crate::storage::get_factory(&e)
-    }
-
-    fn get_base_nav(e: Env) -> u128 {
-        crate::storage::get_base_nav(&e)
-    }
-
-    fn get_initial_price(e: Env) -> u128 {
-        crate::storage::get_initial_price(&e)
-    }
-
-    fn get_nav(e: Env) -> i128 {
-        let base_nav = crate::storage::get_base_nav(&e) as i128;
-        let total_shares = get_total_shares(&e);
-        if total_shares == 0 {
-            return base_nav;
-        }
-
-        // Calculate NAV based on actual component values
-        let total_component_value = IndexFund::get_total_component_value(&e);
-        total_component_value as i128
-    }
-
-    fn get_price(e: Env) -> i128 {
-        let nav = Self::get_nav(e.clone());
-        let total_shares = get_total_shares(&e);
-        if total_shares == 0 {
-            return crate::storage::get_initial_price(&e) as i128;
-        }
-        nav / (total_shares as i128)
-    }
-
-    fn get_total_shares(e: Env) -> u128 {
-        get_total_shares(&e)
-    }
-
-    fn get_public_status(e: Env) -> bool {
-        crate::storage::get_public(&e)
-    }
+    // fn get_factory(e: Env) -> Address {
+    //     crate::storage::get_factory(&e)
+    // }
 
     fn get_whitelist_status(e: Env, address: Address) -> bool {
         crate::storage::get_whitelist_status(&e, &address)
@@ -349,27 +284,7 @@ impl IndexFundTrait for IndexFund {
         crate::storage::get_blacklist_status(&e, &address)
     }
 
-    fn get_rebalance_threshold(e: Env) -> u64 {
-        crate::storage::get_rebalance_threshold(&e)
-    }
-
-    fn get_last_rebalance_timestamp(e: Env) -> u64 {
-        crate::storage::get_last_rebalance_ts(&e)
-    }
-
-    fn get_last_updated_timestamp(e: Env) -> u64 {
-        crate::storage::get_last_updated_ts(&e)
-    }
-
-    fn get_total_mints(e: Env) -> u128 {
-        crate::storage::get_total_mints(&e)
-    }
-
-    fn get_total_redemptions(e: Env) -> u128 {
-        crate::storage::get_total_redemptions(&e)
-    }
-
-    fn get_component(e: Env, token: Address) -> crate::storage::Component {
+    fn get_component(e: Env, token: Address) -> Component {
         crate::storage::get_component(&e, token)
     }
 
@@ -401,6 +316,214 @@ impl IndexFundTrait for IndexFund {
     }
 }
 
+// The `AdminInterface` trait provides the interface for administrative actions.
+#[contractimpl]
+impl AdminInterface for IndexFund {
+    fn refactor(e: Env, caller: Address, params: RefactorParams) {
+        caller.require_auth();
+
+        if get_blacklist_status(&e, &caller) {
+            panic_with_error!(e, IndexFundError::Blacklisted);
+        }
+
+        // Validate permissions - managers (admin) can refactor anytime
+        let access_control = AccessControl::new(&e);
+        if !access_control.address_has_role(&caller, &Role::Admin) {
+            panic_with_error!(e, IndexFundError::UnauthorizedRefactor);
+        }
+
+        // Capture pre-refactor state
+        // let components_before = get_all_components(&e);
+        let current_time = e.ledger().timestamp();
+
+        // Execute component updates without swap operations
+        IndexFund::execute_refactoring(&e, caller.clone(), params.clone());
+
+        // Capture post-refactor state
+        // let components_after = get_all_components(&e);
+
+        // Update last updated timestamp (but not rebalance timestamp)
+        set_last_updated_ts(&e, &current_time);
+
+        // Emit refactor event
+        // TODO: Re-enable component state capture when iteration is fixed
+        // Events::new(&e).refactor_executed(
+        //     current_time,
+        //     caller.clone(),
+        //     components_before,
+        //     components_after,
+        //     params.component_updates.len() as u32,
+        // );
+    }
+
+    fn rebalance(e: Env, caller: Address, params: RebalanceParams) {
+        caller.require_auth();
+
+        if get_blacklist_status(&e, &caller) {
+            panic_with_error!(e, IndexFundError::Blacklisted);
+        }
+
+        log!(&e, "Rebalance called by caller: {:?}", caller);
+
+        let is_public = get_public(&e);
+        if !is_public {
+            let access_control = AccessControl::new(&e);
+            let is_admin = access_control.address_has_role(&caller, &Role::Admin);
+            let is_whitelisted = get_whitelist_status(&e, &caller);
+            let is_rebalance_authority = get_rebalance_authority_status(&e, &caller);
+
+            log!(&e, "Is admin: {:?}", is_admin);
+            log!(&e, "Is whitelisted: {:?}", is_whitelisted);
+            log!(&e, "Is rebalance authority: {:?}", is_rebalance_authority);
+
+            if !is_admin && !is_whitelisted && !is_rebalance_authority {
+                panic_with_error!(e, IndexFundError::NotWhitelisted);
+            }
+        }
+
+        // Check rebalance threshold timing
+        let current_time = e.ledger().timestamp();
+        let last_rebalance = get_last_rebalance_ts(&e);
+        let threshold = get_rebalance_threshold(&e);
+
+        if current_time < last_rebalance + threshold {
+            panic_with_error!(e, IndexFundError::RebalanceTooSoon);
+        }
+
+        // Permission checks based on index type
+        if is_public {
+            // Public index: requires DAO proposal approval (for now, only admin)
+            IndexFund::validate_public_rebalance(&e, &caller, &params);
+        } else {
+            // Private index: admin or rebalance authority
+            IndexFund::validate_private_rebalance(&e, &caller);
+        }
+
+        log!(&e, "Rebalance validated");
+
+        // Capture pre-rebalancing state
+        let nav_before = Self::get_current_nav(e.clone()) as u128;
+        let components_before = get_all_components(&e);
+
+        log!(&e, "Nav before: {:?}", nav_before);
+        log!(&e, "Components before: {:?}", components_before);
+
+        // Execute rebalancing logic (swaps only)
+        IndexFund::execute_rebalancing(&e, caller.clone(), params.clone());
+
+        log!(&e, "Rebalancing executed");
+
+        // Capture post-rebalancing state
+        let nav_after = Self::get_current_nav(e.clone()) as u128;
+        let components_after = get_all_components(&e);
+
+        // Update timestamps
+        set_last_rebalance_ts(&e, &current_time);
+        set_last_updated_ts(&e, &current_time);
+
+        // Emit enhanced rebalancing event
+        Events::new(&e).rebalance_executed(
+            current_time,
+            caller.clone(),
+            nav_before,
+            nav_after,
+            components_before,
+            components_after,
+            0, // No swaps counted here - counted in execute_rebalancing
+            (nav_after as i128) - (nav_before as i128), // Performance impact
+        );
+
+        // Also emit legacy event for backward compatibility
+        Events::new(&e).rebalance(current_time, caller);
+    }
+
+    fn set_rebalance_authority(e: Env, admin: Address, authority: Address, status: bool) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        // Get old status before updating
+        let old_status = get_rebalance_authority_status(&e, &authority);
+        set_rebalance_admin_status(&e, &authority, status);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).rebalance_authority_updated_detailed(
+            current_time,
+            admin.clone(),
+            authority.clone(),
+            old_status,
+            status,
+        );
+
+        // Also emit legacy event for backward compatibility
+        Events::new(&e).rebalance_authority_updated(authority, status);
+    }
+
+    fn set_factory(e: Env, admin: Address, factory: Address) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        crate::storage::set_factory(&e, &factory);
+    }
+
+    fn set_initial_price(e: Env, admin: Address, initial_price: u128) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        let total_shares = get_total_shares(&e);
+        validate!(e, total_shares == 0, IndexFundError::InvalidSharesDetected);
+
+        let old_price = get_initial_price(&e);
+        crate::storage::set_initial_price(&e, &initial_price);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).initial_price_updated(current_time, admin, old_price, initial_price);
+    }
+
+    fn set_whitelist_status(e: Env, admin: Address, address: Address, status: bool) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        let old_status = get_whitelist_status(&e, &address);
+        crate::storage::set_whitelist_status(&e, &address, status);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).whitelist_status_updated(current_time, admin, address, old_status, status);
+    }
+
+    fn set_blacklist_status(e: Env, admin: Address, address: Address, status: bool) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        let old_status = get_blacklist_status(&e, &address);
+        crate::storage::set_blacklist_status(&e, &address, status);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).blacklist_status_updated(current_time, admin, address, old_status, status);
+    }
+
+    fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        let old_threshold = get_rebalance_threshold(&e);
+        crate::storage::set_rebalance_threshold(&e, &threshold);
+
+        let current_time = e.ledger().timestamp();
+        // Emit enhanced event
+        Events::new(&e).rebalance_threshold_updated(current_time, admin, old_threshold, threshold);
+    }
+}
+
 // The `UpgradeableContract` trait provides the interface for upgrading the contract.
 #[contractimpl]
 impl UpgradeableContract for IndexFund {
@@ -411,6 +534,11 @@ impl UpgradeableContract for IndexFund {
     // The version of the contract as a u32.
     fn version() -> u32 {
         100
+    }
+
+    // Get contract type symbolic name
+    fn contract_name(e: Env) -> Symbol {
+        Symbol::new(&e, "IndexFund")
     }
 
     // Commits a new wasm hash for a future upgrade.
@@ -460,15 +588,15 @@ impl UpgradeableContract for IndexFund {
     // When the emergency mode is set to true, the contract will allow instant upgrades without the delay.
     // This is useful in case of critical issues that need to be fixed immediately.
     // When the emergency mode is set to false, the contract will require the standard upgrade delay.
-    // The emergency mode can only be set by the emergency admin.
+    // The emergency mode can only be set by the admin.
     //
     // # Arguments
     //
-    // * `emergency_admin` - The address of the emergency admin.
+    // * `admin` - The address of the emergency admin.
     // * `value` - The value to set the emergency mode to.
-    fn set_emergency_mode(e: Env, emergency_admin: Address, value: bool) {
-        emergency_admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&emergency_admin, &Role::EmergencyAdmin);
+    fn set_emergency_mode(e: Env, admin: Address, value: bool) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
         set_emergency_mode(&e, &value);
         AccessControlEvents::new(&e).set_emergency_mode(value);
     }
@@ -476,278 +604,6 @@ impl UpgradeableContract for IndexFund {
     // Returns the emergency mode flag value.
     fn get_emergency_mode(e: Env) -> bool {
         get_emergency_mode(&e)
-    }
-}
-
-// The `AdminInterface` trait provides the interface for administrative actions.
-#[contractimpl]
-impl AdminInterface for IndexFund {
-    // Initializes the admin user.
-    //
-    // # Arguments
-    //
-    // * `account` - The address of the admin user.
-    fn initialize(e: Env, admin: Address, token: Address) {
-        admin.require_auth();
-
-        let access_control = AccessControl::new(&e);
-        if access_control.get_role_safe(&Role::Admin).is_some() {
-            panic_with_error!(&e, AccessControlError::AdminAlreadySet);
-        }
-        access_control.set_role_address(&Role::Admin, &admin);
-
-        put_token_share(&e, token);
-
-        // No complex registration needed!
-        // The token's admin IS this index contract, so fee calls work automatically
-    }
-
-    fn refactor(e: Env, caller: Address, params: RefactorParams) {
-        caller.require_auth();
-
-        if get_blacklist_status(&e, &caller) {
-            panic_with_error!(e, IndexError::Blacklisted);
-        }
-
-        // Validate permissions - managers (admin) can refactor anytime
-        let access_control = AccessControl::new(&e);
-        if !access_control.address_has_role(&caller, &Role::Admin) {
-            panic_with_error!(e, IndexError::UnauthorizedRefactor);
-        }
-
-        // Capture pre-refactor state
-        // let components_before = get_all_components(&e);
-        let current_time = e.ledger().timestamp();
-
-        // Execute component updates without swap operations
-        IndexFund::execute_refactoring(&e, caller.clone(), params.clone());
-
-        // Capture post-refactor state
-        // let components_after = get_all_components(&e);
-
-        // Update last updated timestamp (but not rebalance timestamp)
-        set_last_updated_ts(&e, &current_time);
-
-        // Emit refactor event
-        // TODO: Re-enable component state capture when iteration is fixed
-        // Events::new(&e).refactor_executed(
-        //     current_time,
-        //     caller.clone(),
-        //     components_before,
-        //     components_after,
-        //     params.component_updates.len() as u32,
-        // );
-    }
-
-    fn rebalance(e: Env, caller: Address, params: RebalanceParams) {
-        caller.require_auth();
-
-        if get_blacklist_status(&e, &caller) {
-            panic_with_error!(e, IndexError::Blacklisted);
-        }
-
-        log!(&e, "Rebalance called by caller: {:?}", caller);
-
-        let is_public = get_public(&e);
-        if !is_public {
-            let access_control = AccessControl::new(&e);
-            let is_admin = access_control.address_has_role(&caller, &Role::Admin);
-            let is_whitelisted = get_whitelist_status(&e, &caller);
-            let is_rebalance_authority = get_rebalance_authority_status(&e, &caller);
-
-            log!(&e, "Is admin: {:?}", is_admin);
-            log!(&e, "Is whitelisted: {:?}", is_whitelisted);
-            log!(&e, "Is rebalance authority: {:?}", is_rebalance_authority);
-
-            if !is_admin && !is_whitelisted && !is_rebalance_authority {
-                panic_with_error!(e, IndexError::NotWhitelisted);
-            }
-        }
-
-        // Check rebalance threshold timing
-        let current_time = e.ledger().timestamp();
-        let last_rebalance = get_last_rebalance_ts(&e);
-        let threshold = get_rebalance_threshold(&e);
-
-        if current_time < last_rebalance + threshold {
-            panic_with_error!(e, IndexError::RebalanceTooSoon);
-        }
-
-        // Permission checks based on index type
-        if is_public {
-            // Public index: requires DAO proposal approval (for now, only admin)
-            IndexFund::validate_public_rebalance(&e, &caller, &params);
-        } else {
-            // Private index: admin or rebalance authority
-            IndexFund::validate_private_rebalance(&e, &caller);
-        }
-
-        log!(&e, "Rebalance validated");
-
-        // Capture pre-rebalancing state
-        let nav_before = Self::get_nav(e.clone()) as u128;
-        let components_before = get_all_components(&e);
-
-        log!(&e, "Nav before: {:?}", nav_before);
-        log!(&e, "Components before: {:?}", components_before);
-
-        // Execute rebalancing logic (swaps only)
-        IndexFund::execute_rebalancing(&e, caller.clone(), params.clone());
-
-        log!(&e, "Rebalancing executed");
-
-        // Capture post-rebalancing state
-        let nav_after = Self::get_nav(e.clone()) as u128;
-        let components_after = get_all_components(&e);
-
-        // Update timestamps
-        set_last_rebalance_ts(&e, &current_time);
-        set_last_updated_ts(&e, &current_time);
-
-        // Emit enhanced rebalancing event
-        Events::new(&e).rebalance_executed(
-            current_time,
-            caller.clone(),
-            nav_before,
-            nav_after,
-            components_before,
-            components_after,
-            0, // No swaps counted here - counted in execute_rebalancing
-            0, // TODO: Calculate actual gas cost
-            (nav_after as i128) - (nav_before as i128), // Performance impact
-        );
-
-        // Also emit legacy event for backward compatibility
-        Events::new(&e).rebalance(current_time, caller);
-    }
-
-    fn set_rebalance_authority(e: Env, admin: Address, authority: Address, status: bool) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        // Get old status before updating
-        let old_status = get_rebalance_authority_status(&e, &authority);
-        set_rebalance_authority_status(&e, &authority, status);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).rebalance_authority_updated_detailed(
-            current_time,
-            admin.clone(),
-            authority.clone(),
-            old_status,
-            status,
-        );
-
-        // Also emit legacy event for backward compatibility
-        Events::new(&e).rebalance_authority_updated(authority, status);
-    }
-
-    fn set_manager_address(e: Env, admin: Address, manager: Address) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        let old_manager = get_manager_address(&e);
-        set_manager_address(&e, &manager);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).manager_address_updated(
-            current_time,
-            admin.clone(),
-            old_manager.clone(),
-            manager.clone(),
-        );
-        // Also emit legacy event for backward compatibility
-        Events::new(&e).manager_address_updated_legacy(old_manager, manager);
-    }
-
-    fn set_factory(e: Env, admin: Address, factory: Address) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        crate::storage::set_factory(&e, &factory);
-    }
-
-    fn set_base_nav(e: Env, admin: Address, base_nav: u128) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        let old_nav = get_base_nav(&e);
-        crate::storage::set_base_nav(&e, &base_nav);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).base_nav_updated(current_time, admin, old_nav, base_nav);
-    }
-
-    fn set_initial_price(e: Env, admin: Address, initial_price: u128) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        let old_price = get_initial_price(&e);
-        crate::storage::set_initial_price(&e, &initial_price);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).initial_price_updated(current_time, admin, old_price, initial_price);
-    }
-
-    fn set_public_status(e: Env, admin: Address, is_public: bool) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        let old_status = get_public(&e);
-        crate::storage::set_public(&e, &is_public);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).public_status_updated(current_time, admin, old_status, is_public);
-    }
-
-    fn set_whitelist_status(e: Env, admin: Address, address: Address, status: bool) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        let old_status = get_whitelist_status(&e, &address);
-        crate::storage::set_whitelist_status(&e, &address, status);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).whitelist_status_updated(current_time, admin, address, old_status, status);
-    }
-
-    fn set_blacklist_status(e: Env, admin: Address, address: Address, status: bool) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        let old_status = get_blacklist_status(&e, &address);
-        crate::storage::set_blacklist_status(&e, &address, status);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).blacklist_status_updated(current_time, admin, address, old_status, status);
-    }
-
-    fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64) {
-        admin.require_auth();
-        let access_control = AccessControl::new(&e);
-        access_control.assert_address_has_role(&admin, &Role::Admin);
-
-        let old_threshold = get_rebalance_threshold(&e);
-        crate::storage::set_rebalance_threshold(&e, &threshold);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).rebalance_threshold_updated(current_time, admin, old_threshold, threshold);
     }
 }
 
@@ -818,7 +674,6 @@ impl TransferableContract for IndexFund {
     //
     // * `role_name` - The name of the role to get the future address for. The role must be one of the following:
     //    * `Admin`
-    //    * `EmergencyAdmin`
     fn get_future_address(e: Env, role_name: Symbol) -> Address {
         let access_control = AccessControl::new(&e);
         let role = Role::from_symbol(&e, role_name);
@@ -839,12 +694,12 @@ impl QueryInterface for IndexFund {
     fn get_index_info(e: Env) -> IndexFundInfo {
         IndexFundInfo {
             address: e.current_contract_address(),
+            admin_address: get_admin(&e),
             token_address: get_token_share(&e),
             total_shares: get_total_shares(&e),
-            base_nav: get_base_nav(&e),
             initial_price: get_initial_price(&e),
             is_public: get_public(&e),
-            manager_address: get_manager_address(&e),
+            rebalance_threshold: get_rebalance_threshold(&e),
             last_rebalance_ts: get_last_rebalance_ts(&e),
             last_updated_ts: get_last_updated_ts(&e),
             total_mints: get_total_mints(&e),
@@ -929,7 +784,6 @@ impl QueryInterface for IndexFund {
         // NAV (Net Asset Value) is the total value of all holdings
         IndexFund::get_total_index_value(e)
     }
-    //  get_is_killed_rebalance
 
     // Operational status
     fn get_index_status(e: Env) -> IndexFundStatus {
@@ -1009,7 +863,6 @@ impl QueryInterface for IndexFund {
         let mut allocations = Map::new(&e);
         let components = get_all_components(&e);
         let current_nav = IndexFund::get_current_nav(e.clone());
-        let base_nav = get_base_nav(&e);
 
         // Get component addresses for iteration
         let component_addresses = get_component_registry(&e);
@@ -1021,8 +874,8 @@ impl QueryInterface for IndexFund {
 
             let current_balance = get_component_balance_safe(&e, token.clone()).unwrap_or(0);
             // Target balance is based on base_nav (intended portfolio value)
-            let target_balance = if base_nav > 0 {
-                (base_nav * (component.weight as u128)) / 10000
+            let target_balance = if current_nav > 0 {
+                (current_nav * (component.weight as u128)) / 10000
             } else {
                 0
             };
@@ -1121,7 +974,7 @@ impl IndexFund {
         // We query the price for 1 token unit (with 7 decimals = 10_000_000)
         let one_token_unit = 10_000_000u128;
 
-        let result = e.try_invoke_contract::<Option<u128>, IndexError>(
+        let result = e.try_invoke_contract::<Option<u128>, IndexFundError>(
             factory_address,
             &Symbol::new(e, "convert_token_to_usd_safe"),
             Vec::from_array(e, [token.clone().into_val(e), one_token_unit.into_val(e)]),
@@ -1172,7 +1025,7 @@ impl IndexFund {
         if !access_control.address_has_role(caller, &Role::Admin)
             && !get_rebalance_authority_status(e, caller)
         {
-            panic_with_error!(e, IndexError::UnauthorizedRebalance);
+            panic_with_error!(e, IndexFundError::UnauthorizedRebalance);
         }
     }
 
@@ -1181,7 +1034,7 @@ impl IndexFund {
         // Later, add DAO proposal validation logic
         let access_control = AccessControl::new(e);
         if !access_control.address_has_role(caller, &Role::Admin) {
-            panic_with_error!(e, IndexError::PublicRebalanceRequiresProposal);
+            panic_with_error!(e, IndexFundError::PublicRebalanceRequiresProposal);
         }
 
         // TODO: Validate DAO proposal approval
@@ -1192,11 +1045,11 @@ impl IndexFund {
 
     fn execute_rebalancing(e: &Env, admin: Address, params: RebalanceParams) {
         let start_time = e.ledger().timestamp();
-        let nav_before = Self::get_nav(e.clone()) as u128;
+        let nav_before = Self::get_current_nav(e.clone()) as u128;
 
         let can_rebalance = IndexFund::can_rebalance(e.clone());
         if !can_rebalance {
-            panic_with_error!(e, IndexError::RebalanceNotAllowed);
+            panic_with_error!(e, IndexFundError::RebalanceNotAllowed);
         }
 
         // Generate and execute swap transactions to align current balances with target weights
@@ -1211,7 +1064,7 @@ impl IndexFund {
 
         // Capture end state for enhanced event
         let end_time = e.ledger().timestamp();
-        let nav_after = Self::get_nav(e.clone()) as u128;
+        let nav_after = Self::get_current_nav(e.clone()) as u128;
         let duration_ms = (end_time - start_time) * 1000; // Convert to milliseconds
         let performance_delta = (nav_after as i128) - (nav_before as i128);
 
@@ -1221,7 +1074,6 @@ impl IndexFund {
             admin,
             0, // components_updated: 0 since rebalancing doesn't update components anymore
             total_swaps,
-            0, // TODO: Calculate actual total gas cost
             performance_delta,
             nav_before,
             nav_after,
@@ -1247,13 +1099,14 @@ impl IndexFund {
                 ComponentAction::Add => {
                     // Check if component already exists
                     if get_component_safe(e, update.token.clone()).is_some() {
-                        panic_with_error!(e, IndexError::InvalidComponentAction);
+                        panic_with_error!(e, IndexFundError::InvalidComponentAction);
                     }
 
                     // Create component with symbol (simplified for now)
                     let component = Component {
                         asset: Symbol::new(e, "TOKEN"), // Simplified - would need proper token symbol
                         weight: update.new_weight,
+                        normal: false,
                     };
                     set_component(e, update.token.clone(), component);
                     crate::storage::add_component_to_registry(e, update.token.clone());
@@ -1306,7 +1159,7 @@ impl IndexFund {
                     let component_exists = get_component_safe(e, update.token.clone()).is_some();
 
                     if !component_exists {
-                        panic_with_error!(e, IndexError::ComponentNotFound);
+                        panic_with_error!(e, IndexFundError::ComponentNotFound);
                     }
 
                     // Get component info before updating
@@ -1348,7 +1201,7 @@ impl IndexFund {
 
         // Validate that final weights sum to 10000
         if total_weight != 10000 {
-            panic_with_error!(e, IndexError::InvalidWeightSum);
+            panic_with_error!(e, IndexFundError::InvalidWeightSum);
         }
     }
 
@@ -1358,7 +1211,8 @@ impl IndexFund {
 
         if components.len() == 0 {
             // No components defined, just hold the deposited token as-is
-            return;
+            panic_with_error!(&e, IndexFundError::ComponentNotFound);
+            // return;
         }
 
         let mut swaps = Vec::new(e);
@@ -1388,6 +1242,12 @@ impl IndexFund {
                         current_balance + target_amount,
                     );
                 } else {
+                    // let provider = if component.normal {
+                    //     DexProvider::Normal
+                    // } else {
+                    //     DexProvider::Soroswap
+                    // };
+
                     // Need to swap deposited token for component token
                     let swap = crate::index::SwapParams {
                         provider: None,

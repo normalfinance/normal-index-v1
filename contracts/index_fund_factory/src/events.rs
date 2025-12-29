@@ -34,10 +34,8 @@ pub(crate) trait FactoryEvents {
         manager: Address,
         initial_components: Vec<Address>,
         initial_weights: Vec<u128>,
-        base_nav: u128,
         initial_price: u128,
         is_public: bool,
-        deployment_cost: u128,
     );
 
     // Factory configuration events
@@ -59,10 +57,8 @@ impl FactoryEvents for Events {
         manager: Address,
         initial_components: Vec<Address>,
         initial_weights: Vec<u128>,
-        base_nav: u128,
         initial_price: u128,
         is_public: bool,
-        deployment_cost: u128,
     ) {
         // Split into multiple events due to Soroban topic limits
         // Primary deployment event
@@ -84,10 +80,8 @@ impl FactoryEvents for Events {
                 Symbol::new(self.env(), "index_config"),
                 ts,
                 index_address.clone(),
-                base_nav,
                 initial_price,
                 is_public,
-                deployment_cost,
             ),
             (),
         );

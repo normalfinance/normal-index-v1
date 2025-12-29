@@ -1,6 +1,6 @@
 use crate::index::DexProvider;
-use crate::storage::Component;
 use soroban_sdk::{Address, Env, Map, Symbol, Vec};
+use types::index_fund::Component;
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -32,7 +32,6 @@ pub(crate) trait IndexEvents {
         total_shares_before: u128,
         total_shares_after: u128,
         // fees_collected: u128,
-        destination: Option<Address>,
     );
 
     // Enhanced redemption event with component breakdown
@@ -59,7 +58,6 @@ pub(crate) trait IndexEvents {
         components_before: Map<Address, Component>,
         components_after: Map<Address, Component>,
         total_swaps: u32,
-        gas_cost: u128,
         performance_impact: i128, // Can be negative if rebalancing reduced NAV
     );
 
@@ -99,18 +97,6 @@ pub(crate) trait IndexEvents {
         error_code: u32,
     );
 
-    fn kill_deposit(&self);
-
-    fn unkill_deposit(&self);
-
-    fn kill_request_withdraw(&self);
-
-    fn unkill_request_withdraw(&self);
-
-    fn kill_withdraw(&self);
-
-    fn unkill_withdraw(&self);
-
     // Enhanced configuration update events
     fn manager_address_updated(
         &self,
@@ -119,8 +105,6 @@ pub(crate) trait IndexEvents {
         old_manager: Address,
         new_manager: Address,
     );
-
-    fn public_status_updated(&self, ts: u64, admin: Address, old_status: bool, new_status: bool);
 
     fn whitelist_status_updated(
         &self,
@@ -148,24 +132,7 @@ pub(crate) trait IndexEvents {
         new_threshold: u64,
     );
 
-    fn base_nav_updated(&self, ts: u64, admin: Address, old_nav: u128, new_nav: u128);
-
     fn initial_price_updated(&self, ts: u64, admin: Address, old_price: u128, new_price: u128);
-
-    // Kill switch events
-    fn operation_killed(
-        &self,
-        ts: u64,
-        admin: Address,
-        operation: Symbol, // "mint", "redeem", "rebalance"
-    );
-
-    fn operation_unkilled(
-        &self,
-        ts: u64,
-        admin: Address,
-        operation: Symbol, // "mint", "redeem", "rebalance"
-    );
 
     // Enhanced component management events
     fn component_added_detailed(
@@ -216,7 +183,6 @@ pub(crate) trait IndexEvents {
         caller: Address,
         components_updated: u32,
         total_swaps: u32,
-        total_gas_cost: u128,
         performance_delta: i128,
         nav_before: u128,
         nav_after: u128,
@@ -251,8 +217,6 @@ impl IndexEvents for Events {
         nav_after: u128,
         total_shares_before: u128,
         total_shares_after: u128,
-        // fees_collected: u128,
-        destination: Option<Address>,
     ) {
         self.env().events().publish(
             (
@@ -267,8 +231,6 @@ impl IndexEvents for Events {
                 nav_after,
                 total_shares_before,
                 total_shares_after,
-                // fees_collected,
-                destination.unwrap_or(user),
             ),
             (),
         );
@@ -313,7 +275,6 @@ impl IndexEvents for Events {
         components_before: Map<Address, Component>,
         components_after: Map<Address, Component>,
         total_swaps: u32,
-        gas_cost: u128,
         performance_impact: i128,
     ) {
         self.env().events().publish(
@@ -326,7 +287,6 @@ impl IndexEvents for Events {
                 components_before,
                 components_after,
                 total_swaps,
-                gas_cost,
                 performance_impact,
             ),
             (),
@@ -369,19 +329,6 @@ impl IndexEvents for Events {
                 admin,
                 old_manager,
                 new_manager,
-            ),
-            (),
-        );
-    }
-
-    fn public_status_updated(&self, ts: u64, admin: Address, old_status: bool, new_status: bool) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "public_status_updated"),
-                ts,
-                admin,
-                old_status,
-                new_status,
             ),
             (),
         );
@@ -448,19 +395,6 @@ impl IndexEvents for Events {
         );
     }
 
-    fn base_nav_updated(&self, ts: u64, admin: Address, old_nav: u128, new_nav: u128) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "base_nav_updated"),
-                ts,
-                admin,
-                old_nav,
-                new_nav,
-            ),
-            (),
-        );
-    }
-
     fn initial_price_updated(&self, ts: u64, admin: Address, old_price: u128, new_price: u128) {
         self.env().events().publish(
             (
@@ -469,30 +403,6 @@ impl IndexEvents for Events {
                 admin,
                 old_price,
                 new_price,
-            ),
-            (),
-        );
-    }
-
-    fn operation_killed(&self, ts: u64, admin: Address, operation: Symbol) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "operation_killed"),
-                ts,
-                admin,
-                operation,
-            ),
-            (),
-        );
-    }
-
-    fn operation_unkilled(&self, ts: u64, admin: Address, operation: Symbol) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "operation_unkilled"),
-                ts,
-                admin,
-                operation,
             ),
             (),
         );
@@ -599,7 +509,6 @@ impl IndexEvents for Events {
         caller: Address,
         components_updated: u32,
         total_swaps: u32,
-        total_gas_cost: u128,
         performance_delta: i128,
         nav_before: u128,
         nav_after: u128,
@@ -612,7 +521,6 @@ impl IndexEvents for Events {
                 caller,
                 components_updated,
                 total_swaps,
-                total_gas_cost,
                 performance_delta,
                 nav_before,
                 nav_after,
@@ -685,42 +593,6 @@ impl IndexEvents for Events {
             ),
             (),
         );
-    }
-
-    fn kill_deposit(&self) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "kill_deposit"),), ())
-    }
-
-    fn unkill_deposit(&self) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "unkill_deposit"),), ())
-    }
-
-    fn kill_request_withdraw(&self) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "kill_request_withdraw"),), ())
-    }
-
-    fn unkill_request_withdraw(&self) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "unkill_request_withdraw"),), ())
-    }
-
-    fn kill_withdraw(&self) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "kill_withdraw"),), ())
-    }
-
-    fn unkill_withdraw(&self) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "unkill_withdraw"),), ())
     }
 
     // Revenue Share Event Implementations

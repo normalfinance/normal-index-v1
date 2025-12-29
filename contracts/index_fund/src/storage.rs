@@ -1,6 +1,7 @@
 use paste::paste;
 use soroban_sdk::token::TokenClient as SorobanTokenClient;
-use soroban_sdk::{contracttype, log, panic_with_error, Address, Env, Map, Symbol, Vec};
+use soroban_sdk::{contracttype, log, panic_with_error, Address, Env, Map, Vec};
+use types::index_fund::Component;
 use utils::bump::{bump_instance, bump_persistent};
 use utils::constant::THIRTY_DAY;
 use utils::errors::storage_errors::StorageError;
@@ -13,20 +14,17 @@ use utils::{
 #[derive(Clone)]
 #[contracttype]
 enum DataKey {
+    Admin,
     Factory,
-    SwapUtility, // Address of the SwapUtility contract for cross-contract swaps
-    TokenIndex,  //
+    SwapUtility, // Swap utility contract address
+    TokenQuote,  // The token accepted during minting and used to swap, i.e. USDC
 
-    BaseNAV, // The Net Asset Value (NAV) at the inception of the index - what the creator deposits (e.g. $1,000)
     InitialPrice, // The price assigned to the index at inception (e.g. $100)
 
     Component(Address), // Map of token address to Component
     ComponentBalance(Address),
 
     Public, // Private indexes are mutable and can only be minted by the admin and whitelist. Pubilic indexes are immutabel and can be minted by anyone
-
-    // Revenue Share
-    ManagerAddress, // Address of the index manager who receives fees
 
     Whitelist(Address), // List of accounts explicitly allowed to mint the index
     Blacklist(Address), // List of accounts blocked from minting the index
@@ -46,36 +44,14 @@ enum DataKey {
     // Rebalancing authorities (for private indexes)
     RebalanceAuthority(Address), // Address -> bool mapping for rebalance authorities
     RebalanceAuthorityRegistry,  // Vec<Address> - list of all rebalance authority addresses
-
-    // Swap utility contract address
-    SwapUtilityAddress,
 }
 
-generate_instance_storage_getter_and_setter_with_default!(
-    factory,
-    DataKey::Factory,
-    Address,
-    Address::from_str(
-        &Env::default(),
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOAFM"
-    )
-);
-generate_instance_storage_setter!(swap_utility, DataKey::SwapUtility, Address);
-
-pub fn get_swap_utility(e: &Env) -> Address {
-    bump_instance(e);
-    let value_result = e.storage().instance().get(&DataKey::SwapUtility);
-    match value_result {
-        Some(value) => value,
-        None => {
-            // Return the contract address itself as default for testing
-            e.current_contract_address()
-        }
-    }
-}
+generate_instance_storage_getter_and_setter!(admin, DataKey::Admin, Address);
+generate_instance_storage_getter_and_setter!(factory, DataKey::Factory, Address);
+generate_instance_storage_getter_and_setter!(swap_utility, DataKey::SwapUtility, Address);
+generate_instance_storage_getter_and_setter!(token_quote, DataKey::TokenQuote, Address);
 
 // Financial Configuration
-generate_instance_storage_getter_and_setter_with_default!(base_nav, DataKey::BaseNAV, u128, 0);
 generate_instance_storage_getter_and_setter_with_default!(
     initial_price,
     DataKey::InitialPrice,
@@ -84,18 +60,6 @@ generate_instance_storage_getter_and_setter_with_default!(
 );
 
 // State
-
-// Revenue Share storage
-generate_instance_storage_getter_and_setter_with_default!(
-    manager_address,
-    DataKey::ManagerAddress,
-    Address,
-    Address::from_str(
-        &Env::default(),
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOAFM"
-    )
-);
-
 generate_instance_storage_getter_and_setter_with_default!(public, DataKey::Public, bool, false);
 generate_instance_storage_getter_and_setter_with_default!(
     rebalance_threshold,
@@ -172,7 +136,7 @@ pub fn get_rebalance_authority_status(e: &Env, address: &Address) -> bool {
     }
 }
 
-pub fn set_rebalance_authority_status(e: &Env, address: &Address, status: bool) {
+pub fn set_rebalance_admin_status(e: &Env, address: &Address, status: bool) {
     let key = DataKey::RebalanceAuthority(address.clone());
     if status {
         e.storage().persistent().set(&key, address);
@@ -285,14 +249,6 @@ pub fn get_component_balance(e: &Env, token: Address) -> u128 {
 }
 
 // Component
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Component {
-    pub asset: Symbol,
-    pub weight: u128,
-}
-
 pub fn get_all_components(e: &Env) -> Map<Address, Component> {
     let mut components_map = Map::new(e);
 
@@ -497,19 +453,4 @@ generate_instance_storage_getter_and_setter_with_default!(
 
 pub fn get_index_vault_amount(e: &Env, token: &Address) -> u128 {
     SorobanTokenClient::new(e, token).balance(&e.current_contract_address()) as u128
-}
-
-// Swap utility contract address management
-generate_instance_storage_setter!(swap_utility_address, DataKey::SwapUtilityAddress, Address);
-
-pub fn get_swap_utility_address(e: &Env) -> Address {
-    bump_instance(e);
-    let value_result = e.storage().instance().get(&DataKey::SwapUtilityAddress);
-    match value_result {
-        Some(value) => value,
-        None => {
-            // Return a default address for testing - the contract address itself
-            e.current_contract_address()
-        }
-    }
 }

@@ -11,10 +11,10 @@ tasks:
 
   build:
     cmds:
-      - task -d ../index_fund build || exit 1
-      - soroban contract build --package index-factory
-      - soroban contract optimize --wasm ../../target/wasm32v1-none/release/index_factory.wasm --wasm-out ../../target/wasm32v1-none/release/index_factory.wasm
-      - cp ../../target/wasm32v1-none/release/index_factory.wasm ../../wasm/index_factory.wasm
+      - task -d ../index_fund_factory build || exit 1
+      - soroban contract build --package index_fund_fee_provider
+      - soroban contract optimize --wasm ../../target/wasm32v1-none/release/index_fund_fee_provider.wasm --wasm-out ../../target/wasm32v1-none/release/index_fund_fee_provider.wasm
+      - cp ../../target/wasm32v1-none/release/index_fund_fee_provider.wasm ../../wasm/index_fund_fee_provider.wasm
 
   test:
     deps:

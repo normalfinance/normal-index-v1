@@ -6,4 +6,4 @@ soroban contract bindings typescript --wasm target/wasm32v1-none/release/swap_ut
 
 soroban contract bindings typescript --wasm target/wasm32v1-none/release/index_fund.wasm --output-dir bindings/index_fund --overwrite
 
-soroban contract bindings typescript --wasm target/wasm32v1-none/release/index_factory.wasm --output-dir bindings/index_factory --overwrite
+soroban contract bindings typescript --wasm target/wasm32v1-none/release/index_fund_factory.wasm --output-dir bindings/index_fund_factory --overwrite

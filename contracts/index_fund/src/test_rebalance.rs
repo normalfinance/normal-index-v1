@@ -1,19 +1,19 @@
 #![cfg(test)]
 
 use super::contract::{IndexFund, IndexFundClient};
-use super::interface::RebalanceParams;
 use super::storage::{
     add_component_to_registry, get_component, get_last_rebalance_ts, get_last_updated_ts,
-    get_rebalance_authority_status, get_rebalance_threshold, set_base_nav, set_component,
-    set_component_balance, set_last_rebalance_ts, set_last_updated_ts, set_public,
-    set_rebalance_threshold, set_swap_utility, Component,
+    get_rebalance_authority_status, get_rebalance_threshold, set_component, set_component_balance,
+    set_last_rebalance_ts, set_last_updated_ts, set_public, set_rebalance_threshold,
+    set_swap_utility,
 };
 use super::test_utils::{
     complete_test_setup, create_mock_token, enhanced_setup_components,
     setup_components_with_zero_balances, setup_components_without_balances,
     setup_mock_token_shares,
 };
-use soroban_sdk::{log, testutils::Address as _, vec, Address, Env, Symbol, Vec};
+use soroban_sdk::{log, testutils::Address as _, vec, Address, Env, Vec};
+use types::index_fund::{ComponentAction, ComponentUpdate, RebalanceParams, RefactorParams};
 use utils::test_utils::jump;
 
 const THIRTY_DAYS: u64 = 30 * 24 * 60 * 60;
@@ -276,7 +276,7 @@ fn test_custom_rebalance_threshold() {
     allow_immediate_rebalance(&e, &contract_address);
 
     // Execute first rebalance
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
+    client.rebalance(&admin, &(RebalanceParams { target_nav: None }));
 
     // Jump less than custom threshold
     jump(&e, custom_threshold - 1);
@@ -314,7 +314,7 @@ fn test_public_index_rebalance_requires_admin() {
     let non_admin = Address::generate(&e);
 
     // Non-admin tries to rebalance public index
-    client.rebalance(&non_admin, &RebalanceParams { target_nav: None });
+    client.rebalance(&non_admin, &(RebalanceParams { target_nav: None }));
 }
 
 #[test]
@@ -332,7 +332,7 @@ fn test_private_index_admin_can_rebalance() {
     allow_immediate_rebalance(&e, &contract_address);
 
     // Admin rebalances private index - should succeed
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
+    client.rebalance(&admin, &(RebalanceParams { target_nav: None }));
 }
 
 #[test]
@@ -361,7 +361,7 @@ fn test_private_index_rebalance_authority() {
     allow_immediate_rebalance(&e, &contract_address);
 
     // Authority rebalances - should succeed
-    client.rebalance(&authority, &RebalanceParams { target_nav: None });
+    client.rebalance(&authority, &(RebalanceParams { target_nav: None }));
 }
 
 #[test]
@@ -382,7 +382,7 @@ fn test_unauthorized_cannot_rebalance_private_index() {
     let unauthorized_user = Address::generate(&e);
 
     // Unauthorized user tries to rebalance - should fail
-    client.rebalance(&unauthorized_user, &RebalanceParams { target_nav: None });
+    client.rebalance(&unauthorized_user, &(RebalanceParams { target_nav: None }));
 }
 
 #[test]
@@ -452,7 +452,7 @@ fn test_generate_rebalance_swaps_buy() {
     allow_immediate_rebalance(&e, &contract_address);
 
     // Rebalance should generate buy swap for difference
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
+    client.rebalance(&admin, &(RebalanceParams { target_nav: None }));
 
     // Component balance should be adjusted (or swaps generated)
 }
@@ -479,7 +479,7 @@ fn test_generate_rebalance_swaps_sell() {
     allow_immediate_rebalance(&e, &contract_address);
 
     // Rebalance should generate sell swap for difference
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
+    client.rebalance(&admin, &(RebalanceParams { target_nav: None }));
 }
 
 #[test]
@@ -504,7 +504,7 @@ fn test_generate_rebalance_swaps_no_change() {
     allow_immediate_rebalance(&e, &contract_address);
 
     // Rebalance should generate no swaps
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
+    client.rebalance(&admin, &(RebalanceParams { target_nav: None }));
 }
 
 #[test]
@@ -542,54 +542,8 @@ fn test_generate_rebalance_swaps_multiple_components() {
     allow_immediate_rebalance(&e, &contract_address);
 
     // Rebalance should generate buy for token1, sell for token3, nothing for token2
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
+    client.rebalance(&admin, &(RebalanceParams { target_nav: None }));
 }
-
-// // ===== Kill Switch =====
-
-// #[test]
-// #[should_panic(expected = "Error(Contract, #32)")]
-// fn test_rebalance_killed_prevents_rebalance() {
-//     let e = Env::default();
-//     e.mock_all_auths();
-
-//     let (contract_address, admin, _) = create_test_index(&e);
-//     let client = IndexFundClient::new(&e, &contract_address);
-
-//     let token = create_mock_token(&e);
-//     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
-
-//     // Allow immediate rebalance (setup timing)
-//     allow_immediate_rebalance(&e, &contract_address);
-
-//     // Kill rebalance
-//     client.kill_rebalance(&admin);
-
-//     // Attempt rebalance - should fail
-//     client.rebalance(&admin, &RebalanceParams { target_nav: None });
-// }
-
-// #[test]
-// fn test_unkill_rebalance_restores_functionality() {
-//     let e = Env::default();
-//     e.mock_all_auths();
-
-//     let (contract_address, admin, _) = create_test_index(&e);
-//     let client = IndexFundClient::new(&e, &contract_address);
-
-//     let token = create_mock_token(&e);
-//     setup_components(&e, &contract_address, vec![&e, (token, 10000)]);
-
-//     // Allow immediate rebalance
-//     allow_immediate_rebalance(&e, &contract_address);
-
-//     // Kill then unkill
-//     client.kill_rebalance(&admin);
-//     client.unkill_rebalance(&admin);
-
-//     // Rebalance should succeed
-//     client.rebalance(&admin, &RebalanceParams { target_nav: None });
-// }
 
 // ===== Query Functions =====
 
@@ -740,7 +694,6 @@ fn test_full_refactor_rebalance_flow() {
     jump(&e, 105);
 
     // Refactor to 3 components (40%/30%/30%)
-    use super::interface::{ComponentAction, ComponentUpdate, RefactorParams};
     let refactor_updates = vec![
         &e,
         ComponentUpdate {
@@ -762,9 +715,9 @@ fn test_full_refactor_rebalance_flow() {
 
     client.refactor(
         &admin,
-        &RefactorParams {
+        &(RefactorParams {
             component_updates: refactor_updates,
-        },
+        }),
     );
 
     // Verify refactor updated last_updated_ts but not last_rebalance_ts
@@ -787,7 +740,7 @@ fn test_full_refactor_rebalance_flow() {
     allow_immediate_rebalance(&e, &contract_address);
 
     // Rebalance to align balances with new weights
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
+    client.rebalance(&admin, &(RebalanceParams { target_nav: None }));
 
     // Verify timestamps now match
     let last_updated_after = e.as_contract(&contract_address, || get_last_updated_ts(&e));
@@ -824,7 +777,7 @@ fn test_rebalance_after_initial_setup() {
     allow_immediate_rebalance(&e, &contract_address);
 
     // First rebalance should succeed without time threshold check
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
+    client.rebalance(&admin, &(RebalanceParams { target_nav: None }));
 
     // Verify timestamp updated
     let last_rebalance_after = e.as_contract(&contract_address, || get_last_rebalance_ts(&e));
@@ -852,7 +805,7 @@ fn test_rebalance_executed_event() {
     allow_immediate_rebalance(&e, &contract_address);
 
     // Execute rebalance - events will be emitted
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
+    client.rebalance(&admin, &(RebalanceParams { target_nav: None }));
 
     // In a full implementation, we would:
     // - Get events with e.events().all()
@@ -881,7 +834,7 @@ fn test_rebalance_completed_detailed_event() {
     allow_immediate_rebalance(&e, &contract_address);
 
     // Execute rebalance with swaps
-    client.rebalance(&admin, &RebalanceParams { target_nav: None });
+    client.rebalance(&admin, &(RebalanceParams { target_nav: None }));
 
     // Events should include: total_swaps, performance_delta, duration_ms
 }

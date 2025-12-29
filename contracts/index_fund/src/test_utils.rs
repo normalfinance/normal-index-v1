@@ -1,7 +1,11 @@
 #![cfg(test)]
 
-use crate::storage::{set_base_nav, set_component_balance, set_swap_utility};
+use crate::{
+    interface::QueryInterface,
+    storage::{set_component_balance, set_swap_utility},
+};
 use soroban_sdk::{contract, contractimpl, testutils::Address as _, Address, Env, Symbol, Vec};
+use types::index_fund::Component;
 
 use crate::index::{DexProvider, SwapResult, SwapUtilityParams};
 
@@ -60,22 +64,6 @@ impl MockFactory {
             .unwrap_or_else(|| Address::generate(&env))
     }
 
-    pub fn get_index_fee_enabled(_env: Env, _index_address: Address) -> bool {
-        true
-    }
-
-    pub fn get_user_fee_rate(_env: Env, _user: Address) -> u32 {
-        0 // Return 0 basis points for protocol fee in tests
-    }
-
-    pub fn get_protocol_fee_amount(_env: Env) -> u128 {
-        0 // Return 0 basis points for protocol fee in tests
-    }
-
-    pub fn get_minimum_fee_threshold(_env: Env) -> u128 {
-        1_000_000 // Return default minimum fee threshold in tests
-    }
-
     pub fn set_swap_utility(env: Env, swap_utility: Address) {
         let key = Symbol::new(&env, "swap_util");
         env.storage().instance().set(&key, &swap_utility);
@@ -98,12 +86,10 @@ pub fn setup_test_contracts(e: &Env) -> (Address, Address, Address, Address) {
     let swap_utility = create_mock_swap_utility(e);
 
     let client = crate::contract::IndexFundClient::new(e, &index_contract);
-    client.initialize(&admin, &token);
+    // client.initialize(&admin, &token);
 
     e.as_contract(&index_contract, || {
         set_swap_utility(e, &swap_utility);
-
-        set_base_nav(e, &100_000);
     });
 
     (index_contract, admin, token, swap_utility)
@@ -168,7 +154,8 @@ pub fn setup_components_with_balances(
 ) {
     e.as_contract(contract, || {
         for (token, weight, balance) in tokens_with_weights_and_balances.iter() {
-            let component = crate::storage::Component {
+            let component = Component {
+                normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
             };
@@ -186,17 +173,18 @@ pub fn enhanced_setup_components(
     tokens_with_weights: Vec<(Address, u128)>,
 ) {
     e.as_contract(contract, || {
-        let base_nav = crate::storage::get_base_nav(e) as u128;
+        let current_nav = crate::IndexFund::get_current_nav(e.clone());
 
         for (token, weight) in tokens_with_weights.iter() {
-            let component = crate::storage::Component {
+            let component = Component {
+                normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
 
-            let target_balance = (base_nav * weight) / 10000;
+            let target_balance = (current_nav * weight) / 10000;
             set_component_balance(e, token.clone(), target_balance);
         }
     });
@@ -209,7 +197,8 @@ pub fn setup_components_without_balances(
 ) {
     e.as_contract(contract, || {
         for (token, weight) in tokens_with_weights.iter() {
-            let component = crate::storage::Component {
+            let component = Component {
+                normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
             };
@@ -226,7 +215,8 @@ pub fn setup_components_with_zero_balances(
 ) {
     e.as_contract(contract, || {
         for (token, weight) in tokens_with_weights.iter() {
-            let component = crate::storage::Component {
+            let component = Component {
+                normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
             };
@@ -263,15 +253,16 @@ pub fn create_balanced_test_scenario(
     total_nav: u128,
 ) -> Vec<Address> {
     let mut tokens = Vec::new(e);
-    let weight_per_token = 10000 / num_tokens as u128;
-    let balance_per_token = total_nav / num_tokens as u128;
+    let weight_per_token = 10000 / (num_tokens as u128);
+    let balance_per_token = total_nav / (num_tokens as u128);
 
     for _ in 0..num_tokens {
         let token = create_mock_token(e);
         tokens.push_back(token.clone());
 
         e.as_contract(contract, || {
-            let component = crate::storage::Component {
+            let component = Component {
+                normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight: weight_per_token,
             };
@@ -281,9 +272,9 @@ pub fn create_balanced_test_scenario(
         });
     }
 
-    e.as_contract(contract, || {
-        set_base_nav(e, &total_nav);
-    });
+    // e.as_contract(contract, || {
+    //     set_base_nav(e, &total_nav);
+    // });
 
     tokens
 }
