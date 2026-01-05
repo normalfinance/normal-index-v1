@@ -39,13 +39,4 @@ pub trait AdminInterface {
     // (_______/  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
 
     fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>);
-
-    fn set_oracle_registry(e: Env, admin: Address, oracle_registry: Address);
-
-    fn get_oracle_registry(e: Env) -> Address;
-
-    fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128;
-
-    // Safe version that returns Option instead of panicking, for use in index contract
-    fn convert_token_to_usd_safe(e: Env, token: Address, amount: u128) -> Option<u128>;
 }

@@ -29,7 +29,6 @@ use crate::storage::{
     get_last_rebalance_ts, get_last_updated_ts, get_public, get_rebalance_threshold,
     get_total_mints, get_total_redemptions, set_component_balance,
 };
-use crate::volume::VolumeTracker;
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use access_control::errors::AccessControlError;
@@ -163,7 +162,7 @@ impl IndexFundTrait for IndexFund {
 
         // Update metrics
         set_total_mints(&e, &n_shares);
-        VolumeTracker::record_mint_volume(&e, &user, &token_quote, amount);
+        // VolumeTracker::record_mint_volume(&e, &user, &token_quote, amount);
 
         // Emit enhanced mint event
         let current_time = e.ledger().timestamp();
@@ -270,9 +269,9 @@ impl IndexFundTrait for IndexFund {
         let nav_after = Self::get_current_nav(e.clone()) as u128;
         let total_shares_after = get_total_shares(&e);
 
-        let redemption_usd_value =
-            VolumeTracker::calculate_redeem_usd_value(&e, share_amount, share_price);
-        VolumeTracker::record_redeem_volume(&e, &user, redemption_usd_value);
+        // let redemption_usd_value =
+        //     VolumeTracker::calculate_redeem_usd_value(&e, share_amount, share_price);
+        // VolumeTracker::record_redeem_volume(&e, &user, redemption_usd_value);
 
         Events::new(&e).redemption_executed(
             current_time,
@@ -539,6 +538,14 @@ impl AdminInterface for IndexFund {
         let current_time = e.ledger().timestamp();
         // Emit enhanced event
         Events::new(&e).rebalance_threshold_updated(current_time, admin, old_threshold, threshold);
+    }
+
+    fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128 {
+        crate::oracle::OracleUtils::convert_token_to_usd(&e, &token, amount)
+    }
+
+    fn convert_token_to_usd_safe(e: Env, token: Address, amount: u128) -> Option<u128> {
+        crate::oracle::OracleUtils::convert_token_to_usd_safe(&e, &token, amount)
     }
 }
 

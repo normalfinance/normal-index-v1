@@ -1,5 +1,5 @@
 use paste::paste;
-use soroban_sdk::{contracttype, panic_with_error, Address, BytesN, Env, Map, String, Vec};
+use soroban_sdk::{contracttype, panic_with_error, Address, BytesN, Env, Vec};
 use utils::bump::{bump_instance, bump_persistent};
 use utils::storage_errors::StorageError;
 use utils::{
@@ -8,28 +8,10 @@ use utils::{
     generate_instance_storage_getter_with_default, generate_instance_storage_setter,
 };
 
-// FROM SOROSWAP
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DexDistribution {
-    pub protocol_id: String,
-    pub path: Vec<Address>,
-    pub parts: u32,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct UserVolumeEntry {
-    pub timestamp: u64,
-    pub usd_amount: u128,
-    pub index_address: Address,
-}
-
 #[derive(Clone)]
 #[contracttype]
 enum DataKey {
     SwapUtility, // DEX Aggregator
-    OracleRegistry,
 
     IndexContractWASM, // wasm of the Index Fund contract
 
@@ -40,8 +22,6 @@ enum DataKey {
 }
 
 generate_instance_storage_getter_and_setter!(swap_utility, DataKey::SwapUtility, Address);
-
-generate_instance_storage_getter_and_setter!(oracle_registry, DataKey::OracleRegistry, Address);
 
 generate_instance_storage_getter_and_setter!(
     index_contract_wasm,

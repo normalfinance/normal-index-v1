@@ -5,12 +5,12 @@ pub mod errors;
 mod events;
 mod index;
 mod interface;
+mod oracle;
 mod storage;
 #[cfg(test)]
 mod test_rebalance;
 #[cfg(test)]
 mod test_refactor;
-mod volume;
 
 #[cfg(test)]
 mod test_utils;
