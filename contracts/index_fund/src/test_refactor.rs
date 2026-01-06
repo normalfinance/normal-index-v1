@@ -514,7 +514,7 @@ fn test_mint_allowed_after_refactor() {
     // We expect this to NOT fail with RebalanceRequiredAfterRefactor (error #43)
     // Since that check has been removed from the code (lines 148-154 in contract.rs are commented out)
     // This uses the same token that was used in the refactor to properly test the scenario
-    client.mint(&user, &token, &1000);
+    client.mint(&user, &1000);
 }
 
 #[test]
