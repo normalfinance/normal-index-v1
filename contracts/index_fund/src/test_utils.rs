@@ -2,7 +2,7 @@
 
 use crate::{
     interface::QueryInterface,
-    storage::{set_component_balance, set_swap_utility},
+    storage::{set_component_balance, set_swap_utility, set_token_quote},
 };
 use access_control::access::AccessControl;
 use access_control::management::SingleAddressManagementTrait;
@@ -71,6 +71,17 @@ impl MockFactory {
         let key = Symbol::new(&env, "swap_util");
         env.storage().instance().set(&key, &swap_utility);
     }
+
+    // Mock price conversion - returns the amount as-is (1:1 conversion for testing)
+    pub fn convert_token_to_usd_safe(_env: Env, _token: Address, amount: u128) -> Option<u128> {
+        // Return mock price: 1 token = 1 USD (with 7 decimals)
+        Some(amount)
+    }
+
+    pub fn convert_token_to_usd(_env: Env, _token: Address, amount: u128) -> u128 {
+        // Return mock price: 1 token = 1 USD
+        amount
+    }
 }
 
 pub fn create_mock_swap_utility(e: &Env) -> Address {
@@ -88,6 +99,10 @@ pub fn setup_test_contracts(e: &Env) -> (Address, Address, Address, Address) {
     let token = Address::generate(e);
     let swap_utility = create_mock_swap_utility(e);
 
+    // Create mock tokens for token_quote and token_share
+    let token_quote = Address::generate(e);
+    let token_share = Address::generate(e);
+
     let client = crate::contract::IndexFundClient::new(e, &index_contract);
     // client.initialize(&admin, &token);
 
@@ -97,6 +112,12 @@ pub fn setup_test_contracts(e: &Env) -> (Address, Address, Address, Address) {
         // Set up admin role in AccessControl - required for permission checks
         let access_control = AccessControl::new(e);
         access_control.set_role_address(&Role::Admin, &admin);
+
+        // Set up token_quote - required for mint operations
+        set_token_quote(e, &token_quote);
+
+        // Set up token_share - required for share operations
+        token_share::put_token_share(e, token_share);
     });
 
     (index_contract, admin, token, swap_utility)
