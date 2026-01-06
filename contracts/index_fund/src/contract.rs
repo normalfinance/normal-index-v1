@@ -2,7 +2,6 @@ use crate::errors::IndexFundError;
 use crate::events::Events;
 use crate::events::IndexEvents;
 use crate::storage::get_admin;
-use crate::storage::get_index_vault_amount;
 use crate::storage::get_token_quote;
 use crate::storage::set_token_quote;
 use utils::validate;
@@ -121,21 +120,12 @@ impl IndexFundTrait for IndexFund {
             }
         }
 
-        validate_token_contracts(&e, &vec![&e, token.clone()]);
+        // Get token_quote from storage
+        let token_quote = get_token_quote(&e);
+
+        validate_token_contracts(&e, &vec![&e, token_quote.clone()]);
 
         // ...
-
-        let total_shares = get_total_shares(&e);
-
-        let vault_amount = get_index_vault_amount(&e, &token);
-
-        // validate!(
-        //     &e,
-        //     !(insurance_vault_amount == 0 && total_shares != 0),
-        //     IndexError::InvalidIFForNewStakes
-        // );
-
-        let n_shares = vault_amount_to_shares(&e, amount, total_shares, vault_amount);
 
         // Deposit the token first
         transfer_token(
