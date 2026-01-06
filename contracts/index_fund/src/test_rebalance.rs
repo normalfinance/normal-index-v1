@@ -649,14 +649,19 @@ fn test_get_component_allocation() {
     assert_eq!(allocations.len(), 2);
 
     // Verify token1 allocation
+    // Note: target_balance is calculated using NAV which includes price scaling (6 decimals)
+    // With mock factory returning price of 1.0 (1_000_000 with 6 decimals):
+    // - Total NAV = (50_000 + 50_000) * 1_000_000 = 100_000_000_000
+    // - Target for 60% = 100_000_000_000 * 6000 / 10000 = 60_000_000_000
     let alloc1 = allocations.get(token1).unwrap();
     assert_eq!(alloc1.current_balance, 50_000);
-    assert_eq!(alloc1.target_balance, 60_000);
+    assert_eq!(alloc1.target_balance, 60_000_000_000);
 
     // Verify token2 allocation
+    // Target for 40% = 100_000_000_000 * 4000 / 10000 = 40_000_000_000
     let alloc2 = allocations.get(token2).unwrap();
     assert_eq!(alloc2.current_balance, 50_000);
-    assert_eq!(alloc2.target_balance, 40_000);
+    assert_eq!(alloc2.target_balance, 40_000_000_000);
 }
 
 // ===== Integration Tests =====
