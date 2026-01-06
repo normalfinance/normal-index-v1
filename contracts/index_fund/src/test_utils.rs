@@ -4,6 +4,9 @@ use crate::{
     interface::QueryInterface,
     storage::{set_component_balance, set_swap_utility},
 };
+use access_control::access::AccessControl;
+use access_control::management::SingleAddressManagementTrait;
+use access_control::role::Role;
 use soroban_sdk::{contract, contractimpl, testutils::Address as _, Address, Env, Symbol, Vec};
 use types::index_fund::Component;
 
@@ -90,6 +93,10 @@ pub fn setup_test_contracts(e: &Env) -> (Address, Address, Address, Address) {
 
     e.as_contract(&index_contract, || {
         set_swap_utility(e, &swap_utility);
+
+        // Set up admin role in AccessControl - required for permission checks
+        let access_control = AccessControl::new(e);
+        access_control.set_role_address(&Role::Admin, &admin);
     });
 
     (index_contract, admin, token, swap_utility)
