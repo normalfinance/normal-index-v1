@@ -22,7 +22,6 @@ use crate::storage::set_public;
 use crate::storage::set_rebalance_admin_status;
 use crate::storage::set_total_mints;
 use crate::storage::set_total_redemptions;
-use crate::storage::update_component_weight;
 use crate::storage::{
     get_all_component_balances, get_all_components, get_component, get_component_balance_safe,
     get_component_registry, get_component_safe, get_factory_safe, get_initial_price,
@@ -1127,11 +1126,16 @@ impl IndexFund {
                         panic_with_error!(e, IndexFundError::InvalidComponentAction);
                     }
 
+                    // Require oracle for new components
+                    let oracle = update.oracle.clone()
+                        .unwrap_or_else(|| panic_with_error!(e, IndexFundError::MissingOracleAddress));
+
                     // Create component with symbol (simplified for now)
                     let component = Component {
                         asset: Symbol::new(e, "TOKEN"), // Simplified - would need proper token symbol
                         weight: update.new_weight,
                         normal: false,
+                        oracle,
                     };
                     set_component(e, update.token.clone(), component);
                     crate::storage::add_component_to_registry(e, update.token.clone());
@@ -1188,10 +1192,16 @@ impl IndexFund {
                     }
 
                     // Get component info before updating
-                    let old_component = get_component(e, update.token.clone());
-                    let old_weight = old_component.weight;
+                    let mut component = get_component(e, update.token.clone());
+                    let old_weight = component.weight;
+                    component.weight = update.new_weight;
 
-                    update_component_weight(e, update.token.clone(), update.new_weight);
+                    // Optionally update oracle if provided
+                    if let Some(new_oracle) = update.oracle.clone() {
+                        component.oracle = new_oracle;
+                    }
+
+                    set_component(e, update.token.clone(), component);
                     _components_updated += 1;
 
                     // Emit legacy event for backward compatibility

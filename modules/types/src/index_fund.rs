@@ -90,6 +90,7 @@ pub struct ComponentUpdate {
     pub token: Address,
     pub new_weight: u128,
     pub action: ComponentAction,
+    pub oracle: Option<Address>, // Required for Add, optional for UpdateWeight
 }
 
 #[contracttype]

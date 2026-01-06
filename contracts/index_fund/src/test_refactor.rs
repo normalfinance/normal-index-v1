@@ -32,6 +32,10 @@ fn setup_components(e: &Env, contract: &Address, tokens_with_weights: Vec<(Addre
     setup_components_without_balances(e, contract, tokens_with_weights);
 }
 
+fn create_mock_oracle(e: &Env) -> Address {
+    Address::generate(e)
+}
+
 // ===== Basic Refactor Operations =====
 
 #[test]
@@ -48,12 +52,14 @@ fn test_refactor_add_component() {
     let time_before = e.ledger().timestamp();
 
     // Create refactor params to add a component
+    let oracle = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: token.clone(),
             new_weight: 10000, // 100%
             action: ComponentAction::Add,
+            oracle: Some(oracle),
         },
     ];
 
@@ -108,6 +114,7 @@ fn test_refactor_remove_component() {
             token: token.clone(),
             new_weight: 0, // Weight doesn't matter for Remove
             action: ComponentAction::Remove,
+            oracle: None,
         },
     ];
 
@@ -148,6 +155,7 @@ fn test_refactor_update_weight() {
             token: token.clone(),
             new_weight: 10000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
     ];
 
@@ -176,17 +184,21 @@ fn test_refactor_weight_sum_must_equal_10000() {
     let token2 = create_mock_token(&e);
 
     // Valid: weights sum to 10000
+    let oracle1 = create_mock_oracle(&e);
+    let oracle2 = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: token1.clone(),
             new_weight: 6000,
             action: ComponentAction::Add,
+            oracle: Some(oracle1),
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 4000,
             action: ComponentAction::Add,
+            oracle: Some(oracle2),
         },
     ];
 
@@ -215,17 +227,21 @@ fn test_refactor_weight_sum_not_10000_fails() {
     let token2 = create_mock_token(&e);
 
     // Invalid: weights sum to 9000
+    let oracle1 = create_mock_oracle(&e);
+    let oracle2 = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: token1.clone(),
             new_weight: 5000,
             action: ComponentAction::Add,
+            oracle: Some(oracle1),
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 4000,
             action: ComponentAction::Add,
+            oracle: Some(oracle2),
         },
     ];
 
@@ -249,17 +265,21 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
     let token2 = create_mock_token(&e);
 
     // First refactor: Add two components (5000 + 5000 = 10000)
+    let oracle1 = create_mock_oracle(&e);
+    let oracle2 = create_mock_oracle(&e);
     let updates1 = vec![
         &e,
         ComponentUpdate {
             token: token1.clone(),
             new_weight: 5000,
             action: ComponentAction::Add,
+            oracle: Some(oracle1),
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 5000,
             action: ComponentAction::Add,
+            oracle: Some(oracle2),
         },
     ];
 
@@ -277,11 +297,13 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
             token: token1.clone(),
             new_weight: 6000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 4000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
     ];
 
@@ -315,12 +337,14 @@ fn test_refactor_requires_admin() {
     let non_admin = Address::generate(&e);
     let token = create_mock_token(&e);
 
+    let oracle = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token,
             new_weight: 10000,
             action: ComponentAction::Add,
+            oracle: Some(oracle),
         },
     ];
 
@@ -345,12 +369,14 @@ fn test_refactor_blacklisted_admin_fails() {
     client.set_blacklist_status(&admin, &admin, &true);
 
     let token = create_mock_token(&e);
+    let oracle = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token,
             new_weight: 10000,
             action: ComponentAction::Add,
+            oracle: Some(oracle),
         },
     ];
 
@@ -373,12 +399,14 @@ fn test_refactor_admin_can_refactor_anytime() {
     let token1 = create_mock_token(&e);
 
     // First refactor
+    let oracle1 = create_mock_oracle(&e);
     let updates1 = vec![
         &e,
         ComponentUpdate {
             token: token1.clone(),
             new_weight: 10000,
             action: ComponentAction::Add,
+            oracle: Some(oracle1),
         },
     ];
     client.refactor(
@@ -395,6 +423,7 @@ fn test_refactor_admin_can_refactor_anytime() {
             token: token1.clone(),
             new_weight: 10000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
     ];
     client.refactor(
@@ -441,12 +470,14 @@ fn test_mint_allowed_after_refactor() {
     jump(&e, 50);
 
     // Refactor - this updates last_updated_ts
+    let oracle = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: token.clone(),
             new_weight: 10000,
             action: ComponentAction::Add,
+            oracle: Some(oracle),
         },
     ];
     client.refactor(
@@ -512,12 +543,14 @@ fn test_redeem_allowed_after_refactor() {
     jump(&e, 50);
 
     // Refactor
+    let oracle = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: token.clone(),
             new_weight: 10000,
             action: ComponentAction::Add,
+            oracle: Some(oracle),
         },
     ];
     client.refactor(
@@ -564,12 +597,14 @@ fn test_operations_allowed_after_rebalance() {
     });
 
     // Refactor changes weights
+    let oracle = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: comp_token,
             new_weight: 10000,
             action: ComponentAction::Add,
+            oracle: Some(oracle),
         },
     ];
     client.refactor(
@@ -611,12 +646,14 @@ fn test_refactor_with_no_components() {
     assert_eq!(components_before.len(), 0);
 
     // Add first component
+    let oracle = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: token.clone(),
             new_weight: 10000,
             action: ComponentAction::Add,
+            oracle: Some(oracle),
         },
     ];
     client.refactor(
@@ -655,6 +692,7 @@ fn test_refactor_remove_last_component() {
             token,
             new_weight: 0,
             action: ComponentAction::Remove,
+            oracle: None,
         },
     ];
     client.refactor(
@@ -695,27 +733,32 @@ fn test_refactor_batch_updates() {
     );
 
     // Batch refactor: Add 1, Remove 1, Update 2
+    let oracle4 = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: token4.clone(),
             new_weight: 2000,
             action: ComponentAction::Add,
+            oracle: Some(oracle4),
         },
         ComponentUpdate {
             token: token3.clone(),
             new_weight: 0,
             action: ComponentAction::Remove,
+            oracle: None,
         },
         ComponentUpdate {
             token: token1.clone(),
             new_weight: 5000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 3000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
     ];
 

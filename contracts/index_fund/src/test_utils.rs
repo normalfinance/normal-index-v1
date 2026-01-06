@@ -154,10 +154,12 @@ pub fn setup_components_with_balances(
 ) {
     e.as_contract(contract, || {
         for (token, weight, balance) in tokens_with_weights_and_balances.iter() {
+            let oracle = Address::generate(e);
             let component = Component {
                 normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
+                oracle,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -176,10 +178,12 @@ pub fn enhanced_setup_components(
         let current_nav = crate::IndexFund::get_current_nav(e.clone());
 
         for (token, weight) in tokens_with_weights.iter() {
+            let oracle = Address::generate(e);
             let component = Component {
                 normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
+                oracle,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -197,10 +201,12 @@ pub fn setup_components_without_balances(
 ) {
     e.as_contract(contract, || {
         for (token, weight) in tokens_with_weights.iter() {
+            let oracle = Address::generate(e);
             let component = Component {
                 normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
+                oracle,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -215,10 +221,12 @@ pub fn setup_components_with_zero_balances(
 ) {
     e.as_contract(contract, || {
         for (token, weight) in tokens_with_weights.iter() {
+            let oracle = Address::generate(e);
             let component = Component {
                 normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
+                oracle,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -261,10 +269,12 @@ pub fn create_balanced_test_scenario(
         tokens.push_back(token.clone());
 
         e.as_contract(contract, || {
+            let oracle = Address::generate(e);
             let component = Component {
                 normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight: weight_per_token,
+                oracle,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());

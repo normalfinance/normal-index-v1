@@ -34,4 +34,7 @@ pub enum IndexFundError {
     // Redemption Errors
     InvalidAmount = 47,
     InsufficientBalance = 48,
+
+    // Oracle Errors
+    MissingOracleAddress = 49,
 }
