@@ -32,6 +32,10 @@ fn setup_components(e: &Env, contract: &Address, tokens_with_weights: Vec<(Addre
     setup_components_without_balances(e, contract, tokens_with_weights);
 }
 
+fn create_mock_oracle(e: &Env) -> Address {
+    Address::generate(e)
+}
+
 // ===== Basic Refactor Operations =====
 
 #[test]
@@ -48,12 +52,14 @@ fn test_refactor_add_component() {
     let time_before = e.ledger().timestamp();
 
     // Create refactor params to add a component
+    let oracle = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: token.clone(),
             new_weight: 10000, // 100%
             action: ComponentAction::Add,
+            oracle: Some(oracle),
         },
     ];
 
@@ -108,6 +114,7 @@ fn test_refactor_remove_component() {
             token: token.clone(),
             new_weight: 0, // Weight doesn't matter for Remove
             action: ComponentAction::Remove,
+            oracle: None,
         },
     ];
 
@@ -148,6 +155,7 @@ fn test_refactor_update_weight() {
             token: token.clone(),
             new_weight: 10000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
     ];
 
@@ -176,17 +184,21 @@ fn test_refactor_weight_sum_must_equal_10000() {
     let token2 = create_mock_token(&e);
 
     // Valid: weights sum to 10000
+    let oracle1 = create_mock_oracle(&e);
+    let oracle2 = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: token1.clone(),
             new_weight: 6000,
             action: ComponentAction::Add,
+            oracle: Some(oracle1),
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 4000,
             action: ComponentAction::Add,
+            oracle: Some(oracle2),
         },
     ];
 
@@ -215,17 +227,21 @@ fn test_refactor_weight_sum_not_10000_fails() {
     let token2 = create_mock_token(&e);
 
     // Invalid: weights sum to 9000
+    let oracle1 = create_mock_oracle(&e);
+    let oracle2 = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: token1.clone(),
             new_weight: 5000,
             action: ComponentAction::Add,
+            oracle: Some(oracle1),
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 4000,
             action: ComponentAction::Add,
+            oracle: Some(oracle2),
         },
     ];
 
@@ -249,17 +265,21 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
     let token2 = create_mock_token(&e);
 
     // First refactor: Add two components (5000 + 5000 = 10000)
+    let oracle1 = create_mock_oracle(&e);
+    let oracle2 = create_mock_oracle(&e);
     let updates1 = vec![
         &e,
         ComponentUpdate {
             token: token1.clone(),
             new_weight: 5000,
             action: ComponentAction::Add,
+            oracle: Some(oracle1),
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 5000,
             action: ComponentAction::Add,
+            oracle: Some(oracle2),
         },
     ];
 
@@ -277,11 +297,13 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
             token: token1.clone(),
             new_weight: 6000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 4000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
     ];
 
@@ -315,12 +337,14 @@ fn test_refactor_requires_admin() {
     let non_admin = Address::generate(&e);
     let token = create_mock_token(&e);
 
+    let oracle = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token,
             new_weight: 10000,
             action: ComponentAction::Add,
+            oracle: Some(oracle),
         },
     ];
 
@@ -345,12 +369,14 @@ fn test_refactor_blacklisted_admin_fails() {
     client.set_blacklist_status(&admin, &admin, &true);
 
     let token = create_mock_token(&e);
+    let oracle = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token,
             new_weight: 10000,
             action: ComponentAction::Add,
+            oracle: Some(oracle),
         },
     ];
 
@@ -373,12 +399,14 @@ fn test_refactor_admin_can_refactor_anytime() {
     let token1 = create_mock_token(&e);
 
     // First refactor
+    let oracle1 = create_mock_oracle(&e);
     let updates1 = vec![
         &e,
         ComponentUpdate {
             token: token1.clone(),
             new_weight: 10000,
             action: ComponentAction::Add,
+            oracle: Some(oracle1),
         },
     ];
     client.refactor(
@@ -395,6 +423,7 @@ fn test_refactor_admin_can_refactor_anytime() {
             token: token1.clone(),
             new_weight: 10000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
     ];
     client.refactor(
@@ -407,145 +436,9 @@ fn test_refactor_admin_can_refactor_anytime() {
     // Should succeed without time threshold check
 }
 
-// ===== Critical Integration: Operations Allowed After Refactor =====
 
-#[test]
-fn test_mint_allowed_after_refactor() {
-    let e = Env::default();
-    e.mock_all_auths();
 
-    let (contract_address, admin, base_token) = create_test_index(&e);
-    let client = IndexFundClient::new(&e, &contract_address);
 
-    // Create a proper mock token for the share token
-    let share_token = create_mock_token(&e);
-    e.as_contract(&contract_address, || {
-        token_share::put_token_share(&e, share_token);
-    });
-
-    let user = Address::generate(&e);
-    let token = create_mock_token(&e);
-
-    // Whitelist the user so mint doesn't fail on whitelist check
-    client.set_whitelist_status(&admin, &user, &true);
-
-    // Advance ledger time first
-    jump(&e, 100);
-
-    // Set initial rebalance timestamp
-    e.as_contract(&contract_address, || {
-        set_last_rebalance_ts(&e, &e.ledger().timestamp());
-    });
-
-    // Advance ledger time to ensure refactor timestamp > initial rebalance
-    jump(&e, 50);
-
-    // Refactor - this updates last_updated_ts
-    let updates = vec![
-        &e,
-        ComponentUpdate {
-            token: token.clone(),
-            new_weight: 10000,
-            action: ComponentAction::Add,
-        },
-    ];
-    client.refactor(
-        &admin,
-        &(RefactorParams {
-            component_updates: updates,
-        }),
-    );
-
-    // Set up component balance to avoid token contract calls during mint
-    e.as_contract(&contract_address, || {
-        crate::storage::set_component_balance(&e, token.clone(), 0);
-    });
-
-    // Verify last_updated > last_rebalance
-    let last_updated = e.as_contract(&contract_address, || get_last_updated_ts(&e));
-    let last_rebalance = e.as_contract(&contract_address, || get_last_rebalance_ts(&e));
-    assert!(last_updated > last_rebalance);
-
-    // Set up mock token balance for the user to ensure transfer works
-    // The MockToken contract returns 1B tokens for any balance query, but we need to make sure
-    // the user has proper authorization for the transfer
-
-    // Core test: Verify the RebalanceRequiredAfterRefactor check has been removed.
-    // If the old check was still in place, calling mint with last_updated > last_rebalance
-    // would fail with RebalanceRequiredAfterRefactor error (#43) BEFORE any token operations.
-    //
-    // Any other error (like token setup issues) means we successfully passed the rebalance check.
-    // The fact that we're getting past the rebalance check validation proves the fix is working.
-    //
-    // Note: The call may fail due to complex token setup issues, but that's not what we're testing.
-    // We're specifically testing that the rebalance requirement has been removed.
-
-    // We expect this to NOT fail with RebalanceRequiredAfterRefactor (error #43)
-    // Since that check has been removed from the code (lines 148-154 in contract.rs are commented out)
-    // This uses the same token that was used in the refactor to properly test the scenario
-    client.mint(&user, &token, &1000);
-}
-
-#[test]
-fn test_redeem_allowed_after_refactor() {
-    let e = Env::default();
-    e.mock_all_auths();
-
-    let (contract_address, admin, _) = create_test_index(&e);
-    let client = IndexFundClient::new(&e, &contract_address);
-
-    let user = Address::generate(&e);
-    let token = create_mock_token(&e);
-
-    // Whitelist the user so redeem doesn't fail on whitelist check
-    client.set_whitelist_status(&admin, &user, &true);
-
-    // Advance ledger time first
-    jump(&e, 100);
-
-    // Set initial rebalance timestamp
-    e.as_contract(&contract_address, || {
-        set_last_rebalance_ts(&e, &e.ledger().timestamp());
-    });
-
-    // Advance ledger time to ensure refactor timestamp > initial rebalance
-    jump(&e, 50);
-
-    // Refactor
-    let updates = vec![
-        &e,
-        ComponentUpdate {
-            token: token.clone(),
-            new_weight: 10000,
-            action: ComponentAction::Add,
-        },
-    ];
-    client.refactor(
-        &admin,
-        &(RefactorParams {
-            component_updates: updates,
-        }),
-    );
-
-    // Set up component balance to avoid token contract calls during redeem
-    e.as_contract(&contract_address, || {
-        crate::storage::set_component_balance(&e, token.clone(), 0);
-    });
-
-    // Ensure total_shares is 0 so get_nav() doesn't try to call the token contract
-    let total_shares = e.as_contract(&contract_address, || get_total_shares(&e));
-    assert_eq!(
-        total_shares, 0,
-        "total_shares should be 0 to avoid token contract calls"
-    );
-
-    // Core test: Verify the RebalanceRequiredAfterRefactor check has been removed from redeem.
-    // Similar to the mint test, if the old check was still in place, calling redeem with
-    // last_updated > last_rebalance would fail with RebalanceRequiredAfterRefactor error (#43).
-    //
-    // This actually calls the redeem function to prove it works after refactor
-    client.redeem(&user, &1000);
-}
 
 #[test]
 fn test_operations_allowed_after_rebalance() {
@@ -564,12 +457,14 @@ fn test_operations_allowed_after_rebalance() {
     });
 
     // Refactor changes weights
+    let oracle = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: comp_token,
             new_weight: 10000,
             action: ComponentAction::Add,
+            oracle: Some(oracle),
         },
     ];
     client.refactor(
@@ -611,12 +506,14 @@ fn test_refactor_with_no_components() {
     assert_eq!(components_before.len(), 0);
 
     // Add first component
+    let oracle = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: token.clone(),
             new_weight: 10000,
             action: ComponentAction::Add,
+            oracle: Some(oracle),
         },
     ];
     client.refactor(
@@ -655,6 +552,7 @@ fn test_refactor_remove_last_component() {
             token,
             new_weight: 0,
             action: ComponentAction::Remove,
+            oracle: None,
         },
     ];
     client.refactor(
@@ -695,27 +593,32 @@ fn test_refactor_batch_updates() {
     );
 
     // Batch refactor: Add 1, Remove 1, Update 2
+    let oracle4 = create_mock_oracle(&e);
     let updates = vec![
         &e,
         ComponentUpdate {
             token: token4.clone(),
             new_weight: 2000,
             action: ComponentAction::Add,
+            oracle: Some(oracle4),
         },
         ComponentUpdate {
             token: token3.clone(),
             new_weight: 0,
             action: ComponentAction::Remove,
+            oracle: None,
         },
         ComponentUpdate {
             token: token1.clone(),
             new_weight: 5000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 3000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
     ];
 

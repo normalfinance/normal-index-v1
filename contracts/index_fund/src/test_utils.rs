@@ -2,8 +2,11 @@
 
 use crate::{
     interface::QueryInterface,
-    storage::{set_component_balance, set_swap_utility},
+    storage::{set_component_balance, set_swap_utility, set_token_quote},
 };
+use access_control::access::AccessControl;
+use access_control::management::SingleAddressManagementTrait;
+use access_control::role::Role;
 use soroban_sdk::{contract, contractimpl, testutils::Address as _, Address, Env, Symbol, Vec};
 use types::index_fund::Component;
 
@@ -68,6 +71,17 @@ impl MockFactory {
         let key = Symbol::new(&env, "swap_util");
         env.storage().instance().set(&key, &swap_utility);
     }
+
+    // Mock price conversion - returns the amount as-is (1:1 conversion for testing)
+    pub fn convert_token_to_usd_safe(_env: Env, _token: Address, amount: u128) -> Option<u128> {
+        // Return mock price: 1 token = 1 USD (with 7 decimals)
+        Some(amount)
+    }
+
+    pub fn convert_token_to_usd(_env: Env, _token: Address, amount: u128) -> u128 {
+        // Return mock price: 1 token = 1 USD
+        amount
+    }
 }
 
 pub fn create_mock_swap_utility(e: &Env) -> Address {
@@ -85,11 +99,25 @@ pub fn setup_test_contracts(e: &Env) -> (Address, Address, Address, Address) {
     let token = Address::generate(e);
     let swap_utility = create_mock_swap_utility(e);
 
+    // Create mock tokens for token_quote and token_share
+    let token_quote = Address::generate(e);
+    let token_share = Address::generate(e);
+
     let client = crate::contract::IndexFundClient::new(e, &index_contract);
     // client.initialize(&admin, &token);
 
     e.as_contract(&index_contract, || {
         set_swap_utility(e, &swap_utility);
+
+        // Set up admin role in AccessControl - required for permission checks
+        let access_control = AccessControl::new(e);
+        access_control.set_role_address(&Role::Admin, &admin);
+
+        // Set up token_quote - required for mint operations
+        set_token_quote(e, &token_quote);
+
+        // Set up token_share - required for share operations
+        token_share::put_token_share(e, token_share);
     });
 
     (index_contract, admin, token, swap_utility)
@@ -154,10 +182,12 @@ pub fn setup_components_with_balances(
 ) {
     e.as_contract(contract, || {
         for (token, weight, balance) in tokens_with_weights_and_balances.iter() {
+            let oracle = Address::generate(e);
             let component = Component {
                 normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
+                oracle,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -176,10 +206,12 @@ pub fn enhanced_setup_components(
         let current_nav = crate::IndexFund::get_current_nav(e.clone());
 
         for (token, weight) in tokens_with_weights.iter() {
+            let oracle = Address::generate(e);
             let component = Component {
                 normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
+                oracle,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -197,10 +229,12 @@ pub fn setup_components_without_balances(
 ) {
     e.as_contract(contract, || {
         for (token, weight) in tokens_with_weights.iter() {
+            let oracle = Address::generate(e);
             let component = Component {
                 normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
+                oracle,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -215,10 +249,12 @@ pub fn setup_components_with_zero_balances(
 ) {
     e.as_contract(contract, || {
         for (token, weight) in tokens_with_weights.iter() {
+            let oracle = Address::generate(e);
             let component = Component {
                 normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
+                oracle,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -261,10 +297,12 @@ pub fn create_balanced_test_scenario(
         tokens.push_back(token.clone());
 
         e.as_contract(contract, || {
+            let oracle = Address::generate(e);
             let component = Component {
                 normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight: weight_per_token,
+                oracle,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());

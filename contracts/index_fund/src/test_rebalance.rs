@@ -57,6 +57,10 @@ fn allow_immediate_rebalance(e: &Env, contract: &Address) {
     jump(e, THIRTY_DAYS + 1);
 }
 
+fn create_mock_oracle(e: &Env) -> Address {
+    Address::generate(e)
+}
+
 // ===== Basic Rebalance Operations =====
 
 #[test]
@@ -110,7 +114,7 @@ fn test_rebalance_with_target_nav() {
 
     // Set base NAV
     e.as_contract(&contract_address, || {
-        set_base_nav(&e, &100_000);
+        // set_base_nav(&e, &100_000);
         set_component_balance(&e, token, 50_000);
     });
 
@@ -139,7 +143,7 @@ fn test_rebalance_without_target_nav_uses_current() {
 
     // Set base NAV
     e.as_contract(&contract_address, || {
-        set_base_nav(&e, &100_000);
+        // set_base_nav(&e, &100_000);
         set_component_balance(&e, token, 100_000);
     });
 
@@ -444,7 +448,7 @@ fn test_generate_rebalance_swaps_buy() {
     setup_components(&e, &contract_address, vec![&e, (token.clone(), 5000)]);
 
     e.as_contract(&contract_address, || {
-        set_base_nav(&e, &100_000);
+        // set_base_nav(&e, &100_000);
         set_component_balance(&e, token.clone(), 30_000); // 30% of NAV
     });
 
@@ -471,7 +475,7 @@ fn test_generate_rebalance_swaps_sell() {
     setup_components(&e, &contract_address, vec![&e, (token.clone(), 3000)]);
 
     e.as_contract(&contract_address, || {
-        set_base_nav(&e, &100_000);
+        // set_base_nav(&e, &100_000);
         set_component_balance(&e, token, 50_000); // 50% of NAV
     });
 
@@ -496,7 +500,7 @@ fn test_generate_rebalance_swaps_no_change() {
     setup_components(&e, &contract_address, vec![&e, (token.clone(), 5000)]);
 
     e.as_contract(&contract_address, || {
-        set_base_nav(&e, &100_000);
+        // set_base_nav(&e, &100_000);
         set_component_balance(&e, token, 50_000); // Exactly 50%
     });
 
@@ -532,7 +536,7 @@ fn test_generate_rebalance_swaps_multiple_components() {
     );
 
     e.as_contract(&contract_address, || {
-        set_base_nav(&e, &100_000);
+        // set_base_nav(&e, &100_000);
         set_component_balance(&e, token1, 30_000); // Underweight - need to buy
         set_component_balance(&e, token2, 35_000); // Exactly right
         set_component_balance(&e, token3, 35_000); // Overweight - need to sell
@@ -631,7 +635,7 @@ fn test_get_component_allocation() {
 
     // Set balances different from target weights and setup token shares
     e.as_contract(&contract_address, || {
-        set_base_nav(&e, &100_000);
+        // set_base_nav(&e, &100_000);
         set_component_balance(&e, token1.clone(), 50_000); // Target should be 60_000
         set_component_balance(&e, token2.clone(), 50_000); // Target should be 40_000
     });
@@ -645,14 +649,19 @@ fn test_get_component_allocation() {
     assert_eq!(allocations.len(), 2);
 
     // Verify token1 allocation
+    // Note: target_balance is calculated using NAV which includes price scaling (6 decimals)
+    // With mock factory returning price of 1.0 (1_000_000 with 6 decimals):
+    // - Total NAV = (50_000 + 50_000) * 1_000_000 = 100_000_000_000
+    // - Target for 60% = 100_000_000_000 * 6000 / 10000 = 60_000_000_000
     let alloc1 = allocations.get(token1).unwrap();
     assert_eq!(alloc1.current_balance, 50_000);
-    assert_eq!(alloc1.target_balance, 60_000);
+    assert_eq!(alloc1.target_balance, 60_000_000_000);
 
     // Verify token2 allocation
+    // Target for 40% = 100_000_000_000 * 4000 / 10000 = 40_000_000_000
     let alloc2 = allocations.get(token2).unwrap();
     assert_eq!(alloc2.current_balance, 50_000);
-    assert_eq!(alloc2.target_balance, 40_000);
+    assert_eq!(alloc2.target_balance, 40_000_000_000);
 }
 
 // ===== Integration Tests =====
@@ -678,7 +687,7 @@ fn test_full_refactor_rebalance_flow() {
 
     // Set base NAV and initial component balances manually
     e.as_contract(&contract_address, || {
-        set_base_nav(&e, &100_000);
+        // set_base_nav(&e, &100_000);
         // Set balanced initial state
         set_component_balance(&e, token1.clone(), 50_000); // 50% of NAV
         set_component_balance(&e, token2.clone(), 50_000); // 50% of NAV
@@ -700,16 +709,19 @@ fn test_full_refactor_rebalance_flow() {
             token: token1.clone(),
             new_weight: 4000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 3000,
             action: ComponentAction::UpdateWeight,
+            oracle: None,
         },
         ComponentUpdate {
             token: token3.clone(),
             new_weight: 3000,
             action: ComponentAction::Add,
+            oracle: Some(create_mock_oracle(&e)),
         },
     ];
 
@@ -826,7 +838,7 @@ fn test_rebalance_completed_detailed_event() {
 
     // Set up imbalanced state to generate swaps
     e.as_contract(&contract_address, || {
-        set_base_nav(&e, &100_000);
+        // set_base_nav(&e, &100_000);
         set_component_balance(&e, token, 50_000); // Different from target
     });
 

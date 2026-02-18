@@ -69,9 +69,10 @@ pub struct IndexFundStatus {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Component {
-    pub normal: bool,
-    pub asset: Symbol,
-    pub weight: u128,
+    pub normal: bool,    // Whether or not the asset is a Normal Token
+    pub asset: Symbol,   // The ticker of the asset
+    pub weight: u128,    // The asset's index % allocation (in basis points)
+    pub oracle: Address, // The address of the oracle for this asset
 }
 
 // Rebalancing Data Structures
@@ -89,6 +90,7 @@ pub struct ComponentUpdate {
     pub token: Address,
     pub new_weight: u128,
     pub action: ComponentAction,
+    pub oracle: Option<Address>, // Required for Add, optional for UpdateWeight
 }
 
 #[contracttype]

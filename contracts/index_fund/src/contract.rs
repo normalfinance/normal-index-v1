@@ -2,7 +2,6 @@ use crate::errors::IndexFundError;
 use crate::events::Events;
 use crate::events::IndexEvents;
 use crate::storage::get_admin;
-use crate::storage::get_index_vault_amount;
 use crate::storage::get_token_quote;
 use crate::storage::set_token_quote;
 use utils::validate;
@@ -22,14 +21,12 @@ use crate::storage::set_public;
 use crate::storage::set_rebalance_admin_status;
 use crate::storage::set_total_mints;
 use crate::storage::set_total_redemptions;
-use crate::storage::update_component_weight;
 use crate::storage::{
     get_all_component_balances, get_all_components, get_component, get_component_balance_safe,
     get_component_registry, get_component_safe, get_factory_safe, get_initial_price,
     get_last_rebalance_ts, get_last_updated_ts, get_public, get_rebalance_threshold,
     get_total_mints, get_total_redemptions, set_component_balance,
 };
-use crate::volume::VolumeTracker;
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use access_control::errors::AccessControlError;
@@ -123,21 +120,12 @@ impl IndexFundTrait for IndexFund {
             }
         }
 
-        validate_token_contracts(&e, &vec![&e, token.clone()]);
+        // Get token_quote from storage
+        let token_quote = get_token_quote(&e);
+
+        validate_token_contracts(&e, &vec![&e, token_quote.clone()]);
 
         // ...
-
-        let total_shares = get_total_shares(&e);
-
-        let vault_amount = get_index_vault_amount(&e, &token);
-
-        // validate!(
-        //     &e,
-        //     !(insurance_vault_amount == 0 && total_shares != 0),
-        //     IndexError::InvalidIFForNewStakes
-        // );
-
-        let n_shares = vault_amount_to_shares(&e, amount, total_shares, vault_amount);
 
         // Deposit the token first
         transfer_token(
@@ -163,7 +151,7 @@ impl IndexFundTrait for IndexFund {
 
         // Update metrics
         set_total_mints(&e, &n_shares);
-        VolumeTracker::record_mint_volume(&e, &user, &token_quote, amount);
+        // VolumeTracker::record_mint_volume(&e, &user, &token_quote, amount);
 
         // Emit enhanced mint event
         let current_time = e.ledger().timestamp();
@@ -270,9 +258,9 @@ impl IndexFundTrait for IndexFund {
         let nav_after = Self::get_current_nav(e.clone()) as u128;
         let total_shares_after = get_total_shares(&e);
 
-        let redemption_usd_value =
-            VolumeTracker::calculate_redeem_usd_value(&e, share_amount, share_price);
-        VolumeTracker::record_redeem_volume(&e, &user, redemption_usd_value);
+        // let redemption_usd_value =
+        //     VolumeTracker::calculate_redeem_usd_value(&e, share_amount, share_price);
+        // VolumeTracker::record_redeem_volume(&e, &user, redemption_usd_value);
 
         Events::new(&e).redemption_executed(
             current_time,
@@ -539,6 +527,14 @@ impl AdminInterface for IndexFund {
         let current_time = e.ledger().timestamp();
         // Emit enhanced event
         Events::new(&e).rebalance_threshold_updated(current_time, admin, old_threshold, threshold);
+    }
+
+    fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128 {
+        crate::oracle::OracleUtils::convert_token_to_usd(&e, &token, amount)
+    }
+
+    fn convert_token_to_usd_safe(e: Env, token: Address, amount: u128) -> Option<u128> {
+        crate::oracle::OracleUtils::convert_token_to_usd_safe(&e, &token, amount)
     }
 }
 
@@ -1120,11 +1116,16 @@ impl IndexFund {
                         panic_with_error!(e, IndexFundError::InvalidComponentAction);
                     }
 
+                    // Require oracle for new components
+                    let oracle = update.oracle.clone()
+                        .unwrap_or_else(|| panic_with_error!(e, IndexFundError::MissingOracleAddress));
+
                     // Create component with symbol (simplified for now)
                     let component = Component {
                         asset: Symbol::new(e, "TOKEN"), // Simplified - would need proper token symbol
                         weight: update.new_weight,
                         normal: false,
+                        oracle,
                     };
                     set_component(e, update.token.clone(), component);
                     crate::storage::add_component_to_registry(e, update.token.clone());
@@ -1181,10 +1182,16 @@ impl IndexFund {
                     }
 
                     // Get component info before updating
-                    let old_component = get_component(e, update.token.clone());
-                    let old_weight = old_component.weight;
+                    let mut component = get_component(e, update.token.clone());
+                    let old_weight = component.weight;
+                    component.weight = update.new_weight;
 
-                    update_component_weight(e, update.token.clone(), update.new_weight);
+                    // Optionally update oracle if provided
+                    if let Some(new_oracle) = update.oracle.clone() {
+                        component.oracle = new_oracle;
+                    }
+
+                    set_component(e, update.token.clone(), component);
                     _components_updated += 1;
 
                     // Emit legacy event for backward compatibility

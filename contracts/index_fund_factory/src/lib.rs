@@ -4,7 +4,6 @@ mod contract;
 mod events;
 mod index_utils;
 mod interface;
-mod oracle;
 mod storage;
 // mod test;
 // mod test_permissions;

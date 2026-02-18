@@ -3,6 +3,7 @@ use soroban_sdk::{
     contracttype, log, panic_with_error, Address, Env, IntoVal, String, Symbol, Vec,
 };
 use token_share::get_token_share;
+use types::dex::DexDistribution;
 use types::index_fund::RebalanceParams;
 use utils::validate;
 
@@ -345,14 +346,6 @@ fn create_sell_swap(e: &Env, token_in: Address, amount_to_sell: u128) -> SwapPar
 fn get_base_token(e: &Env) -> Address {
     // Returns the index token as base
     get_token_share(e)
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DexDistribution {
-    pub protocol_id: String,
-    pub path: Vec<Address>,
-    pub parts: u32,
 }
 
 pub fn get_default_distribution(e: &Env) -> Vec<DexDistribution> {

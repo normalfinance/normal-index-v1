@@ -47,7 +47,10 @@ pub trait AdminInterface {
 
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64);
 
-    // TODO: add priv addrs
+    fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128;
+
+    // Safe version that returns Option instead of panicking, for use in index contract
+    fn convert_token_to_usd_safe(e: Env, token: Address, amount: u128) -> Option<u128>;
 }
 
 // Query Interface

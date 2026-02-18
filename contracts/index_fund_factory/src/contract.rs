@@ -9,7 +9,7 @@ use crate::storage::set_index_contract_wasm;
 use crate::storage::set_swap_utility;
 use crate::storage::{
     add_deployed_index, get_all_deployed_indexes, get_contract_sequence, get_deployed_indexes,
-    get_oracle_registry, set_contract_sequence, set_oracle_registry,
+    set_contract_sequence,
 };
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
@@ -199,25 +199,6 @@ impl AdminInterface for IndexFundFactory {
             index_contract_wasm.clone(),
             1,
         );
-    }
-
-    fn set_oracle_registry(e: Env, admin: Address, oracle_registry: Address) {
-        admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
-
-        set_oracle_registry(&e, &oracle_registry);
-    }
-
-    fn get_oracle_registry(e: Env) -> Address {
-        get_oracle_registry(&e)
-    }
-
-    fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128 {
-        crate::oracle::OracleUtils::convert_token_to_usd(&e, &token, amount)
-    }
-
-    fn convert_token_to_usd_safe(e: Env, token: Address, amount: u128) -> Option<u128> {
-        crate::oracle::OracleUtils::convert_token_to_usd_safe(&e, &token, amount)
     }
 }
 
