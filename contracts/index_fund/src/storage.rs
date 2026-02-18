@@ -75,9 +75,7 @@ enum IndexFundDataKey {
 
 /********** Storage **********/
 
-generate_instance_storage_getter_and_setter!(admin, IndexFundDataKey::Admin, Address);
 generate_instance_storage_getter_and_setter!(factory, IndexFundDataKey::Factory, Address);
-generate_instance_storage_getter_and_setter!(swap_utility, IndexFundDataKey::SwapUtility, Address);
 generate_instance_storage_getter_and_setter!(token_quote, IndexFundDataKey::TokenQuote, Address);
 
 // Financial Configuration

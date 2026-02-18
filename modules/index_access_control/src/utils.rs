@@ -1,6 +1,5 @@
 use crate::access::{IndexAccessControl, IndexAccessControlTrait};
 use crate::errors::IndexAccessControlError;
-use crate::management::MultipleAddressesManagementTrait;
 use crate::role::Role;
 use soroban_sdk::{panic_with_error, Address, Env};
 
@@ -33,9 +32,7 @@ pub fn require_fee_admin_or_owner(e: &Env, address: &Address) {
 
 pub fn require_rebalance_authority_or_owner(e: &Env, address: &Address) {
     let access_control = IndexAccessControl::new(e);
-    let _ = access_control
-        .get_role_addresses(&Role::RebalanceAuthorities)
-        .contains(address)
+    let _ = access_control.address_has_role(address, &Role::RebalanceAuthorities)
         || access_control.address_has_role(address, &Role::Admin)
         || panic_with_error!(e, IndexAccessControlError::Unauthorized);
 }

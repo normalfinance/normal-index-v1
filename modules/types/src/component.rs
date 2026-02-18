@@ -61,5 +61,5 @@ pub struct RebalanceStatus {
     pub last_rebalance_ts: u64,
     pub rebalance_threshold: u64,
     pub is_public: bool,
-    pub authorized_rebalancers: Vec<Address>, // For private indexes
+    pub rebalance_authorities: Vec<Address>,
 }

@@ -1,5 +1,7 @@
 use crate::errors::IndexAccessControlError;
-use crate::management::{MultipleAddressesManagementTrait, SingleAddressManagementTrait};
+use crate::management::{
+    MapAddressesManagementTrait, MultipleAddressesManagementTrait, SingleAddressManagementTrait,
+};
 use crate::role::Role;
 use soroban_sdk::{panic_with_error, Address, Env};
 
@@ -20,6 +22,10 @@ pub trait IndexAccessControlTrait {
 impl IndexAccessControlTrait for IndexAccessControl {
     fn address_has_role(&self, address: &Address, role: &Role) -> bool {
         if role.has_many_users() {
+            if let Some(status) = self.get_role_address_status_safe(role, address) {
+                return status;
+            }
+
             self.get_role_addresses(role).contains(address)
         } else {
             match self.get_role_safe(role) {

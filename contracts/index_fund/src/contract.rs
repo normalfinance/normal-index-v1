@@ -2,6 +2,7 @@ use crate::errors::IndexFundError;
 use crate::events::Events;
 use crate::events::IndexEvents;
 use crate::interface::{AdminInterface, IndexFundTrait, QueryInterface};
+use index_access_control::management::MapAddressesManagementTrait;
 use index_access_control::management::MultipleAddressesManagementTrait;
 use index_access_control::utils::require_admin;
 use index_access_control::utils::require_fee_admin_or_owner;
@@ -399,7 +400,11 @@ impl AdminInterface for IndexFund {
 
         // Validate permissions - managers (admin) can refactor anytime
         let access_control = AccessControl::new(&e);
-        if !access_control.address_has_role(&caller, &Role::Admin) {
+        let is_admin = access_control.address_has_role(&caller, &Role::Admin);
+        let is_rebalance_authority = access_control
+            .get_role_address_status_safe(&Role::RebalanceAuthorities, &caller)
+            .unwrap_or(false);
+        if !is_admin && !is_rebalance_authority {
             panic_with_error!(e, IndexFundError::UnauthorizedRefactor);
         }
 
@@ -441,8 +446,9 @@ impl AdminInterface for IndexFund {
             let access_control = AccessControl::new(&e);
             let is_admin = access_control.address_has_role(&caller, &Role::Admin);
             let is_whitelisted = crate::storage::get_whitelist_status(&e, &caller);
-            let is_rebalance_authority =
-                crate::storage::get_rebalance_authority_status(&e, &caller);
+            let is_rebalance_authority = access_control
+                .get_role_address_status_safe(&Role::RebalanceAuthorities, &caller)
+                .unwrap_or(false);
 
             log!(&e, "Is admin: {:?}", is_admin);
             log!(&e, "Is whitelisted: {:?}", is_whitelisted);
@@ -574,11 +580,8 @@ impl AdminInterface for IndexFund {
         admin.require_auth();
         require_operations_admin_or_owner(&e, &admin);
 
-        // Get old status before updating
-        let old_status = crate::storage::get_rebalance_authority_status(&e, &authority);
-        crate::storage::set_rebalance_admin_status(&e, &authority, status);
-
-        let current_time = e.ledger().timestamp();
+        let access_control = AccessControl::new(&e);
+        access_control.set_role_address_status(&Role::RebalanceAuthorities, &authority, status);
 
         AccessControlEvents::new(&e).rebalance_authority_updated(authority, status);
     }
@@ -1003,11 +1006,12 @@ impl QueryInterface for IndexFund {
             last_rebalance + threshold - current_time
         };
 
-        // Get authorized rebalancers for private indexes
-        let authorized_rebalancers = if crate::storage::get_public(&e) {
+        // Get rebalance authorities
+        let rebalance_authorities = if crate::storage::get_public(&e) {
             Vec::new(&e) // Public indexes don't have individual authorities
         } else {
-            crate::storage::get_all_rebalance_authorities(&e)
+            let access_control = AccessControl::new(&e);
+            access_control.get_role_addresses(&Role::RebalanceAuthorities)
         };
 
         RebalanceStatus {
@@ -1016,7 +1020,7 @@ impl QueryInterface for IndexFund {
             last_rebalance_ts: last_rebalance,
             rebalance_threshold: threshold,
             is_public: crate::storage::get_public(&e),
-            authorized_rebalancers,
+            rebalance_authorities,
         }
     }
 
@@ -1038,7 +1042,9 @@ impl QueryInterface for IndexFund {
         } else {
             // Private index: admin or rebalance authority
             access_control.address_has_role(&caller, &Role::Admin)
-                || crate::storage::get_rebalance_authority_status(&e, &caller)
+                || access_control
+                    .get_role_address_status_safe(&Role::RebalanceAuthorities, &caller)
+                    .unwrap_or(false)
         }
     }
 
@@ -1084,7 +1090,8 @@ impl QueryInterface for IndexFund {
     }
 
     fn get_rebalance_authorities(e: Env) -> Vec<Address> {
-        crate::storage::get_all_rebalance_authorities(&e)
+        let access_control = AccessControl::new(&e);
+        access_control.get_role_addresses(&Role::RebalanceAuthorities)
     }
 
     fn get_user_monthly_volume(e: Env, user: Address) -> u128 {
@@ -1174,11 +1181,12 @@ impl IndexFund {
     // Rebalancing helper functions
     fn validate_private_rebalance(e: &Env, caller: &Address) {
         let access_control = AccessControl::new(e);
+        let is_rebalance_authority = access_control
+            .get_role_address_status_safe(&Role::RebalanceAuthorities, caller)
+            .unwrap_or(false);
 
         // Allow admin or rebalance authority
-        if !access_control.address_has_role(caller, &Role::Admin)
-            && !crate::storage::get_rebalance_authority_status(e, caller)
-        {
+        if !access_control.address_has_role(caller, &Role::Admin) && !is_rebalance_authority {
             panic_with_error!(e, IndexFundError::UnauthorizedRebalance);
         }
     }
