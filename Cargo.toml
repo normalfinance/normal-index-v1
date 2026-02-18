@@ -14,8 +14,10 @@ paste = { version = "1.0.15" }
 types = { path = "modules/types" }
 utils = { path = "modules/utils" }
 access_control = { path = "modules/access_control" }
+index_access_control = { path = "modules/index_access_control" }
 token_share = { path = "modules/token_share" }
 upgrade = { path = "modules/upgrade" }
+adapter = { path = "modules/adapter" }
 
 [profile.release]
 opt-level = "z"

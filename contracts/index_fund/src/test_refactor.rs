@@ -12,7 +12,8 @@ use super::test_utils::{
 };
 use soroban_sdk::{log, testutils::Address as _, vec, Address, Env, Symbol, Vec};
 use token_share::get_total_shares;
-use types::index_fund::{Component, ComponentAction, ComponentUpdate, RefactorParams};
+use types::adapter::AdapterType;
+use types::component::{ComponentAction, ComponentUpdate, RefactorParams};
 use utils::test_utils::jump;
 
 // Test utilities
@@ -60,6 +61,7 @@ fn test_refactor_add_component() {
             new_weight: 10000, // 100%
             action: ComponentAction::Add,
             oracle: Some(oracle),
+            adapter_type: AdapterType::Normal,
         },
     ];
 
@@ -115,6 +117,7 @@ fn test_refactor_remove_component() {
             new_weight: 0, // Weight doesn't matter for Remove
             action: ComponentAction::Remove,
             oracle: None,
+            adapter_type: AdapterType::Normal,
         },
     ];
 
@@ -156,6 +159,7 @@ fn test_refactor_update_weight() {
             new_weight: 10000,
             action: ComponentAction::UpdateWeight,
             oracle: None,
+            adapter_type: AdapterType::Normal,
         },
     ];
 
@@ -193,12 +197,14 @@ fn test_refactor_weight_sum_must_equal_10000() {
             new_weight: 6000,
             action: ComponentAction::Add,
             oracle: Some(oracle1),
+            adapter_type: AdapterType::Normal,
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 4000,
             action: ComponentAction::Add,
             oracle: Some(oracle2),
+            adapter_type: AdapterType::Normal,
         },
     ];
 
@@ -236,12 +242,14 @@ fn test_refactor_weight_sum_not_10000_fails() {
             new_weight: 5000,
             action: ComponentAction::Add,
             oracle: Some(oracle1),
+            adapter_type: AdapterType::Normal,
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 4000,
             action: ComponentAction::Add,
             oracle: Some(oracle2),
+            adapter_type: AdapterType::Normal,
         },
     ];
 
@@ -274,12 +282,14 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
             new_weight: 5000,
             action: ComponentAction::Add,
             oracle: Some(oracle1),
+            adapter_type: AdapterType::Normal,
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 5000,
             action: ComponentAction::Add,
             oracle: Some(oracle2),
+            adapter_type: AdapterType::Normal,
         },
     ];
 
@@ -298,12 +308,14 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
             new_weight: 6000,
             action: ComponentAction::UpdateWeight,
             oracle: None,
+            adapter_type: AdapterType::Normal,
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 4000,
             action: ComponentAction::UpdateWeight,
             oracle: None,
+            adapter_type: AdapterType::Normal,
         },
     ];
 
@@ -345,6 +357,7 @@ fn test_refactor_requires_admin() {
             new_weight: 10000,
             action: ComponentAction::Add,
             oracle: Some(oracle),
+            adapter_type: AdapterType::Normal,
         },
     ];
 
@@ -377,6 +390,7 @@ fn test_refactor_blacklisted_admin_fails() {
             new_weight: 10000,
             action: ComponentAction::Add,
             oracle: Some(oracle),
+            adapter_type: AdapterType::Normal,
         },
     ];
 
@@ -407,6 +421,7 @@ fn test_refactor_admin_can_refactor_anytime() {
             new_weight: 10000,
             action: ComponentAction::Add,
             oracle: Some(oracle1),
+            adapter_type: AdapterType::Normal,
         },
     ];
     client.refactor(
@@ -424,6 +439,7 @@ fn test_refactor_admin_can_refactor_anytime() {
             new_weight: 10000,
             action: ComponentAction::UpdateWeight,
             oracle: None,
+            adapter_type: AdapterType::Normal,
         },
     ];
     client.refactor(
@@ -461,6 +477,7 @@ fn test_operations_allowed_after_rebalance() {
             new_weight: 10000,
             action: ComponentAction::Add,
             oracle: Some(oracle),
+            adapter_type: AdapterType::Normal,
         },
     ];
     client.refactor(
@@ -510,6 +527,7 @@ fn test_refactor_with_no_components() {
             new_weight: 10000,
             action: ComponentAction::Add,
             oracle: Some(oracle),
+            adapter_type: AdapterType::Normal,
         },
     ];
     client.refactor(
@@ -549,6 +567,7 @@ fn test_refactor_remove_last_component() {
             new_weight: 0,
             action: ComponentAction::Remove,
             oracle: None,
+            adapter_type: AdapterType::Normal,
         },
     ];
     client.refactor(
@@ -597,24 +616,28 @@ fn test_refactor_batch_updates() {
             new_weight: 2000,
             action: ComponentAction::Add,
             oracle: Some(oracle4),
+            adapter_type: AdapterType::Normal,
         },
         ComponentUpdate {
             token: token3.clone(),
             new_weight: 0,
             action: ComponentAction::Remove,
             oracle: None,
+            adapter_type: AdapterType::Normal,
         },
         ComponentUpdate {
             token: token1.clone(),
             new_weight: 5000,
             action: ComponentAction::UpdateWeight,
             oracle: None,
+            adapter_type: AdapterType::Normal,
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 3000,
             action: ComponentAction::UpdateWeight,
             oracle: None,
+            adapter_type: AdapterType::Normal,
         },
     ];
 

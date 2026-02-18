@@ -1,5 +1,5 @@
-use crate::access::AccessControl;
-use crate::errors::AccessControlError;
+use crate::access::IndexAccessControl;
+use crate::errors::IndexAccessControlError;
 use crate::role::Role;
 use soroban_sdk::{contracttype, panic_with_error};
 
@@ -11,6 +11,7 @@ pub(crate) enum DataKey {
     Operator,        // rewards admin - configure rewards. legacy name cannot be changed
     OperationsAdmin, // operations admin - add/remove pools, ramp A, set fees, etc
     FeeAdmin,
+    RebalanceAuthorities,
 
     // transfer ownership - pending values
     FutureAdmin,
@@ -30,7 +31,7 @@ pub(crate) trait StorageTrait {
     fn get_future_deadline_key(&self, role: &Role) -> DataKey;
 }
 
-impl StorageTrait for AccessControl {
+impl StorageTrait for IndexAccessControl {
     fn get_key(&self, role: &Role) -> DataKey {
         match role {
             Role::Admin => DataKey::Admin,
@@ -38,6 +39,7 @@ impl StorageTrait for AccessControl {
             Role::FeeAdmin => DataKey::FeeAdmin,
             Role::RewardsAdmin => DataKey::Operator,
             Role::OperationsAdmin => DataKey::OperationsAdmin,
+            Role::RebalanceAuthorities => DataKey::RebalanceAuthorities,
         }
     }
 
@@ -45,7 +47,7 @@ impl StorageTrait for AccessControl {
         match role {
             Role::Admin => DataKey::FutureAdmin,
             Role::EmergencyAdmin => DataKey::FutureEmergencyAdmin,
-            _ => panic_with_error!(&self.0, AccessControlError::BadRoleUsage),
+            _ => panic_with_error!(&self.0, IndexAccessControlError::BadRoleUsage),
         }
     }
 
@@ -53,7 +55,7 @@ impl StorageTrait for AccessControl {
         match role {
             Role::Admin => DataKey::TransferOwnershipDeadline,
             Role::EmergencyAdmin => DataKey::EmAdminTransferOwnershipDeadline,
-            _ => panic_with_error!(&self.0, AccessControlError::BadRoleUsage),
+            _ => panic_with_error!(&self.0, IndexAccessControlError::BadRoleUsage),
         }
     }
 }

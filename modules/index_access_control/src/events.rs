@@ -57,6 +57,17 @@ impl Events {
         )
     }
 
+    fn rebalance_authority_updated(&self, authority: Address, status: bool) {
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "rebalance_authority_updated"),
+                authority,
+                status,
+            ),
+            (),
+        )
+    }
+
     pub fn set_emergency_mode(&self, emergency_mode: bool) {
         self.env().events().publish(
             match emergency_mode {

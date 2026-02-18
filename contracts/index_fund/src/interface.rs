@@ -1,21 +1,10 @@
-use soroban_sdk::{contracttype, Address, Env, Map, Vec};
-use types::index_fund::{
-    Component, ComponentAllocation, IndexFundInfo, IndexFundMetrics, IndexFundStatus,
-    RebalanceParams, RebalanceStatus, RefactorParams,
+use soroban_sdk::{Address, Env, Map, Symbol, Vec};
+use types::{
+    adapter::AdapterType,
+    component::{Component, ComponentAllocation, RebalanceParams, RebalanceStatus, RefactorParams},
+    index::{IndexFundInfo, IndexFundMetrics, IndexFundStatus},
+    volume::VolumeFeeTier,
 };
-
-#[contracttype]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum DexProvider {
-    Normal,
-    Soroswap,
-}
-
-impl Default for DexProvider {
-    fn default() -> Self {
-        Self::Normal
-    }
-}
 
 pub trait IndexFundTrait {
     fn mint(e: Env, user: Address, amount: u128);
@@ -35,17 +24,37 @@ pub trait AdminInterface {
 
     fn rebalance(e: Env, caller: Address, params: RebalanceParams);
 
+    // Set privileged addresses
+    fn set_privileged_addrs(
+        e: Env,
+        admin: Address,
+        rewards_admin: Address,
+        operations_admin: Address,
+        fee_admin: Address,
+    );
+
     fn set_rebalance_authority(e: Env, admin: Address, authority: Address, status: bool);
 
     fn set_factory(e: Env, admin: Address, factory: Address);
-
-    fn set_initial_price(e: Env, admin: Address, initial_price: u128);
 
     fn set_whitelist_status(e: Env, admin: Address, address: Address, status: bool);
 
     fn set_blacklist_status(e: Env, admin: Address, address: Address, status: bool);
 
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64);
+
+    fn set_trade_fee_tiers(e: Env, admin: Address, tiers: Vec<VolumeFeeTier>);
+
+    fn set_trade_fee_tiers_manager(e: Env, admin: Address, manager_fee_bps: u32);
+
+    fn set_adapter(e: Env, admin: Address, adapter_type: AdapterType, adapter: Address);
+
+    fn claim_protocol_fees(e: Env, admin: Address, token: Address, destination: Address) -> u128;
+
+    fn claim_manager_fees(e: Env, admin: Address, token: Address, destination: Address) -> u128;
+
+    // Get map of privileged roles
+    fn get_privileged_addrs(e: Env) -> Map<Symbol, Vec<Address>>;
 
     fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128;
 
@@ -78,4 +87,6 @@ pub trait QueryInterface {
     fn can_address_rebalance(e: Env, caller: Address) -> bool;
     fn get_component_allocation(e: Env) -> Map<Address, ComponentAllocation>;
     fn get_rebalance_authorities(e: Env) -> Vec<Address>;
+    fn get_user_monthly_volume(e: Env, user: Address) -> u128;
+    fn get_trade_fee_tiers(e: Env) -> Vec<VolumeFeeTier>;
 }

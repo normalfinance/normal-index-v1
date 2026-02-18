@@ -18,7 +18,7 @@ tasks:
 
   build:
     cmds:
-      - task -d contracts/swap_utility build || exit 1
+      - task -d contracts/normal_adapter build || exit 1
       - task -d contracts/index_fund_factory build || exit 1
       - cp ./target/wasm32v1-none/release/*.wasm ./wasm
 

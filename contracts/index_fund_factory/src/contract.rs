@@ -3,14 +3,19 @@ use crate::events::FactoryConfigEvents;
 use crate::events::FactoryEvents;
 use crate::index_utils::get_index_salt;
 use crate::interface::{AdminInterface, IndexFundFactoryTrait};
-use crate::storage::get_index_contract_wasm;
-use crate::storage::get_swap_utility;
-use crate::storage::set_index_contract_wasm;
-use crate::storage::set_swap_utility;
-use crate::storage::{
-    add_deployed_index, get_all_deployed_indexes, get_contract_sequence, get_deployed_indexes,
-    set_contract_sequence,
+use crate::storage::FactoryConfig;
+use soroban_sdk::Bytes;
+use soroban_sdk::Map;
+use soroban_sdk::{
+    contract, contractimpl, panic_with_error, Address, BytesN, Env, IntoVal, Symbol, Vec,
 };
+
+// Types
+use types::component::RebalanceParams;
+use types::component::RefactorParams;
+use types::index::IndexParams;
+
+// Access control
 use access_control::access::{AccessControl, AccessControlTrait};
 use access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use access_control::errors::AccessControlError;
@@ -19,26 +24,14 @@ use access_control::interface::TransferableContract;
 use access_control::management::SingleAddressManagementTrait;
 use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
-use access_control::utils::require_admin;
-use soroban_sdk::Bytes;
-use soroban_sdk::{
-    contract, contractimpl, contracttype, panic_with_error, Address, BytesN, Env, Symbol, Vec,
-};
-use types::index_fund::IndexParams;
+
+// Upgrade
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
 
 #[contract]
 pub struct IndexFundFactory;
-
-// Factory configuration struct for query methods
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FactoryConfig {
-    pub swap_utility: Address,
-    pub index_contract_wasm: BytesN<32>,
-}
 
 #[contractimpl]
 impl IndexFundFactory {
@@ -49,22 +42,25 @@ impl IndexFundFactory {
     //   - e: The Soroban environment.
     //   - admin: The address to be assigned the Admin role.
     //   - emergency_admin: The address to be assigned the EmergencyAdmin role.
-    //   - swap_utility: The address of the swap swap_utility contract.
+    //   - rew
     //   - index_contract_wasm: The WASM hash (BytesN<32>) for the swap fee contract.
     pub fn __constructor(
         e: Env,
         admin: Address,
         emergency_admin: Address,
-        swap_utility: Address,
+        rewards_admin: Address,
+        operations_admin: Address,
+        fee_admin: Address,
         index_contract_wasm: BytesN<32>,
     ) {
         let access_control = AccessControl::new(&e);
         access_control.set_role_address(&Role::Admin, &admin);
-        access_control.commit_transfer_ownership(&Role::EmergencyAdmin, &emergency_admin);
-        access_control.apply_transfer_ownership(&Role::EmergencyAdmin);
+        access_control.set_role_address(&Role::EmergencyAdmin, &emergency_admin);
+        access_control.set_role_address(&Role::RewardsAdmin, &rewards_admin);
+        access_control.set_role_address(&Role::OperationsAdmin, &operations_admin);
+        access_control.set_role_address(&Role::FeeAdmin, &fee_admin);
 
-        set_swap_utility(&e, &swap_utility);
-        set_index_contract_wasm(&e, &index_contract_wasm);
+        crate::storage::set_index_contract_wasm(&e, &index_contract_wasm);
     }
 }
 
@@ -82,13 +78,13 @@ impl IndexFundFactoryTrait for IndexFundFactory {
     fn deploy_index_contract(e: Env, serialized_asset: Bytes, params: IndexParams) -> Address {
         params.admin.require_auth();
 
-        let sequence = get_contract_sequence(&e, params.admin.clone());
-        set_contract_sequence(&e, params.admin.clone(), sequence + 1);
+        let sequence = crate::storage::get_contract_sequence(&e, params.admin.clone());
+        crate::storage::set_contract_sequence(&e, params.admin.clone(), sequence + 1);
 
         let salt = get_index_salt(&e, &params.admin, &sequence);
 
         let address = e.deployer().with_current_contract(salt).deploy_v2(
-            get_index_contract_wasm(&e),
+            crate::storage::get_index_contract_wasm(&e),
             (
                 e.current_contract_address(),
                 serialized_asset.clone(),
@@ -97,7 +93,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
         );
 
         // Add to index registry
-        add_deployed_index(&e, &params.admin, &address);
+        crate::storage::add_deployed_index(&e, &params.admin, &address);
 
         // Emit enhanced deployment event
         let current_time = e.ledger().timestamp();
@@ -121,10 +117,170 @@ impl IndexFundFactoryTrait for IndexFundFactory {
 
         address
     }
+
+    fn mint(e: Env, user: Address, index: Address, amount: u128) {
+        user.require_auth();
+        e.invoke_contract::<()>(
+            &index,
+            &Symbol::new(&e, "mint"),
+            Vec::from_array(&e, [user.clone().into_val(&e), amount.into_val(&e)]),
+        );
+        Events::new(&e).index_mint(e.ledger().timestamp(), index, user, amount);
+    }
+
+    fn redeem(e: Env, user: Address, index: Address, share_amount: u128) {
+        user.require_auth();
+        e.invoke_contract::<()>(
+            &index,
+            &Symbol::new(&e, "redeem"),
+            Vec::from_array(&e, [user.clone().into_val(&e), share_amount.into_val(&e)]),
+        );
+        Events::new(&e).index_redeem(e.ledger().timestamp(), index, user, share_amount);
+    }
+
+    fn rebalance(e: Env, caller: Address, index: Address, params: RebalanceParams) {
+        caller.require_auth();
+        e.invoke_contract::<()>(
+            &index,
+            &Symbol::new(&e, "rebalance"),
+            Vec::from_array(&e, [caller.clone().into_val(&e), params.into_val(&e)]),
+        );
+        Events::new(&e).index_rebalance(e.ledger().timestamp(), index, caller);
+    }
+
+    fn refactor(e: Env, caller: Address, index: Address, params: RefactorParams) {
+        caller.require_auth();
+        e.invoke_contract::<()>(
+            &index,
+            &Symbol::new(&e, "refactor"),
+            Vec::from_array(&e, [caller.clone().into_val(&e), params.into_val(&e)]),
+        );
+        Events::new(&e).index_refactor(e.ledger().timestamp(), index, caller);
+    }
+
+    fn claim_system_fees(
+        e: Env,
+        caller: Address,
+        index: Address,
+        token: Address,
+        destination: Address,
+    ) -> u128 {
+        caller.require_auth();
+        let amount = e.invoke_contract::<u128>(
+            &index,
+            &Symbol::new(&e, "claim_system_fees"),
+            Vec::from_array(
+                &e,
+                [
+                    caller.clone().into_val(&e),
+                    token.clone().into_val(&e),
+                    destination.clone().into_val(&e),
+                ],
+            ),
+        );
+        Events::new(&e).index_claim_system_fees(
+            e.ledger().timestamp(),
+            index,
+            caller,
+            token,
+            amount,
+            destination,
+        );
+        amount
+    }
+
+    fn claim_manager_fees(
+        e: Env,
+        caller: Address,
+        index: Address,
+        token: Address,
+        destination: Address,
+    ) -> u128 {
+        caller.require_auth();
+        let amount = e.invoke_contract::<u128>(
+            &index,
+            &Symbol::new(&e, "claim_manager_fees"),
+            Vec::from_array(
+                &e,
+                [
+                    caller.clone().into_val(&e),
+                    token.clone().into_val(&e),
+                    destination.clone().into_val(&e),
+                ],
+            ),
+        );
+        Events::new(&e).index_claim_manager_fees(
+            e.ledger().timestamp(),
+            index,
+            caller,
+            token,
+            amount,
+            destination,
+        );
+        amount
+    }
 }
 
 #[contractimpl]
 impl AdminInterface for IndexFundFactory {
+    // Sets the privileged addresses.
+    //
+    // # Arguments
+    //
+    // * `admin` - The address of the admin.
+    // * `rewards_admin` - The address of the rewards admin.
+    // * `operations_admin` - The address of the operations admin.
+    // * `pause_admin` - The address of the pause admin.
+    // * `emergency_pause_admin` - The addresses of the emergency pause admins.
+    // * `system_fee_admin` - The address of the system fee admin.
+    fn set_privileged_addrs(
+        e: Env,
+        admin: Address,
+        rewards_admin: Address,
+        operations_admin: Address,
+        fee_admin: Address,
+    ) {
+        admin.require_auth();
+        let access_control = AccessControl::new(&e);
+        access_control.assert_address_has_role(&admin, &Role::Admin);
+
+        access_control.set_role_address(&Role::RewardsAdmin, &rewards_admin);
+        access_control.set_role_address(&Role::OperationsAdmin, &operations_admin);
+        access_control.set_role_address(&Role::FeeAdmin, &fee_admin);
+        AccessControlEvents::new(&e).set_privileged_addrs(
+            rewards_admin,
+            operations_admin,
+            fee_admin,
+        );
+    }
+
+    // Returns a map of privileged roles.
+    //
+    // # Returns
+    //
+    // A map of privileged roles to their respective addresses.
+    fn get_privileged_addrs(e: Env) -> Map<Symbol, Vec<Address>> {
+        let access_control = AccessControl::new(&e);
+        let mut result: Map<Symbol, Vec<Address>> = Map::new(&e);
+        for role in [
+            Role::Admin,
+            Role::EmergencyAdmin,
+            Role::RewardsAdmin,
+            Role::OperationsAdmin,
+            Role::FeeAdmin,
+        ] {
+            result.set(
+                role.as_symbol(&e),
+                match access_control.get_role_safe(&role) {
+                    Some(v) => Vec::from_array(&e, [v]),
+                    None => Vec::new(&e),
+                },
+            );
+        }
+
+        result
+    }
+
     //   _______    _______  ___________  ___________  _______   _______    ________
     //  /" _   "|  /"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
     // (: ( \___) (: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
@@ -136,36 +292,30 @@ impl AdminInterface for IndexFundFactory {
     // Query Methods - Factory Configuration
     fn get_factory_config(e: Env) -> FactoryConfig {
         FactoryConfig {
-            swap_utility: get_swap_utility(&e),
-            index_contract_wasm: get_index_contract_wasm(&e),
+            index_contract_wasm: crate::storage::get_index_contract_wasm(&e),
         }
     }
 
-    // Individual getters for factory configuration
-    fn get_swap_utility(e: Env) -> Address {
-        get_swap_utility(&e)
-    }
-
     fn get_index_contract_wasm(e: Env) -> BytesN<32> {
-        get_index_contract_wasm(&e)
+        crate::storage::get_index_contract_wasm(&e)
     }
 
     // Index Registry Query Methods
     fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address> {
-        get_deployed_indexes(&e, &operator)
+        crate::storage::get_deployed_indexes(&e, &operator)
     }
 
     fn get_all_deployed_indexes(e: Env) -> Vec<Address> {
-        get_all_deployed_indexes(&e)
+        crate::storage::get_all_deployed_indexes(&e)
     }
 
     fn get_index_count(e: Env, operator: Address) -> u32 {
-        let indexes = get_deployed_indexes(&e, &operator);
+        let indexes = crate::storage::get_deployed_indexes(&e, &operator);
         indexes.len()
     }
 
     fn get_total_index_count(e: Env) -> u32 {
-        let all_indexes = get_all_deployed_indexes(&e);
+        let all_indexes = crate::storage::get_all_deployed_indexes(&e);
         all_indexes.len()
     }
 
@@ -188,8 +338,8 @@ impl AdminInterface for IndexFundFactory {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
 
-        let old_wasm = get_index_contract_wasm(&e);
-        set_index_contract_wasm(&e, &index_contract_wasm);
+        let old_wasm = crate::storage::get_index_contract_wasm(&e);
+        crate::storage::set_index_contract_wasm(&e, &index_contract_wasm);
 
         let current_time = e.ledger().timestamp();
         Events::new(&e).index_wasm_updated(
@@ -273,14 +423,6 @@ impl UpgradeableContract for IndexFundFactory {
         emergency_admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&emergency_admin, &Role::EmergencyAdmin);
         set_emergency_mode(&e, &value);
-
-        let current_time = e.ledger().timestamp();
-        // Emit factory pause/unpause events based on emergency mode
-        if value {
-            Events::new(&e).factory_paused(current_time, emergency_admin.clone());
-        } else {
-            Events::new(&e).factory_unpaused(current_time, emergency_admin.clone());
-        }
 
         AccessControlEvents::new(&e).set_emergency_mode(value);
     }

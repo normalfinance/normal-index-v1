@@ -8,11 +8,20 @@ use utils::{
     generate_instance_storage_getter_with_default, generate_instance_storage_setter,
 };
 
+/********** Storage Types **********/
+
+// Factory configuration struct for query methods
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FactoryConfig {
+    pub index_contract_wasm: BytesN<32>,
+}
+
+/********** Storage Key Types **********/
+
 #[derive(Clone)]
 #[contracttype]
 enum DataKey {
-    SwapUtility, // DEX Aggregator
-
     IndexContractWASM, // wasm of the Index Fund contract
 
     ContractSequence(Address),
@@ -21,7 +30,7 @@ enum DataKey {
     AllDeployedIndexes,       // global registry -> Vec<Address>
 }
 
-generate_instance_storage_getter_and_setter!(swap_utility, DataKey::SwapUtility, Address);
+/********** Storage **********/
 
 generate_instance_storage_getter_and_setter!(
     index_contract_wasm,

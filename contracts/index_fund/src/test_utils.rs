@@ -8,36 +8,24 @@ use access_control::access::AccessControl;
 use access_control::management::SingleAddressManagementTrait;
 use access_control::role::Role;
 use soroban_sdk::{contract, contractimpl, testutils::Address as _, Address, Env, Symbol, Vec};
-use types::index_fund::Component;
-
-use crate::index::{DexProvider, SwapResult, SwapUtilityParams};
+use types::{
+    adapter::{AdapterTradeParams, AdapterType},
+    component::Component,
+};
 
 //TODO: Remove completely mock swaps from here and use the swap utility contract for testing
 
 #[contract]
-pub struct MockSwapUtility;
+pub struct MockAdapter;
 
 #[contractimpl]
-impl MockSwapUtility {
-    pub fn execute_swap(_env: Env, params: SwapUtilityParams) -> SwapResult {
-        SwapResult {
-            provider_used: DexProvider::Normal,
-            amount_in: params.amount_in as u128,
-            amount_out: params.amount_in as u128,
-            success: true,
-        }
+impl MockAdapter {
+    pub fn buy(_env: Env, params: AdapterTradeParams) -> u128 {
+        params.amount_in
     }
 
-    pub fn execute_batch_swaps(env: Env, swaps: Vec<SwapUtilityParams>) -> Vec<SwapResult> {
-        let mut results = Vec::new(&env);
-
-        for i in 0..swaps.len() {
-            let swap_params = swaps.get(i).unwrap();
-            let result = Self::execute_swap(env.clone(), swap_params);
-            results.push_back(result);
-        }
-
-        results
+    pub fn sell(_env: Env, params: AdapterTradeParams) -> u128 {
+        params.amount_in
     }
 
     pub fn initialize(
@@ -85,7 +73,7 @@ impl MockFactory {
 }
 
 pub fn create_mock_swap_utility(e: &Env) -> Address {
-    e.register(MockSwapUtility, ())
+    e.register(MockAdapter, ())
 }
 
 pub fn create_mock_factory(e: &Env) -> Address {
@@ -108,6 +96,9 @@ pub fn setup_test_contracts(e: &Env) -> (Address, Address, Address, Address) {
 
     e.as_contract(&index_contract, || {
         set_swap_utility(e, &swap_utility);
+        crate::storage::set_adapter_for_type(e, AdapterType::Normal, &swap_utility);
+        crate::storage::set_adapter_for_type(e, AdapterType::Aquarius, &swap_utility);
+        crate::storage::set_adapter_for_type(e, AdapterType::Soroswap, &swap_utility);
 
         // Set up admin role in AccessControl - required for permission checks
         let access_control = AccessControl::new(e);
@@ -184,10 +175,10 @@ pub fn setup_components_with_balances(
         for (token, weight, balance) in tokens_with_weights_and_balances.iter() {
             let oracle = Address::generate(e);
             let component = Component {
-                normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
                 oracle,
+                adapter_type: AdapterType::Normal,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -208,10 +199,10 @@ pub fn enhanced_setup_components(
         for (token, weight) in tokens_with_weights.iter() {
             let oracle = Address::generate(e);
             let component = Component {
-                normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
                 oracle,
+                adapter_type: AdapterType::Normal,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -231,10 +222,10 @@ pub fn setup_components_without_balances(
         for (token, weight) in tokens_with_weights.iter() {
             let oracle = Address::generate(e);
             let component = Component {
-                normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
                 oracle,
+                adapter_type: AdapterType::Normal,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -251,10 +242,10 @@ pub fn setup_components_with_zero_balances(
         for (token, weight) in tokens_with_weights.iter() {
             let oracle = Address::generate(e);
             let component = Component {
-                normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
                 oracle,
+                adapter_type: AdapterType::Normal,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -299,10 +290,10 @@ pub fn create_balanced_test_scenario(
         e.as_contract(contract, || {
             let oracle = Address::generate(e);
             let component = Component {
-                normal: false,
                 asset: Symbol::new(e, "TOKEN"),
                 weight: weight_per_token,
                 oracle,
+                adapter_type: AdapterType::Normal,
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());

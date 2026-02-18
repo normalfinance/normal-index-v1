@@ -1,6 +1,5 @@
-use crate::index::DexProvider;
 use soroban_sdk::{Address, Env, Map, Symbol, Vec};
-use types::index_fund::Component;
+use types::{adapter::AdapterType, component::Component};
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -81,7 +80,7 @@ pub(crate) trait IndexEvents {
         &self,
         tokens: Vec<Address>,
         user: Address,
-        provider: DexProvider,
+        adapter: AdapterType,
         token_in: Address,
         token_out: Address,
         amount_in: u128,
@@ -482,27 +481,6 @@ impl IndexEvents for Events {
         );
     }
 
-    fn rebalance_authority_updated_detailed(
-        &self,
-        ts: u64,
-        admin: Address,
-        authority: Address,
-        old_status: bool,
-        new_status: bool,
-    ) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "rebalance_auth_updated_detailed"),
-                ts,
-                admin,
-                authority,
-                old_status,
-                new_status,
-            ),
-            (),
-        );
-    }
-
     fn rebalance_completed_detailed(
         &self,
         ts: u64,
@@ -553,7 +531,7 @@ impl IndexEvents for Events {
         &self,
         tokens: Vec<Address>,
         user: Address,
-        pool_id: DexProvider,
+        adapter: AdapterType,
         token_in: Address,
         token_out: Address,
         amount_in: u128,
@@ -564,7 +542,7 @@ impl IndexEvents for Events {
                 Symbol::new(self.env(), "swap"),
                 tokens,
                 user,
-                pool_id,
+                adapter,
                 token_in,
                 token_out,
                 amount_in,
@@ -628,17 +606,6 @@ impl IndexEvents for Events {
                 token,
                 old_weight,
                 new_weight,
-            ),
-            (),
-        )
-    }
-
-    fn rebalance_authority_updated(&self, authority: Address, status: bool) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "rebalance_authority_updated"),
-                authority,
-                status,
             ),
             (),
         )

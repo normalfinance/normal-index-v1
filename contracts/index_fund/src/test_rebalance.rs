@@ -13,7 +13,10 @@ use super::test_utils::{
     setup_mock_token_shares,
 };
 use soroban_sdk::{log, testutils::Address as _, vec, Address, Env, Vec};
-use types::index_fund::{ComponentAction, ComponentUpdate, RebalanceParams, RefactorParams};
+use types::adapter::AdapterType;
+use types::component::{
+    ComponentAction, ComponentUpdate, RebalanceParams, RebalanceStatus, RefactorParams,
+};
 use utils::test_utils::jump;
 
 const THIRTY_DAYS: u64 = 30 * 24 * 60 * 60;
@@ -710,18 +713,21 @@ fn test_full_refactor_rebalance_flow() {
             new_weight: 4000,
             action: ComponentAction::UpdateWeight,
             oracle: None,
+            adapter_type: AdapterType::Normal,
         },
         ComponentUpdate {
             token: token2.clone(),
             new_weight: 3000,
             action: ComponentAction::UpdateWeight,
             oracle: None,
+            adapter_type: AdapterType::Normal,
         },
         ComponentUpdate {
             token: token3.clone(),
             new_weight: 3000,
             action: ComponentAction::Add,
             oracle: Some(create_mock_oracle(&e)),
+            adapter_type: AdapterType::Normal,
         },
     ];
 

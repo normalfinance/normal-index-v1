@@ -41,9 +41,28 @@ pub(crate) trait FactoryEvents {
     // Factory configuration events
     fn factory_admin_updated(&self, ts: u64, old_admin: Address, new_admin: Address);
 
-    fn factory_paused(&self, ts: u64, admin: Address);
-
-    fn factory_unpaused(&self, ts: u64, admin: Address);
+    fn index_mint(&self, ts: u64, index: Address, user: Address, amount: u128);
+    fn index_redeem(&self, ts: u64, index: Address, user: Address, share_amount: u128);
+    fn index_rebalance(&self, ts: u64, index: Address, caller: Address);
+    fn index_refactor(&self, ts: u64, index: Address, caller: Address);
+    fn index_claim_system_fees(
+        &self,
+        ts: u64,
+        index: Address,
+        caller: Address,
+        token: Address,
+        amount: u128,
+        destination: Address,
+    );
+    fn index_claim_manager_fees(
+        &self,
+        ts: u64,
+        index: Address,
+        caller: Address,
+        token: Address,
+        amount: u128,
+        destination: Address,
+    );
 }
 
 impl FactoryEvents for Events {
@@ -111,16 +130,77 @@ impl FactoryEvents for Events {
         );
     }
 
-    fn factory_paused(&self, ts: u64, admin: Address) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "factory_paused"), ts, admin), ());
+    fn index_mint(&self, ts: u64, index: Address, user: Address, amount: u128) {
+        self.env().events().publish(
+            (Symbol::new(self.env(), "index_mint"), ts, index, user),
+            amount,
+        );
     }
 
-    fn factory_unpaused(&self, ts: u64, admin: Address) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "factory_unpaused"), ts, admin), ());
+    fn index_redeem(&self, ts: u64, index: Address, user: Address, share_amount: u128) {
+        self.env().events().publish(
+            (Symbol::new(self.env(), "index_redeem"), ts, index, user),
+            share_amount,
+        );
+    }
+
+    fn index_rebalance(&self, ts: u64, index: Address, caller: Address) {
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "index_rebalance"),
+                ts,
+                index,
+                caller,
+            ),
+            (),
+        );
+    }
+
+    fn index_refactor(&self, ts: u64, index: Address, caller: Address) {
+        self.env().events().publish(
+            (Symbol::new(self.env(), "index_refactor"), ts, index, caller),
+            (),
+        );
+    }
+
+    fn index_claim_system_fees(
+        &self,
+        ts: u64,
+        index: Address,
+        caller: Address,
+        token: Address,
+        amount: u128,
+        destination: Address,
+    ) {
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "index_claim_system_fees"),
+                ts,
+                index,
+                caller,
+            ),
+            (token, amount, destination),
+        );
+    }
+
+    fn index_claim_manager_fees(
+        &self,
+        ts: u64,
+        index: Address,
+        caller: Address,
+        token: Address,
+        amount: u128,
+        destination: Address,
+    ) {
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "index_claim_manager_fees"),
+                ts,
+                index,
+                caller,
+            ),
+            (token, amount, destination),
+        );
     }
 }
 

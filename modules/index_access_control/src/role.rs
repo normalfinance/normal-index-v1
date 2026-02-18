@@ -1,4 +1,4 @@
-use crate::errors::AccessControlError;
+use crate::errors::IndexAccessControlError;
 use soroban_sdk::{panic_with_error, Env, Symbol};
 
 #[derive(Clone)]
@@ -8,6 +8,7 @@ pub enum Role {
     FeeAdmin,
     RewardsAdmin,
     OperationsAdmin,
+    RebalanceAuthorities,
 }
 
 impl Role {
@@ -18,6 +19,7 @@ impl Role {
             Role::FeeAdmin => false,
             Role::RewardsAdmin => false,
             Role::OperationsAdmin => false,
+            Role::RebalanceAuthorities => true,
         }
     }
 
@@ -28,6 +30,7 @@ impl Role {
             Role::FeeAdmin => false,
             Role::RewardsAdmin => false,
             Role::OperationsAdmin => false,
+            Role::RebalanceAuthorities => false,
         }
     }
 }
@@ -45,6 +48,7 @@ impl SymbolRepresentation for Role {
             Role::FeeAdmin => Symbol::new(&e, "FeeAdmin"),
             Role::RewardsAdmin => Symbol::new(&e, "RewardsAdmin"),
             Role::OperationsAdmin => Symbol::new(&e, "OperationsAdmin"),
+            Role::RebalanceAuthorities => Symbol::new(&e, "RebalanceAuthorities"),
         }
     }
 
@@ -59,7 +63,9 @@ impl SymbolRepresentation for Role {
             return Role::FeeAdmin;
         } else if value == Symbol::new(e, "OperationsAdmin") {
             return Role::OperationsAdmin;
+        } else if value == Symbol::new(e, "RebalanceAuthorities") {
+            return Role::RebalanceAuthorities;
         }
-        panic_with_error!(e, AccessControlError::BadRoleUsage);
+        panic_with_error!(e, IndexAccessControlError::BadRoleUsage);
     }
 }
