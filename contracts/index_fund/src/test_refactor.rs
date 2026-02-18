@@ -436,10 +436,6 @@ fn test_refactor_admin_can_refactor_anytime() {
     // Should succeed without time threshold check
 }
 
-
-
-
-
 #[test]
 fn test_operations_allowed_after_rebalance() {
     let e = Env::default();

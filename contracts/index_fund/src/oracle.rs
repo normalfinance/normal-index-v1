@@ -13,11 +13,12 @@ impl OracleUtils {
 
     /// Get token price from oracle, returns None if oracle call fails
     pub fn get_token_price_usd_safe(env: &Env, oracle: &Address) -> Option<u128> {
-        let result = env.try_invoke_contract::<(HistoricalOracleData, OracleValidity), AccessControlError>(
-            oracle,
-            &Symbol::new(env, "get_price"),
-            Vec::from_array(env, []),
-        );
+        let result = env
+            .try_invoke_contract::<(HistoricalOracleData, OracleValidity), AccessControlError>(
+                oracle,
+                &Symbol::new(env, "get_price"),
+                Vec::from_array(env, []),
+            );
 
         match result {
             Ok(Ok((historical_data, validity))) => match validity {
@@ -32,11 +33,12 @@ impl OracleUtils {
     }
 
     pub fn get_token_price_usd(env: &Env, oracle: &Address) -> u128 {
-        let result: Result<(HistoricalOracleData, OracleValidity), soroban_sdk::Error> = env.invoke_contract(
-            oracle,
-            &Symbol::new(env, "get_price"),
-            Vec::from_array(env, []),
-        );
+        let result: Result<(HistoricalOracleData, OracleValidity), soroban_sdk::Error> = env
+            .invoke_contract(
+                oracle,
+                &Symbol::new(env, "get_price"),
+                Vec::from_array(env, []),
+            );
 
         match result {
             Ok((historical_data, validity)) => match validity {

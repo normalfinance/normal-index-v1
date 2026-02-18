@@ -1117,8 +1117,9 @@ impl IndexFund {
                     }
 
                     // Require oracle for new components
-                    let oracle = update.oracle.clone()
-                        .unwrap_or_else(|| panic_with_error!(e, IndexFundError::MissingOracleAddress));
+                    let oracle = update.oracle.clone().unwrap_or_else(|| {
+                        panic_with_error!(e, IndexFundError::MissingOracleAddress)
+                    });
 
                     // Create component with symbol (simplified for now)
                     let component = Component {
