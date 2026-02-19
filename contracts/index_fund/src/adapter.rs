@@ -1,4 +1,5 @@
 use soroban_sdk::{panic_with_error, Address, Env, IntoVal, Symbol, Vec};
+use types::adapter::AdapterTradeParams;
 
 use crate::errors::IndexFundError;
 

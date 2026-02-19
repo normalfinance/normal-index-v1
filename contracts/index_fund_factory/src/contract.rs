@@ -5,12 +5,10 @@ use crate::events::FactoryEvents;
 use crate::index_utils::get_index_salt;
 use crate::interface::{AdminInterface, IndexFundFactoryTrait};
 use crate::storage::IndexFundFactoryConfig;
-use access_control::utils::require_operations_admin_or_owner;
-use soroban_sdk::contractmeta;
-use soroban_sdk::Bytes;
-use soroban_sdk::Map;
+
 use soroban_sdk::{
-    contract, contractimpl, panic_with_error, Address, BytesN, Env, IntoVal, Symbol, Vec,
+    contract, contractimpl, contractmeta, panic_with_error, Address, BytesN, Env, IntoVal, Map,
+    Symbol, Vec,
 };
 
 // Types
@@ -27,6 +25,7 @@ use access_control::interface::TransferableContract;
 use access_control::management::SingleAddressManagementTrait;
 use access_control::role::{Role, SymbolRepresentation};
 use access_control::transfer::TransferOwnershipTrait;
+use access_control::utils::require_operations_admin_or_owner;
 
 // Upgrade
 use upgrade::events::Events as UpgradeEvents;
@@ -131,13 +130,13 @@ impl IndexFundFactoryTrait for IndexFundFactory {
     fn mint(e: Env, user: Address, index: Address, amount: u128) {
         user.require_auth();
 
-        let tokens_minted: u128 = e.invoke_contract(
+        let _tokens_minted: u128 = e.invoke_contract(
             &index,
             &Symbol::new(&e, "mint"),
             Vec::from_array(&e, [user.clone().into_val(&e), amount.into_val(&e)]),
         );
 
-        Events::new(&e).mint(user, index, amount, e.ledger().timestamp());
+        Events::new(&e).mint(user, index, amount, 0, 0, e.ledger().timestamp());
     }
 
     fn redeem(e: Env, user: Address, index: Address, share_amount: u128) {
@@ -190,7 +189,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
                 ],
             ),
         );
-        Events::new(&e).index_claim_system_fees(
+        Events::new(&e).claim_system_fees(
             e.ledger().timestamp(),
             index,
             caller,
@@ -221,7 +220,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
                 ],
             ),
         );
-        Events::new(&e).index_claim_manager_fees(
+        Events::new(&e).claim_manager_fees(
             e.ledger().timestamp(),
             index,
             caller,
@@ -510,14 +509,14 @@ impl TransferableContract for IndexFundFactory {
         access_control.assert_address_has_role(&admin, &Role::Admin);
 
         let role = Role::from_symbol(&e, role_name.clone());
-        let old_address = access_control.get_role(&role);
+        // let old_address = access_control.get_role(&role);
         let new_address = access_control.apply_transfer_ownership(&role);
 
         // Emit factory admin updated event if this is an Admin role transfer
-        if role_name == Symbol::new(&e, "Admin") {
-            let current_time = e.ledger().timestamp();
-            Events::new(&e).factory_admin_updated(current_time, old_address, new_address.clone());
-        }
+        // if role_name == Symbol::new(&e, "Admin") {
+        //     let current_time = e.ledger().timestamp();
+        //     Events::new(&e).factory_admin_updated(current_time, old_address, new_address.clone());
+        // }
 
         AccessControlEvents::new(&e).apply_transfer_ownership(role, new_address);
     }

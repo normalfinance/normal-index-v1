@@ -44,15 +44,10 @@ pub fn nav_amount_to_shares(e: &Env, amount: u128, total_shares: u128, current_n
 
 pub fn get_current_share_price(e: &Env) -> u128 {
     let total_shares = token_share::get_total_shares(e);
-    if total_shares == 0 {
-        let ip = crate::storage::get_initial_price(e);
-        return if ip < 0 { 0 } else { ip as u128 };
-    }
-
     let nav = get_current_nav(e);
-    if nav == 0 {
-        let ip = crate::storage::get_initial_price(e);
-        return if ip < 0 { 0 } else { ip as u128 };
+
+    if total_shares == 0 || nav == 0 {
+        return crate::storage::get_initial_price(e);
     }
 
     // Share price = Total Portfolio Value / Total Shares

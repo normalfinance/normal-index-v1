@@ -87,6 +87,12 @@ pub fn execute_swaps(e: &Env, swaps: Vec<AdapterTradeParams>) -> Vec<u128> {
 
         let adapter_address = crate::adapter::get_adapter_from_registry(e, &component.adapter);
 
+        let adapter_result = e.try_invoke_contract::<u128, soroban_sdk::Error>(
+            &adapter_address,
+            &Symbol::new(e, "trade"),
+            Vec::from_array(e, [params.into_val(e)]),
+        );
+
         match adapter_result {
             Ok(Ok(amount_out)) => {
                 Events::new(&e).swap(

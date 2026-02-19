@@ -1,11 +1,10 @@
 use paste::paste;
-use soroban_sdk::{contracttype, panic_with_error, Address, BytesN, Env, Vec};
+use soroban_sdk::{contracttype, panic_with_error, Address, BytesN, Env, Symbol, Vec};
 use utils::bump::{bump_instance, bump_persistent};
 use utils::storage_errors::StorageError;
 use utils::{
     generate_instance_storage_getter, generate_instance_storage_getter_and_setter,
-    generate_instance_storage_getter_and_setter_with_default,
-    generate_instance_storage_getter_with_default, generate_instance_storage_setter,
+    generate_instance_storage_setter,
 };
 
 use crate::errors::IndexFundFactoryError;
@@ -71,7 +70,11 @@ pub(crate) fn set_contract_sequence(env: &Env, sequence: u32) {
 pub fn add_deployed_index(env: &Env, sequence: &u32, manager: &Address, index_address: &Address) {
     // Add to global map
     let global_map_key: DataKey = DataKey::DeployedIndex(sequence.clone());
-    match env.storage().persistent().get(&global_map_key) {
+    match env
+        .storage()
+        .persistent()
+        .get::<DataKey, Address>(&global_map_key)
+    {
         Some(_) => panic_with_error!(env, IndexFundFactoryError::IndexAlreadyExists),
         None => {
             env.storage()
@@ -83,14 +86,14 @@ pub fn add_deployed_index(env: &Env, sequence: &u32, manager: &Address, index_ad
 
     // Add to manager's list
     let manager_key: DataKey = DataKey::DeployedIndexesByManager(manager.clone());
-    let mut manager_index_ids: Vec<u32> = match env.storage().persistent().get(&manager_key) {
+    let mut manager_indexes: Vec<Address> = match env.storage().persistent().get(&manager_key) {
         Some(index_ids) => index_ids,
         None => Vec::new(env),
     };
-    manager_index_ids.push_back(sequence.clone());
+    manager_indexes.push_back(index_address.clone());
     env.storage()
         .persistent()
-        .set(&manager_key, &manager_index_ids);
+        .set(&manager_key, &manager_indexes);
     bump_persistent(env, &manager_key);
 }
 
@@ -101,7 +104,7 @@ pub fn get_deployed_index(env: &Env, sequence: &u32) -> Address {
             bump_persistent(env, &key);
             index_address
         }
-        None => panic_with_error!(&e, IndexFundFactoryError::IndexNotFound),
+        None => panic_with_error!(env, IndexFundFactoryError::IndexNotFound),
     }
 }
 

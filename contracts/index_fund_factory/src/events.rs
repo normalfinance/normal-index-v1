@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, BytesN, Env, String, Symbol, Vec};
+use soroban_sdk::{Address, BytesN, Env, String, Symbol};
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -98,13 +98,22 @@ impl FactoryEvents for Events {
         );
     }
 
-    fn mint(&self, user: Address, index: Address, amount: u128, ts: u64) {
-        self.env()
-            .events()
-            .publish((Symbol::new(self.env(), "mint"), index, user), (amount, ts));
+    fn mint(
+        &self,
+        user: Address,
+        index: Address,
+        amount: u128,
+        protocol_fee: u128,
+        manager_fee: u128,
+        ts: u64,
+    ) {
+        self.env().events().publish(
+            (Symbol::new(self.env(), "mint"), index, user),
+            (amount, protocol_fee, manager_fee, ts),
+        );
     }
 
-    fn redeem(&self, user: Address, index: Address, share_amount: u128, ts: u64) {
+    fn redeem(&self, ts: u64, index: Address, user: Address, share_amount: u128) {
         self.env().events().publish(
             (Symbol::new(self.env(), "redeem"), index, user),
             (share_amount, ts),

@@ -1,5 +1,5 @@
 use paste::paste;
-use soroban_sdk::{contracttype, panic_with_error, Address, Env, String, Symbol};
+use soroban_sdk::{panic_with_error, Address, Env, String, Symbol};
 use utils::bump::bump_instance;
 use utils::errors::storage_errors::StorageError;
 use utils::{

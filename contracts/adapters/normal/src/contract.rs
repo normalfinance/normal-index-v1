@@ -55,7 +55,7 @@ impl AdapterTrait for NormalAdapter {
 
         match (direction, side) {
             (Direction::Buy, Side::Long) => {
-                let (long_out, fee) = normal_treasury_client.buy_long(
+                let (long_out, _) = normal_treasury_client.buy_long(
                     &params.to,
                     &pair,
                     &params.amount_in,
@@ -65,7 +65,7 @@ impl AdapterTrait for NormalAdapter {
                 amount_out = long_out;
             }
             (Direction::Buy, Side::Short) => {
-                let (short_out, fee) = normal_treasury_client.buy_short(
+                let (short_out, _) = normal_treasury_client.buy_short(
                     &params.to,
                     &pair,
                     &params.amount_in,
@@ -75,7 +75,7 @@ impl AdapterTrait for NormalAdapter {
                 amount_out = short_out;
             }
             (Direction::Sell, Side::Long) => {
-                let (usdc_out, fee) = normal_treasury_client.sell_long(
+                let (usdc_out, _) = normal_treasury_client.sell_long(
                     &params.to,
                     &pair,
                     &params.amount_in,
@@ -85,7 +85,7 @@ impl AdapterTrait for NormalAdapter {
                 amount_out = usdc_out;
             }
             (Direction::Sell, Side::Short) => {
-                let (usdc_out, fee) = normal_treasury_client.sell_short(
+                let (usdc_out, _) = normal_treasury_client.sell_short(
                     &params.to,
                     &pair,
                     &params.amount_in,

@@ -3,8 +3,6 @@ use soroban_sdk::{contract, contractimpl, contractmeta, Address, Env, String, Ve
 use types::adapter::AdapterTradeParams;
 use utils::math::safe_math::SafeConversion;
 
-use crate::aquarius_router::AquariusRouterClient;
-
 contractmeta!(
     key = "Description",
     val = "An adapter for swapping tokens using Aquarius AMM pools"
@@ -26,10 +24,6 @@ impl AquariusAdapter {
 impl AdapterTrait for AquariusAdapter {
     fn swap(e: Env, params: AdapterTradeParams) -> Result<u128, AdapterError> {
         params.to.require_auth();
-
-        // Set up Aquarius router client
-        let aquarius_router_address = crate::storage::get_protocol_address(&e);
-        let aquarius_router_client = AquariusRouterClient::new(&e, &aquarius_router_address);
 
         let path = Vec::from_array(&e, [params.token_in, params.token_out]);
 

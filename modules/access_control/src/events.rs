@@ -1,5 +1,5 @@
 use crate::role::{Role, SymbolRepresentation};
-use soroban_sdk::{Address, Env, Symbol, Vec};
+use soroban_sdk::{Address, Env, Symbol};
 
 #[derive(Clone)]
 pub struct Events(Env);
