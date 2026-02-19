@@ -13,23 +13,25 @@ pub struct IndexFundAuthorities {
     pub rebalance_authorities: Vec<Address>,
 }
 
+/// Parameters used when creating a new index
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexParams {
+pub struct DeployIndexParams {
+    /// The addresses which administrate the index
     pub authorities: IndexFundAuthorities,
-
-    pub token_quote: Address, // usually USDC
-
-    // Config
+    /// The address of the token used to mint the index (usually USDC)
+    pub quote_token: Address,
+    /// The index name (Normal Top 5 Crypto Index)
     pub name: String,
+    /// The index token symbol (NTOP5)
     pub symbol: String,
+    /// The index description (Equally tracks the top 5 cryptocurrencies)
     pub description: String,
+    /// The index visibility (public or private)
     pub is_public: bool,
-
-    // Price
+    /// The starting share price of the index
     pub initial_price: u128,
-
-    // Assets
+    /// The assets within the index
     pub components: Vec<ComponentUpdate>,
 }
 

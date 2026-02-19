@@ -1,6 +1,7 @@
 #![no_std]
 
 mod contract;
+pub mod errors;
 mod events;
 mod index_utils;
 mod interface;

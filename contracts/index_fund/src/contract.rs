@@ -9,6 +9,7 @@ use soroban_sdk::{
     contract, contractimpl, panic_with_error, Address, BytesN, Env, Map, Symbol, Vec,
 };
 use token_share;
+use token_share::Client as IndexTokenClient;
 
 // Utils
 use utils::token::transfer_token;
@@ -18,7 +19,7 @@ use utils::validate;
 use types::{
     adapter::{AdapterTradeParams, AdapterType},
     component::{Component, ComponentAllocation, RebalanceParams, RebalanceStatus, RefactorParams},
-    index::{IndexFundInfo, IndexFundMetrics, IndexFundStatus, IndexParams},
+    index::{DeployIndexParams, IndexFundInfo, IndexFundMetrics, IndexFundStatus},
     volume::VolumeFeeTier,
 };
 
@@ -58,11 +59,22 @@ impl IndexFund {
     //
     // Arguments:
     //   - e: The Soroban environment.
-    //   - factory: The address of the factory contract.
-    //   - params: The address authorized to claim funds.
-    pub fn __constructor(e: Env, factory: Address, serialized_asset: Bytes, params: IndexParams) {
+    //   - factory: The address of the Index Fund Factory contract.
+    //   - index_token_wasm: The hash of the Index Fund Token contract wasm.
+    //   - adapter_registry: The address of the Adapter Registry contract.
+    //   - factory_sequence: The index salt from the factory.
+    //   - params: Config parameters of the Index Fund.
+    pub fn __constructor(
+        e: Env,
+        factory: Address,
+        index_token_wasm: BytesN<32>,
+        adapter_registry: Address,
+        factory_sequence: u32,
+        params: DeployIndexParams,
+    ) {
         // params.authorities.admin.require_auth();
 
+        // Setup access control
         let access_control = AccessControl::new(&e);
         access_control.set_role_address(&Role::Admin, &params.authorities.admin);
         access_control.set_role_address(&Role::EmergencyAdmin, &params.authorities.emergency_admin);
@@ -75,16 +87,23 @@ impl IndexFund {
             &params.authorities.rebalance_authorities,
         );
 
+        // Set constants from factory
         crate::storage::set_factory(&e, &factory);
+        crate::storage::set_adapter_registry(&e, &adapter_registry);
+
+        // Deploy the index token
+        let index_token_contract =
+            crate::token::create_contract(&e, index_token_wasm, &factory_sequence);
+        IndexTokenClient::new(&e, &index_token_contract).initialize(
+            &e.current_contract_address(),
+            &7u32,
+            &params.name.into_val(&e),
+            &params.symbol.into_val(&e),
+        );
+        token_share::put_token_share(&e, index_token_contract);
+
+        // Set config
         crate::storage::set_token_quote(&e, &params.token_quote);
-
-        // Create the Deployer with Asset
-        let deployer = e.deployer().with_stellar_asset(serialized_asset);
-        let _ = deployer.deployed_address();
-        // Deploy the Stellar Asset Contract
-        let sac_address = deployer.deploy();
-
-        token_share::put_token_share(&e, sac_address);
         crate::storage::set_public(&e, &params.is_public);
         crate::storage::set_initial_price(&e, &params.initial_price);
 

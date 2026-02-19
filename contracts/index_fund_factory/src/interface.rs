@@ -1,13 +1,13 @@
-use soroban_sdk::{Address, Bytes, BytesN, Env, Map, Symbol, Vec};
+use soroban_sdk::{Address, BytesN, Env, Map, Symbol, Vec};
 use types::{
     component::{RebalanceParams, RefactorParams},
-    index::IndexParams,
+    index::DeployIndexParams,
 };
 
-use crate::storage::FactoryConfig;
+use crate::storage::IndexFundFactoryConfig;
 
 pub trait IndexFundFactoryTrait {
-    fn deploy_index_contract(e: Env, serialized_asset: Bytes, params: IndexParams) -> Address;
+    fn deploy_index_contract(e: Env, params: DeployIndexParams) -> Address;
     fn mint(e: Env, user: Address, index: Address, amount: u128);
     fn redeem(e: Env, user: Address, index: Address, share_amount: u128);
     fn rebalance(e: Env, caller: Address, index: Address, params: RebalanceParams);
@@ -29,18 +29,6 @@ pub trait IndexFundFactoryTrait {
 }
 
 pub trait AdminInterface {
-    // Set privileged addresses
-    fn set_privileged_addrs(
-        e: Env,
-        admin: Address,
-        rewards_admin: Address,
-        operations_admin: Address,
-        fee_admin: Address,
-    );
-
-    // Get map of privileged roles
-    fn get_privileged_addrs(e: Env) -> Map<Symbol, Vec<Address>>;
-
     //   _______    _______  ___________  ___________  _______   _______    ________
     //  /" _   "|  /"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
     // (: ( \___) (: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
@@ -49,18 +37,15 @@ pub trait AdminInterface {
     // (:   _(  _|(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
     //  \_______)  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
 
-    fn get_factory_config(e: Env) -> FactoryConfig;
+    fn get_privileged_addrs(e: Env) -> Map<Symbol, Vec<Address>>;
 
-    fn get_index_contract_wasm(e: Env) -> BytesN<32>;
-    fn get_adapter_registry(e: Env) -> Address;
+    fn get_factory_config(e: Env) -> IndexFundFactoryConfig;
 
-    fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address>;
-
-    fn get_all_deployed_indexes(e: Env) -> Vec<Address>;
-
-    fn get_index_count(e: Env, operator: Address) -> u32;
+    fn get_indexes_by_manager(e: Env, manager: Address) -> Vec<Address>;
 
     fn get_total_index_count(e: Env) -> u32;
+
+    fn get_index_by_id(e: Env, sequence: u32) -> Address;
 
     //   ________  _______  ___________  ___________  _______   _______    ________
     //  /"       )/"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
@@ -70,6 +55,14 @@ pub trait AdminInterface {
     //  /" \   :)(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
     // (_______/  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
 
+    fn set_privileged_addrs(
+        e: Env,
+        admin: Address,
+        rewards_admin: Address,
+        operations_admin: Address,
+        fee_admin: Address,
+    );
     fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>);
+    fn set_index_token_wasm(e: Env, admin: Address, index_token_wasm: BytesN<32>);
     fn set_adapter_registry(e: Env, admin: Address, adapter_registry: Address);
 }

@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, BytesN, Env, Symbol, Vec};
+use soroban_sdk::{Address, BytesN, Env, String, Symbol, Vec};
 
 #[derive(Clone)]
 pub(crate) struct Events(Env);
@@ -27,12 +27,11 @@ pub(crate) trait FactoryEvents {
     fn index_deployed(
         &self,
         ts: u64,
-        deployer: Address,
-        index_address: Address,
-        operator: Address,
         manager: Address,
-        initial_components: Vec<Address>,
-        initial_weights: Vec<u128>,
+        index: Address,
+        sequence: u32,
+        name: String,
+        symbol: String,
         initial_price: u128,
         is_public: bool,
     );
@@ -79,51 +78,23 @@ impl FactoryEvents for Events {
     fn index_deployed(
         &self,
         ts: u64,
-        deployer: Address,
-        index_address: Address,
-        operator: Address,
         manager: Address,
-        initial_components: Vec<Address>,
-        initial_weights: Vec<u128>,
+        index: Address,
+        sequence: u32,
+        name: String,
+        symbol: String,
         initial_price: u128,
         is_public: bool,
     ) {
-        // Split into multiple events due to Soroban topic limits
-        // Primary deployment event
         self.env().events().publish(
             (
                 Symbol::new(self.env(), "index_deployed"),
                 ts,
-                deployer.clone(),
-                index_address.clone(),
-                operator,
-                manager,
+                manager.clone(),
+                index.clone(),
+                sequence,
             ),
-            (),
-        );
-
-        // Configuration event
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "index_config"),
-                ts,
-                index_address.clone(),
-                initial_price,
-                is_public,
-            ),
-            (),
-        );
-
-        // Components event
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "index_components"),
-                ts,
-                index_address,
-                initial_components,
-                initial_weights,
-            ),
-            (),
+            (name, symbol, initial_price, is_public),
         );
     }
 
@@ -209,7 +180,6 @@ pub(crate) trait FactoryConfigEvents {
         admin: Address,
         old_wasm: BytesN<32>,
         new_wasm: BytesN<32>,
-        version: u32,
     );
 
     fn token_wasm_updated(
@@ -218,7 +188,14 @@ pub(crate) trait FactoryConfigEvents {
         admin: Address,
         old_wasm: BytesN<32>,
         new_wasm: BytesN<32>,
-        version: u32,
+    );
+
+    fn adapter_registry_updated(
+        &self,
+        ts: u64,
+        admin: Address,
+        old_registry: Address,
+        new_registry: Address,
     );
 }
 
@@ -229,16 +206,14 @@ impl FactoryConfigEvents for Events {
         admin: Address,
         old_wasm: BytesN<32>,
         new_wasm: BytesN<32>,
-        version: u32,
     ) {
         self.env().events().publish(
             (
-                Symbol::new(self.env(), "wasm_updated"),
+                Symbol::new(self.env(), "index_wasm_updated"),
                 ts,
                 admin,
                 old_wasm,
                 new_wasm,
-                version,
             ),
             (),
         );
@@ -250,16 +225,33 @@ impl FactoryConfigEvents for Events {
         admin: Address,
         old_wasm: BytesN<32>,
         new_wasm: BytesN<32>,
-        version: u32,
     ) {
         self.env().events().publish(
             (
-                Symbol::new(self.env(), "wasm_updated"),
+                Symbol::new(self.env(), "token_wasm_updated"),
                 ts,
                 admin,
                 old_wasm,
                 new_wasm,
-                version,
+            ),
+            (),
+        );
+    }
+
+    fn adapter_registry_updated(
+        &self,
+        ts: u64,
+        admin: Address,
+        old_registry: Address,
+        new_registry: Address,
+    ) {
+        self.env().events().publish(
+            (
+                Symbol::new(self.env(), "adapter_registry_updated"),
+                ts,
+                admin,
+                old_registry,
+                new_registry,
             ),
             (),
         );

@@ -1,9 +1,11 @@
+use crate::errors::IndexFundFactoryError;
 use crate::events::Events;
 use crate::events::FactoryConfigEvents;
 use crate::events::FactoryEvents;
 use crate::index_utils::get_index_salt;
 use crate::interface::{AdminInterface, IndexFundFactoryTrait};
-use crate::storage::FactoryConfig;
+use crate::storage::IndexFundFactoryConfig;
+use access_control::utils::require_operations_admin_or_owner;
 use soroban_sdk::contractmeta;
 use soroban_sdk::Bytes;
 use soroban_sdk::Map;
@@ -14,7 +16,7 @@ use soroban_sdk::{
 // Types
 use types::component::RebalanceParams;
 use types::component::RefactorParams;
-use types::index::IndexParams;
+use types::index::DeployIndexParams;
 
 // Access control
 use access_control::access::{AccessControl, AccessControlTrait};
@@ -48,8 +50,10 @@ impl IndexFundFactory {
     //   - e: The Soroban environment.
     //   - admin: The address to be assigned the Admin role.
     //   - emergency_admin: The address to be assigned the EmergencyAdmin role.
-    //   - rew
-    //   - index_contract_wasm: The WASM hash (BytesN<32>) for the swap fee contract.
+    //   - rewards_admin: The address to be assigned the RewardsAdmin role.
+    //   - operations_admin: The address to be assigned the OperationsAdmin role.
+    //   - fee_admin: The address to be assigned the FeeAdmin role.
+    //   - config: The WASM hash (BytesN<32>) for the index fund contract.
     pub fn __constructor(
         e: Env,
         admin: Address,
@@ -57,83 +61,71 @@ impl IndexFundFactory {
         rewards_admin: Address,
         operations_admin: Address,
         fee_admin: Address,
-        index_contract_wasm: BytesN<32>,
+        config: IndexFundFactoryConfig,
     ) {
         let access_control = AccessControl::new(&e);
+        if access_control.get_role_safe(&Role::Admin).is_some() {
+            panic_with_error!(&e, IndexFundFactoryError::AlreadyInitialized);
+        }
+
         access_control.set_role_address(&Role::Admin, &admin);
         access_control.set_role_address(&Role::EmergencyAdmin, &emergency_admin);
         access_control.set_role_address(&Role::RewardsAdmin, &rewards_admin);
         access_control.set_role_address(&Role::OperationsAdmin, &operations_admin);
         access_control.set_role_address(&Role::FeeAdmin, &fee_admin);
 
-        crate::storage::set_index_contract_wasm(&e, &index_contract_wasm);
+        crate::storage::set_index_contract_wasm(&e, &config.index_contract_wasm);
+        crate::storage::set_index_token_wasm(&e, &config.index_token_wasm);
+        crate::storage::set_adapter_registry(&e, &config.adapter_registry);
     }
 }
 
 #[contractimpl]
 impl IndexFundFactoryTrait for IndexFundFactory {
-    // deploy_index_contract
-    // Deploys a new Index Fund contract instance.
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - params: ... (params.authorities.admin must be authorized).
-    //
-    // Returns:
-    //   - The address of the newly deployed Index Fund contract.
-    fn deploy_index_contract(e: Env, serialized_asset: Bytes, params: IndexParams) -> Address {
+    /// @notice Creates an Index Fund contract.
+    /// @param params Constructor params used to initialize the Index:
+    ///     - `params`: Config parameters of the Index Fund contract.
+    /// @return index_fund_address the deployed address of the new Index Fundrcontract.
+    fn deploy_index_contract(e: Env, params: DeployIndexParams) -> Address {
         params.authorities.admin.require_auth();
 
-        let sequence = crate::storage::get_contract_sequence(&e, params.authorities.admin.clone());
-        crate::storage::set_contract_sequence(&e, params.authorities.admin.clone(), sequence + 1);
+        // Global sequence index ID
+        let sequence = crate::storage::get_contract_sequence(&e);
+        crate::storage::set_contract_sequence(&e, sequence + 1);
 
-        let salt = get_index_salt(&e, &params.authorities.admin, &sequence);
+        let salt = get_index_salt(&e, &sequence);
 
-        let address = e.deployer().with_current_contract(salt).deploy_v2(
+        let index_fund_address = e.deployer().with_current_contract(salt).deploy_v2(
             crate::storage::get_index_contract_wasm(&e),
             (
                 e.current_contract_address(),
-                serialized_asset.clone(),
+                crate::storage::get_index_token_wasm(&e),
+                crate::storage::get_adapter_registry(&e),
+                sequence,
                 params.clone(),
             ),
         );
 
-        if let Some(registry) = crate::storage::get_adapter_registry_safe(&e) {
-            e.invoke_contract::<()>(
-                &address,
-                &Symbol::new(&e, "set_adapter_registry"),
-                Vec::from_array(
-                    &e,
-                    [
-                        params.authorities.admin.clone().into_val(&e),
-                        registry.into_val(&e),
-                    ],
-                ),
-            );
-        }
-
         // Add to index registry
-        crate::storage::add_deployed_index(&e, &params.authorities.admin, &address);
-
-        // Emit enhanced deployment event
-        let current_time = e.ledger().timestamp();
-        let initial_components = Vec::new(&e); // Empty initially
-        let initial_weights = Vec::new(&e); // Empty initially
-
-        // TODO: fix correctly
-        Events::new(&e).index_deployed(
-            current_time,
-            params.authorities.admin.clone(),
-            address.clone(), // index_address
-            params.authorities.admin.clone(),
-            params.authorities.admin.clone(), // manager (using fee_destination as manager for now)
-            initial_components,
-            initial_weights,
-            initial_price,
-            is_public,
+        crate::storage::add_deployed_index(
+            &e,
+            &sequence,
+            &params.authorities.admin,
+            &index_fund_address,
         );
 
-        address
+        Events::new(&e).index_deployed(
+            e.ledger().timestamp(),
+            params.authorities.admin.clone(),
+            index_fund_address.clone(),
+            sequence,
+            params.name,
+            params.symbol,
+            params.initial_price,
+            params.is_public,
+        );
+
+        index_fund_address
     }
 
     fn mint(e: Env, user: Address, index: Address, amount: u128) {
@@ -250,9 +242,7 @@ impl AdminInterface for IndexFundFactory {
     // * `admin` - The address of the admin.
     // * `rewards_admin` - The address of the rewards admin.
     // * `operations_admin` - The address of the operations admin.
-    // * `pause_admin` - The address of the pause admin.
-    // * `emergency_pause_admin` - The addresses of the emergency pause admins.
-    // * `system_fee_admin` - The address of the system fee admin.
+    // * `fee_admin` - The address of the system fee admin.
     fn set_privileged_addrs(
         e: Env,
         admin: Address,
@@ -274,11 +264,22 @@ impl AdminInterface for IndexFundFactory {
         );
     }
 
-    // Returns a map of privileged roles.
-    //
-    // # Returns
-    //
-    // A map of privileged roles to their respective addresses.
+    //   _______    _______  ___________  ___________  _______   _______    ________
+    //  /" _   "|  /"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
+    // (: ( \___) (: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
+    //  \/ \       \/    |      \\_ /        \\_ /    \/    |  |_____/   ) \___  \
+    //  //  \ ___  // ___)_     |.  |        |.  |    // ___)_  //      /   __/  \\
+    // (:   _(  _|(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
+    //  \_______)  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
+
+    fn get_factory_config(e: Env) -> IndexFundFactoryConfig {
+        IndexFundFactoryConfig {
+            index_contract_wasm: crate::storage::get_index_contract_wasm(&e),
+            index_token_wasm: crate::storage::get_index_token_wasm(&e),
+            adapter_registry: crate::storage::get_adapter_registry(&e),
+        }
+    }
+
     fn get_privileged_addrs(e: Env) -> Map<Symbol, Vec<Address>> {
         let access_control = AccessControl::new(&e);
         let mut result: Map<Symbol, Vec<Address>> = Map::new(&e);
@@ -301,46 +302,16 @@ impl AdminInterface for IndexFundFactory {
         result
     }
 
-    //   _______    _______  ___________  ___________  _______   _______    ________
-    //  /" _   "|  /"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
-    // (: ( \___) (: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
-    //  \/ \       \/    |      \\_ /        \\_ /    \/    |  |_____/   ) \___  \
-    //  //  \ ___  // ___)_     |.  |        |.  |    // ___)_  //      /   __/  \\
-    // (:   _(  _|(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
-    //  \_______)  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
-
-    // Query Methods - Factory Configuration
-    fn get_factory_config(e: Env) -> FactoryConfig {
-        FactoryConfig {
-            index_contract_wasm: crate::storage::get_index_contract_wasm(&e),
-        }
-    }
-
-    fn get_index_contract_wasm(e: Env) -> BytesN<32> {
-        crate::storage::get_index_contract_wasm(&e)
-    }
-
-    fn get_adapter_registry(e: Env) -> Address {
-        crate::storage::get_adapter_registry(&e)
-    }
-
-    // Index Registry Query Methods
-    fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address> {
-        crate::storage::get_deployed_indexes(&e, &operator)
-    }
-
-    fn get_all_deployed_indexes(e: Env) -> Vec<Address> {
-        crate::storage::get_all_deployed_indexes(&e)
-    }
-
-    fn get_index_count(e: Env, operator: Address) -> u32 {
-        let indexes = crate::storage::get_deployed_indexes(&e, &operator);
-        indexes.len()
+    fn get_indexes_by_manager(e: Env, manager: Address) -> Vec<Address> {
+        crate::storage::get_deployed_indexes_by_manager(&e, &manager)
     }
 
     fn get_total_index_count(e: Env) -> u32 {
-        let all_indexes = crate::storage::get_all_deployed_indexes(&e);
-        all_indexes.len()
+        crate::storage::get_contract_sequence(&e)
+    }
+
+    fn get_index_by_id(e: Env, sequence: u32) -> Address {
+        crate::storage::get_deployed_index(&e, &sequence)
     }
 
     //   ________  _______  ___________  ___________  _______   _______    ________
@@ -360,25 +331,61 @@ impl AdminInterface for IndexFundFactory {
     //   - index_contract_wasm: The new WASM hash (BytesN<32>) for the Index Fund contract.
     fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>) {
         admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        require_operations_admin_or_owner(&e, &admin);
 
         let old_wasm = crate::storage::get_index_contract_wasm(&e);
         crate::storage::set_index_contract_wasm(&e, &index_contract_wasm);
 
-        let current_time = e.ledger().timestamp();
         Events::new(&e).index_wasm_updated(
-            current_time,
+            e.ledger().timestamp(),
             admin.clone(),
             old_wasm.clone(),
             index_contract_wasm.clone(),
-            1,
         );
     }
 
+    // set_index_token_wasm
+    // Updates the WASM hash for the Index Fund token contract.
+    //
+    // Arguments:
+    //   - e: The Soroban environment.
+    //   - admin: The admin address (must be authorized).
+    //   - index_token_wasm: The new WASM hash (BytesN<32>) for the Index Fund token contract.
+    fn set_index_token_wasm(e: Env, admin: Address, index_token_wasm: BytesN<32>) {
+        admin.require_auth();
+        require_operations_admin_or_owner(&e, &admin);
+
+        let old_wasm = crate::storage::get_index_token_wasm(&e);
+        crate::storage::set_index_token_wasm(&e, &index_token_wasm);
+
+        Events::new(&e).token_wasm_updated(
+            e.ledger().timestamp(),
+            admin.clone(),
+            old_wasm.clone(),
+            index_token_wasm.clone(),
+        );
+    }
+
+    // set_adapter_registry
+    // Updates the addres for the Adapter Registry contract.
+    //
+    // Arguments:
+    //   - e: The Soroban environment.
+    //   - admin: The admin address (must be authorized).
+    //   - adapter_registry: The new address for the Adapter Registry contract.
     fn set_adapter_registry(e: Env, admin: Address, adapter_registry: Address) {
         admin.require_auth();
-        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        require_operations_admin_or_owner(&e, &admin);
+
+        let old_registry = crate::storage::get_adapter_registry(&e);
         crate::storage::set_adapter_registry(&e, &adapter_registry);
+
+        Events::new(&e).adapter_registry_updated(
+            e.ledger().timestamp(),
+            admin.clone(),
+            old_registry.clone(),
+            adapter_registry.clone(),
+        );
     }
 }
 

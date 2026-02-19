@@ -20,6 +20,8 @@ mod volume;
 #[cfg(test)]
 mod test_utils;
 
+pub mod token;
+
 // mod test;
 // mod test_math;
 // mod test_permissions;
