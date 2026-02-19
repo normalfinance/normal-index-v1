@@ -6,8 +6,8 @@ mod events;
 mod index_utils;
 mod interface;
 mod storage;
-// mod test;
-// mod test_permissions;
-// mod testutils;
+mod test;
+mod test_permissions;
+mod testutils;
 
 pub use crate::contract::{IndexFundFactory, IndexFundFactoryClient};

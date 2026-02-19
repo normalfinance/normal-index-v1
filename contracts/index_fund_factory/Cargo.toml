@@ -15,6 +15,7 @@ upgrade = { workspace = true }
 paste = { workspace = true }
 utils = { workspace = true }
 types = { workspace = true }
+token_share = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

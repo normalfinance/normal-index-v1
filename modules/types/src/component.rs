@@ -30,8 +30,7 @@ pub struct ComponentUpdate {
     pub new_weight: u128,
     pub action: ComponentAction,
     pub oracle: Option<Address>, // Required for Add, optional for UpdateWeight
-    pub adapter_type: AdapterType,
-    pub adapter: Address,
+    pub adapter: Symbol,
 }
 
 #[contracttype]

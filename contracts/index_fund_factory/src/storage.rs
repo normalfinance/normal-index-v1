@@ -32,12 +32,11 @@ const KEY_ADAPTER_REGISTRY: &str = "AdapterRegistry";
 #[derive(Clone)]
 #[contracttype]
 enum DataKey {
-    ///
+    /// Global incrementing id
     ContractSequence,
-
+    /// id > Address
     DeployedIndex(u32),
-
-    /// manager -> Vec<u32>
+    /// manager -> Vec<u32> (ids)
     DeployedIndexesByManager(Address),
 }
 

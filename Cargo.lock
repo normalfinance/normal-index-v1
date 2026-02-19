@@ -714,6 +714,7 @@ dependencies = [
  "access_control",
  "paste",
  "soroban-sdk",
+ "token_share",
  "types",
  "upgrade",
  "utils",
