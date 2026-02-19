@@ -1,8 +1,15 @@
-use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Map, Symbol};
+use soroban_sdk::{
+    contract, contractimpl, contractmeta, panic_with_error, Address, Env, Map, Symbol,
+};
 
 use crate::errors::AdapterRegistryError;
 use crate::interface::AdapterRegistryTrait;
 use crate::storage;
+
+contractmeta!(
+    key = "Description",
+    val = "A registry tracking supported adapters for use with Index Funds"
+);
 
 #[contract]
 pub struct AdapterRegistry;

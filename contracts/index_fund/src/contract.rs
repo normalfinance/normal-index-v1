@@ -3,6 +3,7 @@ use crate::events::Events;
 use crate::events::IndexEvents;
 use crate::interface::{AdminInterface, IndexFundTrait, QueryInterface};
 
+use soroban_sdk::contractmeta;
 use soroban_sdk::Bytes;
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, Address, BytesN, Env, Map, Symbol, Vec,
@@ -42,6 +43,11 @@ use index_access_control::utils::require_operations_admin_or_owner;
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
+
+contractmeta!(
+    key = "Description",
+    val = "A DeFi primitive for diverisified portfolios using a basket of assets"
+);
 
 #[contract]
 pub struct IndexFund;

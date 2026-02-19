@@ -4,6 +4,7 @@ use crate::events::FactoryEvents;
 use crate::index_utils::get_index_salt;
 use crate::interface::{AdminInterface, IndexFundFactoryTrait};
 use crate::storage::FactoryConfig;
+use soroban_sdk::contractmeta;
 use soroban_sdk::Bytes;
 use soroban_sdk::Map;
 use soroban_sdk::{
@@ -29,6 +30,11 @@ use access_control::transfer::TransferOwnershipTrait;
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
 use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
+
+contractmeta!(
+    key = "Description",
+    val = "Factory for creating and interacting with Index Fund contracts"
+);
 
 #[contract]
 pub struct IndexFundFactory;

@@ -1,8 +1,13 @@
 use adapter::{AdapterError, AdapterTrait};
-use soroban_sdk::{contract, contractimpl, Address, Env, String, Symbol};
+use soroban_sdk::{contract, contractimpl, contractmeta, Address, Env, String, Symbol};
 use types::adapter::AdapterTradeParams;
 
 use crate::normal_treasury::{Direction, NormalTreasuryClient, Side};
+
+contractmeta!(
+    key = "Description",
+    val = "An adapter for buying and selling long and short Normal tokens via the Normal Treasury"
+);
 
 #[contract]
 pub struct NormalAdapter;

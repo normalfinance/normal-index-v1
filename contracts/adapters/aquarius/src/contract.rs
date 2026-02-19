@@ -1,9 +1,14 @@
 use adapter::{AdapterError, AdapterTrait};
-use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contractmeta, Address, Env, String, Vec};
 use types::adapter::AdapterTradeParams;
 use utils::math::safe_math::SafeConversion;
 
 use crate::aquarius_router::AquariusRouterClient;
+
+contractmeta!(
+    key = "Description",
+    val = "An adapter for swapping tokens using Aquarius AMM pools"
+);
 
 #[contract]
 pub struct AquariusAdapter;
