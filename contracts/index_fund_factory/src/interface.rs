@@ -52,6 +52,7 @@ pub trait AdminInterface {
     fn get_factory_config(e: Env) -> FactoryConfig;
 
     fn get_index_contract_wasm(e: Env) -> BytesN<32>;
+    fn get_adapter_registry(e: Env) -> Address;
 
     fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address>;
 
@@ -70,4 +71,5 @@ pub trait AdminInterface {
     // (_______/  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
 
     fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>);
+    fn set_adapter_registry(e: Env, admin: Address, adapter_registry: Address);
 }

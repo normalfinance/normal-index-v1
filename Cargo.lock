@@ -19,6 +19,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "adapter_registry"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -43,6 +50,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "819e7219dbd41043ac279b19830f2efc897156490d7fd6ea916720117ee66311"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "aquarius_adapter"
+version = "0.1.0"
+dependencies = [
+ "adapter",
+ "paste",
+ "soroban-sdk",
+ "types",
+ "utils",
 ]
 
 [[package]]
@@ -1358,6 +1376,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "soroswap_adapter"
+version = "0.1.0"
+dependencies = [
+ "adapter",
+ "paste",
+ "soroban-sdk",
+ "types",
+ "utils",
+]
+
+[[package]]
 name = "spin"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1417,15 +1446,6 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
-
-[[package]]
-name = "swap-utility"
-version = "0.1.0"
-dependencies = [
- "access_control",
- "soroban-sdk",
- "utils",
-]
 
 [[package]]
 name = "syn"

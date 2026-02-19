@@ -1,11 +1,13 @@
 #![no_std]
 
-use soroban_sdk::{self, contracterror, Env};
+use soroban_sdk::{self, contracterror, Address, Env, String};
 use types::adapter::AdapterTradeParams;
 
 pub trait AdapterTrait {
-    fn buy(e: Env, params: AdapterTradeParams) -> u128;
-    fn sell(e: Env, params: AdapterTradeParams) -> u128;
+    fn swap(e: Env, params: AdapterTradeParams) -> Result<u128, AdapterError>;
+
+    fn get_protocol_id(e: &Env) -> Result<String, AdapterError>;
+    fn get_protocol_address(e: &Env) -> Result<Address, AdapterError>;
 }
 
 pub trait AdapterAdminInterface {
@@ -18,6 +20,11 @@ pub trait AdapterAdminInterface {
 pub enum AdapterError {
     // Initialization Errors
     NotInitialized = 401,
+
+    // Aquarius Errors
+    MissingPoolHashes = 100,
+    WrongMinimumPathLength = 101,
+    WrongPoolHashesLength = 102,
 
     // Validation Errors
     NegativeNotAllowed = 410,
@@ -36,7 +43,7 @@ pub enum AdapterError {
     ExternalError = 422,
     SoroswapPairError = 423,
 
-    //Blend Errors
+    // Blend Errors
     AmountBelowMinDust = 451,
     UnderlyingAmountBelowMin = 452,
     BTokensAmountBelowMin = 453,

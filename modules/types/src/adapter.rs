@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, String, Symbol, Vec};
+use soroban_sdk::{contracttype, Address, Map, Symbol};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -16,6 +16,13 @@ impl Default for AdapterType {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdapterMetadata {
+    pub address: Map<Symbol, Address>,
+    pub number: Map<Symbol, i128>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdapterTradeParams {
     pub token_in: Address,
     pub token_out: Address,
@@ -23,6 +30,7 @@ pub struct AdapterTradeParams {
     pub amount_out_min: u128,
     pub to: Address,
     pub asset: Symbol,
+    pub metadata: Option<AdapterMetadata>,
 }
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]

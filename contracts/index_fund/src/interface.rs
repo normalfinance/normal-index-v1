@@ -13,10 +13,6 @@ pub trait IndexFundTrait {
     fn get_blacklist_status(e: Env, address: Address) -> bool;
     fn get_component(e: Env, token: Address) -> Component;
     fn get_component_balance(e: Env, token: Address) -> u128;
-    /// Transfer shares between users with proper fee handling
-    fn transfer_shares(e: Env, from: Address, to: Address, amount: u128);
-    /// Transfer shares from allowance with proper fee handling
-    fn transfer_shares_from(e: Env, spender: Address, from: Address, to: Address, amount: u128);
 }
 
 pub trait AdminInterface {
@@ -24,7 +20,14 @@ pub trait AdminInterface {
 
     fn rebalance(e: Env, caller: Address, params: RebalanceParams);
 
-    // Set privileged addresses
+    //   ________  _______  ___________  ___________  _______   _______    ________
+    //  /"       )/"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
+    // (:   \___/(: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
+    //  \___  \   \/    |      \\_ /        \\_ /    \/    |  |_____/   ) \___  \
+    //   __/  \\  // ___)_     |.  |        |.  |    // ___)_  //      /   __/  \\
+    //  /" \   :)(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
+    // (_______/  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
+
     fn set_privileged_addrs(
         e: Env,
         admin: Address,
@@ -37,6 +40,8 @@ pub trait AdminInterface {
 
     fn set_factory(e: Env, admin: Address, factory: Address);
 
+    fn set_adapter_registry(e: Env, admin: Address, registry: Address);
+
     fn set_whitelist_status(e: Env, admin: Address, address: Address, status: bool);
 
     fn set_blacklist_status(e: Env, admin: Address, address: Address, status: bool);
@@ -47,19 +52,22 @@ pub trait AdminInterface {
 
     fn set_trade_fee_tiers_manager(e: Env, admin: Address, manager_fee_bps: u32);
 
-    fn set_adapter(e: Env, admin: Address, adapter_type: AdapterType, adapter: Address);
-
     fn claim_protocol_fees(e: Env, admin: Address, token: Address, destination: Address) -> u128;
 
     fn claim_manager_fees(e: Env, admin: Address, token: Address, destination: Address) -> u128;
 
+    //   _______    _______  ___________  ___________  _______   _______    ________
+    //  /" _   "|  /"     "|("     _   ")("     _   ")/"     "| /"      \  /"       )
+    // (: ( \___) (: ______) )__/  \\__/  )__/  \\__/(: ______)|:        |(:   \___/
+    //  \/ \       \/    |      \\_ /        \\_ /    \/    |  |_____/   ) \___  \
+    //  //  \ ___  // ___)_     |.  |        |.  |    // ___)_  //      /   __/  \\
+    // (:   _(  _|(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
+    //  \_______)  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
+
+    fn get_factory(e: Env) -> Address;
+
     // Get map of privileged roles
     fn get_privileged_addrs(e: Env) -> Map<Symbol, Vec<Address>>;
-
-    fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128;
-
-    // Safe version that returns Option instead of panicking, for use in index contract
-    fn convert_token_to_usd_safe(e: Env, token: Address, amount: u128) -> Option<u128>;
 }
 
 // Query Interface
@@ -71,7 +79,6 @@ pub trait QueryInterface {
     fn get_all_components(e: Env) -> Map<Address, Component>;
     fn get_component_info(e: Env, token: Address) -> Component;
     fn get_all_component_balances(e: Env) -> Map<Address, u128>;
-    fn get_total_index_value(e: Env) -> u128;
 
     // Financial metrics
     fn get_index_metrics(e: Env) -> IndexFundMetrics;

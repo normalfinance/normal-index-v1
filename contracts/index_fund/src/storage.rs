@@ -2,7 +2,6 @@ use paste::paste;
 use soroban_sdk::token::TokenClient as SorobanTokenClient;
 use soroban_sdk::{contracttype, log, panic_with_error, Address, Env, Map, Vec};
 
-use types::adapter::AdapterType;
 use types::component::Component;
 use types::volume::VolumeFeeTier;
 use utils::bump::{bump_instance, bump_persistent};
@@ -34,11 +33,14 @@ pub struct UserMonthlyVolumeKey {
 #[contracttype]
 enum IndexFundDataKey {
     Factory,
+    AdapterRegistry,
     TokenQuote, // The token accepted during minting and used to swap, i.e. USDC
 
     InitialPrice, // The price assigned to the index at inception (e.g. $100)
 
     Component(Address), // Map of token address to Component
+    // Component registry
+    ComponentRegistry, // Vec<Address> - list of all component addresses
     ComponentBalance(Address),
 
     Public, // Private indexes are mutable and can only be minted by the admin and whitelist. Pubilic indexes are immutabel and can be minted by anyone
@@ -55,9 +57,6 @@ enum IndexFundDataKey {
     TotalMints,
     TotalRedemptions,
 
-    // Component registry
-    ComponentRegistry, // Vec<Address> - list of all component addresses
-
     // Fee and volume tracking
     TradeFeeTiers,
     /// user + month bucket -> volume
@@ -66,16 +65,16 @@ enum IndexFundDataKey {
     AccruedProtocolFee(Address),
     /// token -> amount
     AccruedManagerFee(Address),
-
-    // Adapter registry
-    NormalAdapter,
-    AquariusAdapter,
-    SoroswapAdapter,
 }
 
 /********** Storage **********/
 
 generate_instance_storage_getter_and_setter!(factory, IndexFundDataKey::Factory, Address);
+generate_instance_storage_getter_and_setter!(
+    adapter_registry,
+    IndexFundDataKey::AdapterRegistry,
+    Address
+);
 generate_instance_storage_getter_and_setter!(token_quote, IndexFundDataKey::TokenQuote, Address);
 
 // Financial Configuration
@@ -202,28 +201,6 @@ pub fn set_accrued_protocol_fee(e: &Env, token: Address, amount: u128) {
     let key = IndexFundDataKey::AccruedProtocolFee(token);
     e.storage().persistent().set(&key, &amount);
     bump_persistent(e, &key);
-}
-
-// Adapters
-
-pub fn set_adapter_for_type(e: &Env, adapter_type: AdapterType, address: &Address) {
-    let key = match adapter_type {
-        AdapterType::Normal => IndexFundDataKey::NormalAdapter,
-        AdapterType::Aquarius => IndexFundDataKey::AquariusAdapter,
-        AdapterType::Soroswap => IndexFundDataKey::SoroswapAdapter,
-    };
-    e.storage().instance().set(&key, address);
-    bump_instance(e);
-}
-
-pub fn get_adapter_for_type_safe(e: &Env, adapter_type: AdapterType) -> Option<Address> {
-    let key = match adapter_type {
-        AdapterType::Normal => IndexFundDataKey::NormalAdapter,
-        AdapterType::Aquarius => IndexFundDataKey::AquariusAdapter,
-        AdapterType::Soroswap => IndexFundDataKey::SoroswapAdapter,
-    };
-    bump_instance(e);
-    e.storage().instance().get(&key)
 }
 
 // Whitelist/Blacklist functions

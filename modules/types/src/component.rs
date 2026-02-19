@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, String, Symbol, Vec};
+use soroban_sdk::{contracttype, Address, Symbol, Vec};
 
 use crate::adapter::AdapterType;
 
@@ -9,7 +9,7 @@ pub struct Component {
     pub weight: u128,    // The asset's index % allocation (in basis points)
     pub oracle: Address, // The address of the oracle for this asset
     pub adapter_type: AdapterType,
-    pub adapter: Address,
+    pub adapter: Symbol,
 }
 
 // Rebalancing Data Structures
@@ -19,6 +19,8 @@ pub enum ComponentAction {
     Add,
     Remove,
     UpdateWeight,
+    UpdateAdapter,
+    UpdateOracle,
 }
 
 #[contracttype]

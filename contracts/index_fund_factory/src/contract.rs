@@ -71,17 +71,17 @@ impl IndexFundFactoryTrait for IndexFundFactory {
     //
     // Arguments:
     //   - e: The Soroban environment.
-    //   - params: ... (params.admin must be authorized).
+    //   - params: ... (params.authorities.admin must be authorized).
     //
     // Returns:
     //   - The address of the newly deployed Index Fund contract.
     fn deploy_index_contract(e: Env, serialized_asset: Bytes, params: IndexParams) -> Address {
-        params.admin.require_auth();
+        params.authorities.admin.require_auth();
 
-        let sequence = crate::storage::get_contract_sequence(&e, params.admin.clone());
-        crate::storage::set_contract_sequence(&e, params.admin.clone(), sequence + 1);
+        let sequence = crate::storage::get_contract_sequence(&e, params.authorities.admin.clone());
+        crate::storage::set_contract_sequence(&e, params.authorities.admin.clone(), sequence + 1);
 
-        let salt = get_index_salt(&e, &params.admin, &sequence);
+        let salt = get_index_salt(&e, &params.authorities.admin, &sequence);
 
         let address = e.deployer().with_current_contract(salt).deploy_v2(
             crate::storage::get_index_contract_wasm(&e),
@@ -92,23 +92,35 @@ impl IndexFundFactoryTrait for IndexFundFactory {
             ),
         );
 
+        if let Some(registry) = crate::storage::get_adapter_registry_safe(&e) {
+            e.invoke_contract::<()>(
+                &address,
+                &Symbol::new(&e, "set_adapter_registry"),
+                Vec::from_array(
+                    &e,
+                    [
+                        params.authorities.admin.clone().into_val(&e),
+                        registry.into_val(&e),
+                    ],
+                ),
+            );
+        }
+
         // Add to index registry
-        crate::storage::add_deployed_index(&e, &params.admin, &address);
+        crate::storage::add_deployed_index(&e, &params.authorities.admin, &address);
 
         // Emit enhanced deployment event
         let current_time = e.ledger().timestamp();
         let initial_components = Vec::new(&e); // Empty initially
         let initial_weights = Vec::new(&e); // Empty initially
-        let initial_price = 0; // TODO: Get from contract parameters
-        let is_public = false; // TODO: Get from contract parameters
 
         // TODO: fix correctly
         Events::new(&e).index_deployed(
             current_time,
-            params.admin.clone(),
+            params.authorities.admin.clone(),
             address.clone(), // index_address
-            params.admin.clone(),
-            params.admin.clone(), // manager (using fee_destination as manager for now)
+            params.authorities.admin.clone(),
+            params.authorities.admin.clone(), // manager (using fee_destination as manager for now)
             initial_components,
             initial_weights,
             initial_price,
@@ -120,12 +132,14 @@ impl IndexFundFactoryTrait for IndexFundFactory {
 
     fn mint(e: Env, user: Address, index: Address, amount: u128) {
         user.require_auth();
-        e.invoke_contract::<()>(
+
+        let tokens_minted: u128 = e.invoke_contract(
             &index,
             &Symbol::new(&e, "mint"),
             Vec::from_array(&e, [user.clone().into_val(&e), amount.into_val(&e)]),
         );
-        Events::new(&e).index_mint(e.ledger().timestamp(), index, user, amount);
+
+        Events::new(&e).mint(user, index, amount, e.ledger().timestamp());
     }
 
     fn redeem(e: Env, user: Address, index: Address, share_amount: u128) {
@@ -135,7 +149,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
             &Symbol::new(&e, "redeem"),
             Vec::from_array(&e, [user.clone().into_val(&e), share_amount.into_val(&e)]),
         );
-        Events::new(&e).index_redeem(e.ledger().timestamp(), index, user, share_amount);
+        Events::new(&e).redeem(e.ledger().timestamp(), index, user, share_amount);
     }
 
     fn rebalance(e: Env, caller: Address, index: Address, params: RebalanceParams) {
@@ -145,7 +159,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
             &Symbol::new(&e, "rebalance"),
             Vec::from_array(&e, [caller.clone().into_val(&e), params.into_val(&e)]),
         );
-        Events::new(&e).index_rebalance(e.ledger().timestamp(), index, caller);
+        Events::new(&e).rebalance(e.ledger().timestamp(), index, caller);
     }
 
     fn refactor(e: Env, caller: Address, index: Address, params: RefactorParams) {
@@ -155,7 +169,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
             &Symbol::new(&e, "refactor"),
             Vec::from_array(&e, [caller.clone().into_val(&e), params.into_val(&e)]),
         );
-        Events::new(&e).index_refactor(e.ledger().timestamp(), index, caller);
+        Events::new(&e).refactor(e.ledger().timestamp(), index, caller);
     }
 
     fn claim_system_fees(
@@ -300,6 +314,10 @@ impl AdminInterface for IndexFundFactory {
         crate::storage::get_index_contract_wasm(&e)
     }
 
+    fn get_adapter_registry(e: Env) -> Address {
+        crate::storage::get_adapter_registry(&e)
+    }
+
     // Index Registry Query Methods
     fn get_deployed_indexes(e: Env, operator: Address) -> Vec<Address> {
         crate::storage::get_deployed_indexes(&e, &operator)
@@ -349,6 +367,12 @@ impl AdminInterface for IndexFundFactory {
             index_contract_wasm.clone(),
             1,
         );
+    }
+
+    fn set_adapter_registry(e: Env, admin: Address, adapter_registry: Address) {
+        admin.require_auth();
+        AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
+        crate::storage::set_adapter_registry(&e, &adapter_registry);
     }
 }
 

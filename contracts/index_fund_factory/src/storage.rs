@@ -23,6 +23,7 @@ pub struct FactoryConfig {
 #[contracttype]
 enum DataKey {
     IndexContractWASM, // wasm of the Index Fund contract
+    AdapterRegistry,
 
     ContractSequence(Address),
     // Index registry storage
@@ -37,6 +38,12 @@ generate_instance_storage_getter_and_setter!(
     DataKey::IndexContractWASM,
     BytesN<32>
 );
+generate_instance_storage_getter_and_setter!(adapter_registry, DataKey::AdapterRegistry, Address);
+
+pub fn get_adapter_registry_safe(env: &Env) -> Option<Address> {
+    bump_instance(env);
+    env.storage().instance().get(&DataKey::AdapterRegistry)
+}
 
 pub(crate) fn get_contract_sequence(env: &Env, manager: Address) -> u32 {
     let key = DataKey::ContractSequence(manager);

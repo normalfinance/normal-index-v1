@@ -2,30 +2,21 @@ use crate::errors::IndexFundError;
 use crate::events::Events;
 use crate::events::IndexEvents;
 use crate::interface::{AdminInterface, IndexFundTrait, QueryInterface};
-use index_access_control::management::MapAddressesManagementTrait;
-use index_access_control::management::MultipleAddressesManagementTrait;
-use index_access_control::utils::require_admin;
-use index_access_control::utils::require_fee_admin_or_owner;
+
 use soroban_sdk::Bytes;
 use soroban_sdk::{
-    contract, contractimpl, log, panic_with_error, token::TokenClient as SorobanTokenClient,
-    Address, BytesN, Env, IntoVal, Map, Symbol, Vec,
+    contract, contractimpl, panic_with_error, Address, BytesN, Env, Map, Symbol, Vec,
 };
-use token_share::{burn_shares, get_token_share, get_total_shares, mint_shares, put_token_share};
+use token_share;
 
-use types::adapter::AdapterTradeParams;
 // Utils
 use utils::token::transfer_token;
 use utils::validate;
 
 // Types
-
 use types::{
-    adapter::AdapterType,
-    component::{
-        Component, ComponentAction, ComponentAllocation, ComponentUpdate, RebalanceParams,
-        RebalanceStatus, RefactorParams,
-    },
+    adapter::{AdapterTradeParams, AdapterType},
+    component::{Component, ComponentAllocation, RebalanceParams, RebalanceStatus, RefactorParams},
     index::{IndexFundInfo, IndexFundMetrics, IndexFundStatus, IndexParams},
     volume::VolumeFeeTier,
 };
@@ -38,9 +29,13 @@ use index_access_control::emergency::{get_emergency_mode, set_emergency_mode};
 use index_access_control::errors::IndexAccessControlError;
 use index_access_control::events::Events as AccessControlEvents;
 use index_access_control::interface::TransferableContract;
+use index_access_control::management::MapAddressesManagementTrait;
+use index_access_control::management::MultipleAddressesManagementTrait;
 use index_access_control::management::SingleAddressManagementTrait;
 use index_access_control::role::{Role, SymbolRepresentation};
 use index_access_control::transfer::TransferOwnershipTrait;
+use index_access_control::utils::require_admin;
+use index_access_control::utils::require_fee_admin_or_owner;
 use index_access_control::utils::require_operations_admin_or_owner;
 
 // Upgrade
@@ -63,10 +58,6 @@ impl IndexFund {
         // params.authorities.admin.require_auth();
 
         let access_control = AccessControl::new(&e);
-        if access_control.get_role_safe(&Role::Admin).is_some() {
-            panic_with_error!(&e, IndexFundError::AlreadyInitialized);
-        }
-
         access_control.set_role_address(&Role::Admin, &params.authorities.admin);
         access_control.set_role_address(&Role::EmergencyAdmin, &params.authorities.emergency_admin);
         access_control.set_role_address(&Role::FeeAdmin, &params.authorities.fee_admin);
@@ -87,17 +78,18 @@ impl IndexFund {
         // Deploy the Stellar Asset Contract
         let sac_address = deployer.deploy();
 
-        put_token_share(&e, sac_address);
+        token_share::put_token_share(&e, sac_address);
         crate::storage::set_public(&e, &params.is_public);
         crate::storage::set_initial_price(&e, &params.initial_price);
 
         // Execute component updates without swap operations
-        IndexFund::execute_refactoring(
+        crate::refactor::refactor(
             &e,
-            params.admin.clone(),
+            params.authorities.admin,
             RefactorParams {
                 component_updates: params.components,
             },
+            current_time,
         );
     }
 }
@@ -143,8 +135,8 @@ impl IndexFundTrait for IndexFund {
         let net_amount = amount.saturating_sub(total_fee);
 
         // Shares
-        let total_shares_before = get_total_shares(&e);
-        let nav_before = Self::get_current_nav(e.clone()) as u128;
+        let total_shares_before = token_share::get_total_shares(&e);
+        let nav_before = crate::shares::get_current_nav(&e);
         let n_shares =
             crate::shares::nav_amount_to_shares(&e, net_amount, total_shares_before, nav_before);
 
@@ -178,17 +170,17 @@ impl IndexFundTrait for IndexFund {
         // Execute weight-based allocation only on net capital.
         IndexFund::execute_weight_based_mint(&e, token_quote.clone(), net_amount);
 
-        mint_shares(&e, &user, n_shares as i128);
+        token_share::mint_shares(&e, &user, n_shares as i128);
 
         let current_total_mints = crate::storage::get_total_mints(&e);
         crate::storage::set_total_mints(&e, &(current_total_mints + n_shares));
         crate::storage::add_user_monthly_volume(&e, &user, month_bucket, amount);
 
-        let nav_after = Self::get_current_nav(e.clone()) as u128;
-        let total_shares_after = get_total_shares(&e);
-        let share_price = Self::get_share_price(e.clone()) as u128;
+        let nav_after = crate::shares::get_current_nav(&e);
+        let total_shares_after = token_share::get_total_shares(&e);
+        let share_price = crate::shares::get_current_share_price(&e);
 
-        Events::new(&e).mint_executed(
+        Events::new(&e).mint(
             current_time,
             user.clone(),
             token_quote,
@@ -200,9 +192,6 @@ impl IndexFundTrait for IndexFund {
             total_shares_before,
             total_shares_after,
         );
-
-        // Also emit legacy event for backward compatibility
-        Events::new(&e).mint(current_time, user);
     }
 
     fn redeem(e: Env, user: Address, share_amount: u128) {
@@ -236,9 +225,9 @@ impl IndexFundTrait for IndexFund {
             crate::volume::get_volume_tier_fee_bps(&e, current_volume);
 
         // Shares
-        let total_shares_before = get_total_shares(&e);
-        let nav_before = Self::get_current_nav(e.clone()) as u128;
-        let share_price = Self::get_share_price(e.clone()) as u128;
+        let total_shares_before = token_share::get_total_shares(&e);
+        let nav_before = crate::shares::get_current_nav(&e);
+        let share_price = crate::shares::get_current_share_price(&e);
 
         let user_balance = token_share::get_user_balance_shares(&e, &user);
         if user_balance < share_amount {
@@ -315,20 +304,20 @@ impl IndexFundTrait for IndexFund {
             }
         }
 
-        burn_shares(&e, &user, share_amount);
+        token_share::burn_shares(&e, &user, share_amount);
 
         let current_total_redemptions = crate::storage::get_total_redemptions(&e);
         crate::storage::set_total_redemptions(&e, &(current_total_redemptions + share_amount));
         crate::storage::add_user_monthly_volume(&e, &user, month_bucket, nav_to_redeem);
 
-        let nav_after = Self::get_current_nav(e.clone()) as u128;
-        let total_shares_after = get_total_shares(&e);
+        let nav_after = crate::shares::get_current_nav(&e);
+        let total_shares_after = token_share::get_total_shares(&e);
 
         // let redemption_usd_value =
         //     VolumeTracker::calculate_redeem_usd_value(&e, share_amount, share_price);
         // VolumeTracker::record_redeem_volume(&e, &user, redemption_usd_value);
 
-        Events::new(&e).redemption_executed(
+        Events::new(&e).redemption(
             current_time,
             user.clone(),
             share_amount,
@@ -339,14 +328,7 @@ impl IndexFundTrait for IndexFund {
             total_shares_after,
             component_payouts,
         );
-
-        // Also emit legacy event for backward compatibility
-        Events::new(&e).redeem(current_time, user);
     }
-
-    // fn get_factory(e: Env) -> Address {
-    //     crate::storage::get_factory(&e)
-    // }
 
     fn get_whitelist_status(e: Env, address: Address) -> bool {
         crate::storage::get_whitelist_status(&e, &address)
@@ -362,29 +344,6 @@ impl IndexFundTrait for IndexFund {
 
     fn get_component_balance(e: Env, token: Address) -> u128 {
         crate::storage::get_component_balance_safe(&e, token).unwrap_or(0)
-    }
-
-    /// Transfer shares between users
-    fn transfer_shares(e: Env, from: Address, to: Address, amount: u128) {
-        from.require_auth();
-
-        // Execute the token transfer
-        let share_token = get_token_share(&e);
-        SorobanTokenClient::new(&e, &share_token).transfer(&from, &to, &(amount as i128));
-    }
-
-    /// Transfer shares from allowance
-    fn transfer_shares_from(e: Env, spender: Address, from: Address, to: Address, amount: u128) {
-        spender.require_auth();
-
-        // Execute the token transfer from allowance
-        let share_token = get_token_share(&e);
-        SorobanTokenClient::new(&e, &share_token).transfer_from(
-            &spender,
-            &from,
-            &to,
-            &(amount as i128),
-        );
     }
 }
 
@@ -413,7 +372,7 @@ impl AdminInterface for IndexFund {
         let current_time = e.ledger().timestamp();
 
         // Execute component updates without swap operations
-        IndexFund::execute_refactoring(&e, caller.clone(), params.clone());
+        crate::refactor::refactor(&e, caller.clone(), params.clone(), current_time);
 
         // Capture post-refactor state
         // let components_after = get_all_components(&e);
@@ -422,14 +381,13 @@ impl AdminInterface for IndexFund {
         crate::storage::set_last_updated_ts(&e, &current_time);
 
         // Emit refactor event
-        // TODO: Re-enable component state capture when iteration is fixed
-        // Events::new(&e).refactor_executed(
-        //     current_time,
-        //     caller.clone(),
-        //     components_before,
-        //     components_after,
-        //     params.component_updates.len() as u32,
-        // );
+        Events::new(&e).refactor(
+            current_time,
+            caller.clone(),
+            components_before,
+            components_after,
+            params.component_updates.len() as u32,
+        );
     }
 
     fn rebalance(e: Env, caller: Address, params: RebalanceParams) {
@@ -439,8 +397,6 @@ impl AdminInterface for IndexFund {
             panic_with_error!(e, IndexFundError::Blacklisted);
         }
 
-        log!(&e, "Rebalance called by caller: {:?}", caller);
-
         let is_public = crate::storage::get_public(&e);
         if !is_public {
             let access_control = AccessControl::new(&e);
@@ -449,10 +405,6 @@ impl AdminInterface for IndexFund {
             let is_rebalance_authority = access_control
                 .get_role_address_status_safe(&Role::RebalanceAuthorities, &caller)
                 .unwrap_or(false);
-
-            log!(&e, "Is admin: {:?}", is_admin);
-            log!(&e, "Is whitelisted: {:?}", is_whitelisted);
-            log!(&e, "Is rebalance authority: {:?}", is_rebalance_authority);
 
             if !is_admin && !is_whitelisted && !is_rebalance_authority {
                 panic_with_error!(e, IndexFundError::NotWhitelisted);
@@ -469,30 +421,17 @@ impl AdminInterface for IndexFund {
         }
 
         // Permission checks based on index type
-        if is_public {
-            // Public index: requires DAO proposal approval (for now, only admin)
-            IndexFund::validate_public_rebalance(&e, &caller, &params);
-        } else {
-            // Private index: admin or rebalance authority
-            IndexFund::validate_private_rebalance(&e, &caller);
-        }
-
-        log!(&e, "Rebalance validated");
+        crate::rebalance::validate_rebalance(&e, &caller);
 
         // Capture pre-rebalancing state
-        let nav_before = Self::get_current_nav(e.clone()) as u128;
+        let nav_before = crate::shares::get_current_nav(&e);
         let components_before = crate::storage::get_all_components(&e);
 
-        log!(&e, "Nav before: {:?}", nav_before);
-        log!(&e, "Components before: {:?}", components_before);
-
         // Execute rebalancing logic (swaps only)
-        IndexFund::execute_rebalancing(&e, caller.clone(), params.clone());
-
-        log!(&e, "Rebalancing executed");
+        crate::rebalance::rebalance(&e, caller.clone(), params.clone(), nav_before);
 
         // Capture post-rebalancing state
-        let nav_after = Self::get_current_nav(e.clone()) as u128;
+        let nav_after = crate::shares::get_current_nav(&e);
         let components_after = crate::storage::get_all_components(&e);
 
         // Update timestamps
@@ -500,7 +439,7 @@ impl AdminInterface for IndexFund {
         crate::storage::set_last_updated_ts(&e, &current_time);
 
         // Emit enhanced rebalancing event
-        Events::new(&e).rebalance_executed(
+        Events::new(&e).rebalance(
             current_time,
             caller.clone(),
             nav_before,
@@ -510,9 +449,6 @@ impl AdminInterface for IndexFund {
             0, // No swaps counted here - counted in execute_rebalancing
             (nav_after as i128) - (nav_before as i128), // Performance impact
         );
-
-        // Also emit legacy event for backward compatibility
-        Events::new(&e).rebalance(current_time, caller);
     }
 
     // Sets the privileged addresses.
@@ -542,6 +478,10 @@ impl AdminInterface for IndexFund {
             operations_admin,
             fee_admin,
         );
+    }
+
+    fn get_factory(e: Env) -> Address {
+        crate::storage::get_factory(&e)
     }
 
     // Returns a map of privileged roles.
@@ -582,8 +522,6 @@ impl AdminInterface for IndexFund {
 
         let access_control = AccessControl::new(&e);
         access_control.set_role_address_status(&Role::RebalanceAuthorities, &authority, status);
-
-        AccessControlEvents::new(&e).rebalance_authority_updated(authority, status);
     }
 
     fn set_factory(e: Env, admin: Address, factory: Address) {
@@ -617,7 +555,7 @@ impl AdminInterface for IndexFund {
         crate::storage::set_blacklist_status(&e, &address, status);
 
         Events::new(&e).blacklist_status_updated(
-            currene.ledger().timestamp(),
+            e.ledger().timestamp(),
             admin,
             address,
             old_status,
@@ -655,11 +593,10 @@ impl AdminInterface for IndexFund {
         // TODO:
     }
 
-    fn set_adapter(e: Env, admin: Address, adapter_type: AdapterType, adapter: Address) {
+    fn set_adapter_registry(e: Env, admin: Address, registry: Address) {
         admin.require_auth();
         require_operations_admin_or_owner(&e, &admin);
-
-        crate::storage::set_adapter_for_type(&e, adapter_type, &adapter);
+        crate::storage::set_adapter_registry(&e, &registry);
     }
 
     fn claim_protocol_fees(e: Env, admin: Address, token: Address, destination: Address) -> u128 {
@@ -698,14 +635,6 @@ impl AdminInterface for IndexFund {
         );
         crate::storage::set_accrued_manager_fee(&e, token, 0);
         accrued
-    }
-
-    fn convert_token_to_usd(e: Env, token: Address, amount: u128) -> u128 {
-        crate::oracle::OracleUtils::convert_token_to_usd(&e, &token, amount)
-    }
-
-    fn convert_token_to_usd_safe(e: Env, token: Address, amount: u128) -> Option<u128> {
-        crate::oracle::OracleUtils::convert_token_to_usd_safe(&e, &token, amount)
     }
 }
 
@@ -880,8 +809,8 @@ impl QueryInterface for IndexFund {
         IndexFundInfo {
             address: e.current_contract_address(),
             admin_address: crate::storage::get_admin(&e),
-            token_address: get_token_share(&e),
-            total_shares: get_total_shares(&e),
+            token_address: token_share::get_token_share(&e),
+            total_shares: token_share::get_total_shares(&e),
             initial_price: crate::storage::get_initial_price(&e),
             is_public: crate::storage::get_public(&e),
             rebalance_threshold: crate::storage::get_rebalance_threshold(&e),
@@ -905,43 +834,13 @@ impl QueryInterface for IndexFund {
         crate::storage::get_all_component_balances(&e)
     }
 
-    fn get_total_index_value(e: Env) -> u128 {
-        let mut total_value: u128 = 0;
-
-        // Get all component addresses from registry
-        let component_addresses = crate::storage::get_component_registry(&e);
-
-        // Iterate through each component to calculate total portfolio value
-        let len = component_addresses.len();
-        for i in 0..len {
-            let component_address = component_addresses.get_unchecked(i);
-            // Get the component balance (how much of this token the index holds)
-            let balance =
-                match crate::storage::get_component_balance_safe(&e, component_address.clone()) {
-                    Some(bal) => bal,
-                    None => 0u128, // If no balance stored, treat as 0
-                };
-
-            if balance > 0 {
-                // Get the token price - for now we'll use a placeholder approach
-                let token_price =
-                    IndexFund::get_token_price_in_base_currency(&e, component_address.clone());
-
-                // Calculate value: balance * price
-                let component_value = balance.saturating_mul(token_price);
-                total_value = total_value.saturating_add(component_value);
-            }
-        }
-
-        total_value
-    }
     // Financial metrics
     fn get_index_metrics(e: Env) -> IndexFundMetrics {
         let current_nav = IndexFund::get_current_nav(e.clone());
         let share_price = IndexFund::get_share_price(e.clone());
 
         IndexFundMetrics {
-            total_shares: get_total_shares(&e),
+            total_shares: token_share::get_total_shares(&e),
             total_mints: crate::storage::get_total_mints(&e),
             total_redemptions: crate::storage::get_total_redemptions(&e),
             current_nav,
@@ -950,25 +849,11 @@ impl QueryInterface for IndexFund {
     }
 
     fn get_share_price(e: Env) -> u128 {
-        let total_shares = get_total_shares(&e);
-        if total_shares == 0 {
-            let ip = crate::storage::get_initial_price(&e);
-            return if ip < 0 { 0 } else { ip as u128 };
-        }
-
-        let total_value = IndexFund::get_total_index_value(e.clone());
-        if total_value == 0 {
-            let ip = crate::storage::get_initial_price(&e);
-            return if ip < 0 { 0 } else { ip as u128 };
-        }
-
-        // Share price = Total Portfolio Value / Total Shares
-        total_value / total_shares
+        crate::shares::get_current_share_price(&e)
     }
 
     fn get_current_nav(e: Env) -> u128 {
-        // NAV (Net Asset Value) is the total value of all holdings
-        IndexFund::get_total_index_value(e)
+        crate::shares::get_current_nav(&e)
     }
 
     // Operational status
@@ -987,11 +872,7 @@ impl QueryInterface for IndexFund {
     }
 
     fn can_rebalance(e: Env) -> bool {
-        let current_time = e.ledger().timestamp();
-        let last_rebalance = crate::storage::get_last_rebalance_ts(&e);
-        let threshold = crate::storage::get_rebalance_threshold(&e);
-
-        current_time >= last_rebalance + threshold
+        crate::rebalance::can_rebalance(&e)
     }
 
     // Rebalancing queries
@@ -1106,51 +987,6 @@ impl QueryInterface for IndexFund {
 
 // Additional helper functions for Index
 impl IndexFund {
-    // Helper function to calculate total value of all component holdings
-    pub fn get_total_component_value(e: &Env) -> u128 {
-        let mut total_value: u128 = 0;
-
-        // Get all component addresses from registry
-        let component_addresses = crate::storage::get_component_registry(&e);
-
-        // Iterate through each component to calculate total portfolio value
-        let len = component_addresses.len();
-        for i in 0..len {
-            let component_address = component_addresses.get_unchecked(i);
-            // Get the component balance (how much of this token the index holds)
-            let balance =
-                match crate::storage::get_component_balance_safe(&e, component_address.clone()) {
-                    Some(bal) => bal,
-                    None => 0u128, // If no balance stored, treat as 0
-                };
-
-            if balance > 0 {
-                // Get the token price - for now we'll use a placeholder approach
-                let token_price =
-                    IndexFund::get_token_price_in_base_currency(&e, component_address.clone());
-
-                // Calculate value: balance * price
-                let component_value = balance.saturating_mul(token_price);
-                total_value = total_value.saturating_add(component_value);
-            }
-        }
-
-        total_value
-    }
-
-    // Helper function to get token price in base currency
-    // This is where oracle integration would happen
-    pub fn get_token_price_in_base_currency(e: &Env, token: Address) -> u128 {
-        // IMPLEMENTATION STRATEGY:
-        // 1. Try to get price from factory's swap aggregator
-        // 2. Fall back to stored price ratios
-        // 3. Default to 1:1 ratio if no price available
-
-        // Attempt to get factory address for price discovery
-        // TODO: add convert_token_usd_safe()
-        IndexFund::get_price_from_component_weight(&e, &token)
-    }
-
     // Helper function to get price based on component weight
     fn get_price_from_component_weight(e: &Env, token: &Address) -> u128 {
         // Get component information to use weight as a price indicator
@@ -1175,207 +1011,6 @@ impl IndexFund {
                 // Token not found in components, use default price
                 1_000_000u128 // 1.0 with 6 decimals
             }
-        }
-    }
-
-    // Rebalancing helper functions
-    fn validate_private_rebalance(e: &Env, caller: &Address) {
-        let access_control = AccessControl::new(e);
-        let is_rebalance_authority = access_control
-            .get_role_address_status_safe(&Role::RebalanceAuthorities, caller)
-            .unwrap_or(false);
-
-        // Allow admin or rebalance authority
-        if !access_control.address_has_role(caller, &Role::Admin) && !is_rebalance_authority {
-            panic_with_error!(e, IndexFundError::UnauthorizedRebalance);
-        }
-    }
-
-    fn validate_public_rebalance(e: &Env, caller: &Address, _params: &RebalanceParams) {
-        // For now, only admin can rebalance public indexes
-        // Later, add DAO proposal validation logic
-        let access_control = AccessControl::new(e);
-        if !access_control.address_has_role(caller, &Role::Admin) {
-            panic_with_error!(e, IndexFundError::PublicRebalanceRequiresProposal);
-        }
-    }
-
-    fn execute_rebalancing(e: &Env, admin: Address, params: RebalanceParams) {
-        let start_time = e.ledger().timestamp();
-        let nav_before = Self::get_current_nav(e.clone()) as u128;
-
-        let can_rebalance = IndexFund::can_rebalance(e.clone());
-        if !can_rebalance {
-            panic_with_error!(e, IndexFundError::RebalanceNotAllowed);
-        }
-
-        // Generate and execute swap transactions to align current balances with target weights
-        let swaps = crate::index::generate_rebalance_swaps(e, &params);
-        let total_swaps = swaps.len() as u32;
-
-        log!(&e, "Total swaps: {:?}", total_swaps);
-        if total_swaps > 0 {
-            log!(&e, "Executing swaps");
-            let _swap_results = crate::index::execute_swaps(e, swaps);
-        }
-
-        // Capture end state for enhanced event
-        let end_time = e.ledger().timestamp();
-        let nav_after = Self::get_current_nav(e.clone()) as u128;
-        let duration_ms = (end_time - start_time) * 1000; // Convert to milliseconds
-        let performance_delta = (nav_after as i128) - (nav_before as i128);
-
-        // Emit enhanced completion event (no components updated, only swaps)
-        Events::new(e).rebalance_completed_detailed(
-            end_time,
-            admin,
-            0, // components_updated: 0 since rebalancing doesn't update components anymore
-            total_swaps,
-            performance_delta,
-            nav_before,
-            nav_after,
-            duration_ms,
-        );
-
-        // Also emit legacy event for backward compatibility
-        Events::new(e).rebalance_completed(
-            e.current_contract_address(),
-            0, // components_updated: 0
-            total_swaps,
-        );
-    }
-
-    fn execute_refactoring(e: &Env, admin: Address, params: RefactorParams) {
-        let mut _components_updated = 0u32;
-
-        // Validate and execute component updates (without swaps)
-        let len = params.component_updates.len();
-        for i in 0..len {
-            let update = params.component_updates.get_unchecked(i);
-            match update.action {
-                ComponentAction::Add => {
-                    // Check if component already exists
-                    if crate::storage::get_component_safe(e, update.token.clone()).is_some() {
-                        panic_with_error!(e, IndexFundError::InvalidComponentAction);
-                    }
-
-                    // Require oracle for new components
-                    let oracle = update.oracle.clone().unwrap_or_else(|| {
-                        panic_with_error!(e, IndexFundError::MissingOracleAddress)
-                    });
-
-                    // Create component with symbol (simplified for now)
-                    let component = Component {
-                        asset: Symbol::new(e, "TOKEN"), // Simplified - would need proper token symbol
-                        weight: update.new_weight,
-                        oracle,
-                        adapter_type: update.adapter_type,
-                        adapter: update.adapter,
-                    };
-                    crate::storage::set_component(e, update.token.clone(), component);
-                    crate::storage::add_component_to_registry(e, update.token.clone());
-                    _components_updated += 1;
-
-                    // Get component balance for NAV impact calculation
-                    let initial_balance =
-                        crate::storage::get_component_balance_safe(e, update.token.clone())
-                            .unwrap_or(0);
-                    let current_time = e.ledger().timestamp();
-
-                    // Emit enhanced event
-                    Events::new(e).component_added_detailed(
-                        current_time,
-                        admin.clone(),
-                        update.token.clone(),
-                        update.new_weight,
-                        initial_balance,
-                        0, // TODO: Calculate actual NAV impact
-                    );
-
-                    // Also emit legacy event for backward compatibility
-                    Events::new(e).component_added(update.token.clone(), update.new_weight);
-                }
-                ComponentAction::Remove => {
-                    // Get component info before removing
-                    let component = crate::storage::get_component(e, update.token.clone()); // This will panic if not found
-                    let old_weight = component.weight;
-                    let final_balance =
-                        crate::storage::get_component_balance_safe(e, update.token.clone())
-                            .unwrap_or(0);
-                    let current_time = e.ledger().timestamp();
-
-                    crate::storage::remove_component(e, update.token.clone());
-                    _components_updated += 1;
-
-                    // Emit enhanced event
-                    Events::new(e).component_removed_detailed(
-                        current_time,
-                        admin.clone(),
-                        update.token.clone(),
-                        final_balance,
-                        final_balance, // proceeds_distributed (approximation)
-                        0,             // TODO: Calculate actual NAV impact
-                    );
-
-                    // Also emit legacy event for backward compatibility
-                    Events::new(e).component_removed(update.token.clone());
-                }
-                ComponentAction::UpdateWeight => {
-                    // Check if component exists first
-                    let component_exists =
-                        crate::storage::get_component_safe(e, update.token.clone()).is_some();
-
-                    if !component_exists {
-                        panic_with_error!(e, IndexFundError::ComponentNotFound);
-                    }
-
-                    // Get component info before updating
-                    let mut component = crate::storage::get_component(e, update.token.clone());
-                    let old_weight = component.weight;
-                    component.weight = update.new_weight;
-
-                    // Optionally update oracle if provided
-                    if let Some(new_oracle) = update.oracle.clone() {
-                        component.oracle = new_oracle;
-                    }
-                    component.adapter_type = update.adapter_type;
-
-                    crate::storage::set_component(e, update.token.clone(), component);
-                    _components_updated += 1;
-
-                    // Emit legacy event for backward compatibility
-                    Events::new(e).component_weight_updated(
-                        update.token.clone(),
-                        old_weight,
-                        update.new_weight,
-                    );
-                }
-            }
-        }
-
-        // Validate that final weights sum to 10000
-        // Calculate by iterating registry and getting components directly (avoiding get_all_components Map issues)
-        let component_registry = crate::storage::get_component_registry(e);
-        let registry_len = component_registry.len();
-
-        // If no components, weights should sum to 0 (valid empty state)
-        if registry_len == 0 {
-            return;
-        }
-
-        let mut total_weight = 0u128;
-        for i in 0..registry_len {
-            let token_address = component_registry.get_unchecked(i);
-
-            // Get component directly from storage instead of using Map
-            if let Some(component) = crate::storage::get_component_safe(e, token_address.clone()) {
-                total_weight += component.weight;
-            }
-        }
-
-        // Validate that final weights sum to 10000
-        if total_weight != 10000 {
-            panic_with_error!(e, IndexFundError::InvalidWeightSum);
         }
     }
 

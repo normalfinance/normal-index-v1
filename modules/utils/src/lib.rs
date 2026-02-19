@@ -4,7 +4,6 @@ pub mod bump;
 pub mod constant;
 pub mod errors;
 pub mod macros;
-pub mod storage;
 pub mod token;
 pub use errors::*;
 pub mod math;

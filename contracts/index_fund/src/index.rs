@@ -1,4 +1,4 @@
-use soroban_sdk::{log, panic_with_error, Address, Env, IntoVal, Symbol, Vec};
+use soroban_sdk::{panic_with_error, Address, Env, IntoVal, Symbol, Vec};
 use types::adapter::AdapterTradeParams;
 use types::component::RebalanceParams;
 use utils::validate;
@@ -6,7 +6,7 @@ use utils::validate;
 use crate::errors::IndexFundError;
 use crate::events::{Events, IndexEvents};
 use crate::interface::QueryInterface;
-use crate::storage::{get_adapter_for_type_safe, get_all_components};
+use crate::storage::get_all_components;
 
 pub fn generate_swap_params(
     e: &Env,
@@ -67,8 +67,6 @@ pub fn execute_swaps(e: &Env, swaps: Vec<AdapterTradeParams>) -> Vec<u128> {
     for i in 0..swaps.len() {
         let params = swaps.get(i).unwrap();
 
-        log!(&e, "Executing swap with params: {:?}", params);
-
         // Get the component info to extract the asset symbol
         // For buy swaps: token_out is the component, for sell swaps: token_in is the component
         let component_token = if params.token_out == quote_token {
@@ -78,21 +76,16 @@ pub fn execute_swaps(e: &Env, swaps: Vec<AdapterTradeParams>) -> Vec<u128> {
             // Buy swap: buying component with base token
             params.token_out.clone()
         };
-        let component = crate::storage::get_component(e, component_token);
-        let adapter_address = match get_adapter_for_type_safe(e, component.adapter_type.clone()) {
-            Some(v) => v,
-            None => {
-                Events::new(&e).swap_failed(
-                    e.current_contract_address(),
-                    params.token_in,
-                    params.token_out,
-                    params.amount_in,
-                    997u32,
-                );
-                results.push_back(0u128);
-                continue;
-            }
-        };
+        let component = crate::storage::get_component(e, component_token.clone());
+        let adapter_address =
+            if let Some(adapter_name) = get_component_adapter_name_safe(e, &component_token) {
+                get_adapter_by_name_safe(e, &adapter_name)
+                    .or_else(|| get_adapter_for_type_safe(e, component.adapter_type.clone()))
+                    .unwrap_or(component.adapter.clone())
+            } else {
+                get_adapter_for_type_safe(e, component.adapter_type.clone())
+                    .unwrap_or(component.adapter.clone())
+            };
 
         let method = if params.token_out == quote_token {
             Symbol::new(e, "sell_token")

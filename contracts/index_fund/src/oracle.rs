@@ -1,4 +1,4 @@
-use access_control::errors::AccessControlError;
+use index_access_control::errors::IndexAccessControlError;
 use soroban_sdk::{panic_with_error, Address, Env, Symbol, Vec};
 use types::oracle::{HistoricalOracleData, OracleValidity};
 
@@ -14,7 +14,7 @@ impl OracleUtils {
     /// Get token price from oracle, returns None if oracle call fails
     pub fn get_token_price_usd_safe(env: &Env, oracle: &Address) -> Option<u128> {
         let result = env
-            .try_invoke_contract::<(HistoricalOracleData, OracleValidity), AccessControlError>(
+            .try_invoke_contract::<(HistoricalOracleData, OracleValidity), IndexAccessControlError>(
                 oracle,
                 &Symbol::new(env, "get_price"),
                 Vec::from_array(env, []),
@@ -44,15 +44,15 @@ impl OracleUtils {
             Ok((historical_data, validity)) => match validity {
                 OracleValidity::Valid => historical_data.last_price,
                 OracleValidity::NonPositive => {
-                    panic_with_error!(env, AccessControlError::Unauthorized);
+                    panic_with_error!(env, IndexAccessControlError::Unauthorized);
                 }
                 OracleValidity::TooVolatile => historical_data.last_price_twap,
                 OracleValidity::StaleForPool | OracleValidity::Frozen => {
-                    panic_with_error!(env, AccessControlError::Unauthorized);
+                    panic_with_error!(env, IndexAccessControlError::Unauthorized);
                 }
             },
             Err(_) => {
-                panic_with_error!(env, AccessControlError::Unauthorized);
+                panic_with_error!(env, IndexAccessControlError::Unauthorized);
             }
         }
     }

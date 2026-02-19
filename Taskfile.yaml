@@ -18,7 +18,10 @@ tasks:
 
   build:
     cmds:
-      - task -d contracts/normal_adapter build || exit 1
+      - task -d contracts/adapter_registry build || exit 1
+      - task -d contracts/adapters/normal build || exit 1
+      - task -d contracts/adapters/aquarius build || exit 1
+      - task -d contracts/adapters/soroswap build || exit 1
       - task -d contracts/index_fund_factory build || exit 1
       - cp ./target/wasm32v1-none/release/*.wasm ./wasm
 

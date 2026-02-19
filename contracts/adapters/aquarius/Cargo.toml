@@ -1,0 +1,16 @@
+[package]
+name = "aquarius_adapter"
+version.workspace = true
+edition = "2021"
+publish = false
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = { workspace = true }
+paste = { workspace = true }
+utils = { workspace = true }
+adapter = { workspace = true }
+types = { workspace = true }

@@ -1,5 +1,5 @@
 use crate::role::{Role, SymbolRepresentation};
-use soroban_sdk::{Address, Env, Symbol, Vec};
+use soroban_sdk::{Address, Env, Symbol};
 
 #[derive(Clone)]
 pub struct Events(Env);
@@ -54,17 +54,6 @@ impl Events {
         self.env().events().publish(
             (Symbol::new(self.env(), "set_privileged_addrs"),),
             (rewards_admin, operations_admin, fee_admin),
-        )
-    }
-
-    fn rebalance_authority_updated(&self, authority: Address, status: bool) {
-        self.env().events().publish(
-            (
-                Symbol::new(self.env(), "rebalance_authority_updated"),
-                authority,
-                status,
-            ),
-            (),
         )
     }
 

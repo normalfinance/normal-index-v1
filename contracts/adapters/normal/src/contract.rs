@@ -1,0 +1,103 @@
+use adapter::{AdapterError, AdapterTrait};
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Symbol};
+use types::adapter::AdapterTradeParams;
+
+use crate::normal_treasury::{Direction, NormalTreasuryClient, Side};
+
+#[contract]
+pub struct NormalAdapter;
+
+#[contractimpl]
+impl NormalAdapter {
+    pub fn __constructor(
+        e: Env,
+        admin: Address,
+        protocol_id: String,
+        protocol_address: Address,
+        protocol_quote_token: Address,
+    ) {
+        crate::storage::set_admin(&e, &admin);
+        crate::storage::set_protocol_id(&e, &protocol_id);
+        crate::storage::set_protocol_address(&e, &protocol_address);
+        crate::storage::set_protocol_quote_token(&e, &protocol_quote_token);
+    }
+}
+
+#[contractimpl]
+impl AdapterTrait for NormalAdapter {
+    fn swap(e: Env, params: AdapterTradeParams) -> Result<u128, AdapterError> {
+        let normal_treasury_address = crate::storage::get_protocol_address(&e);
+        let normal_treasury_client = NormalTreasuryClient::new(&e, &normal_treasury_address);
+
+        let protocol_quote_token = crate::storage::get_protocol_quote_token(&e);
+
+        let direction = if params.token_in == protocol_quote_token {
+            Direction::Buy
+        } else {
+            Direction::Sell
+        };
+
+        let side = Side::Long;
+
+        let mut amount_out = 0;
+
+        let pair = params
+            .metadata?
+            .address
+            .get(Symbol::new(&e, "pair"))
+            .unwrap();
+
+        match (direction, side) {
+            (Direction::Buy, Side::Long) => {
+                let (long_out, fee) = normal_treasury_client.buy_long(
+                    &params.to,
+                    &pair,
+                    &params.amount_in,
+                    &params.amount_out_min,
+                );
+
+                amount_out = long_out;
+            }
+            (Direction::Buy, Side::Short) => {
+                let (short_out, fee) = normal_treasury_client.buy_short(
+                    &params.to,
+                    &pair,
+                    &params.amount_in,
+                    &params.amount_out_min,
+                );
+
+                amount_out = short_out;
+            }
+            (Direction::Sell, Side::Long) => {
+                let (usdc_out, fee) = normal_treasury_client.sell_long(
+                    &params.to,
+                    &pair,
+                    &params.amount_in,
+                    &params.amount_out_min,
+                );
+
+                amount_out = usdc_out;
+            }
+            (Direction::Sell, Side::Short) => {
+                let (usdc_out, fee) = normal_treasury_client.sell_short(
+                    &params.to,
+                    &pair,
+                    &params.amount_in,
+                    &params.amount_out_min,
+                );
+
+                amount_out = usdc_out;
+            }
+        }
+
+        Ok(amount_out)
+    }
+
+    fn get_protocol_id(e: &Env) -> Result<String, AdapterError> {
+        Ok(crate::storage::get_protocol_id(&e))
+    }
+
+    fn get_protocol_address(e: &Env) -> Result<Address, AdapterError> {
+        Ok(crate::storage::get_protocol_address(&e))
+    }
+}
