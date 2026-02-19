@@ -1,5 +1,5 @@
 use paste::paste;
-use soroban_sdk::{contracttype, panic_with_error, Address, Env, String};
+use soroban_sdk::{panic_with_error, Address, Env, String, Symbol};
 use utils::bump::bump_instance;
 use utils::errors::storage_errors::StorageError;
 use utils::{
@@ -7,22 +7,20 @@ use utils::{
     generate_instance_storage_setter,
 };
 
-#[contracttype]
-#[derive(Clone)]
-enum DataKey {
-    Admin,
-    ProtocolId,
-    ProtocolAddress,
-    ProtocolQuoteToken, // USDC
-}
+/********** Storage Key Types **********/
+
+const KEY_ADMIN: &str = "Admin";
+const KEY_PROTOCOL_ID: &str = "ProtocolId";
+const KEY_PROTOCOL_ADDRESS: &str = "ProtocolAddress";
+const KEY_PROTOCOL_QUOTE_TOKEN: &str = "ProtocolQuoteToken";
 
 /********** Storage **********/
 
-generate_instance_storage_getter_and_setter!(admin, DataKey::Admin, Address);
-generate_instance_storage_getter_and_setter!(protocol_id, DataKey::ProtocolId, String);
-generate_instance_storage_getter_and_setter!(protocol_address, DataKey::ProtocolAddress, Address);
+generate_instance_storage_getter_and_setter!(admin, KEY_ADMIN, Address);
+generate_instance_storage_getter_and_setter!(protocol_id, KEY_PROTOCOL_ID, String);
+generate_instance_storage_getter_and_setter!(protocol_address, KEY_PROTOCOL_ADDRESS, Address);
 generate_instance_storage_getter_and_setter!(
     protocol_quote_token,
-    DataKey::ProtocolQuoteToken,
+    KEY_PROTOCOL_QUOTE_TOKEN,
     Address
 );
