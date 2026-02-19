@@ -1,6 +1,5 @@
 use soroban_sdk::{Address, Env, Map, Symbol, Vec};
 use types::{
-    adapter::AdapterType,
     component::{Component, ComponentAllocation, RebalanceParams, RebalanceStatus, RefactorParams},
     index::{IndexFundInfo, IndexFundMetrics, IndexFundStatus},
     volume::VolumeFeeTier,

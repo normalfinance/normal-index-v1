@@ -1,5 +1,6 @@
 #![no_std]
 
+mod adapter;
 mod contract;
 pub mod errors;
 mod events;
@@ -11,20 +12,9 @@ mod rebalance;
 mod refactor;
 mod shares;
 mod storage;
-#[cfg(test)]
-mod test_rebalance;
-#[cfg(test)]
-mod test_refactor;
+pub mod token;
 mod volume;
 
-#[cfg(test)]
-mod test_utils;
-
-pub mod token;
-
-// mod test;
-// mod test_math;
-// mod test_permissions;
-// mod testutils;
+mod test;
 
 pub use crate::contract::{IndexFund, IndexFundClient};

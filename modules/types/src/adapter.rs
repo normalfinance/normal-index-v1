@@ -1,24 +1,9 @@
 use soroban_sdk::{contracttype, Address, Map, Symbol};
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum AdapterType {
-    Normal,
-    Aquarius,
-    Soroswap,
-}
-
-impl Default for AdapterType {
-    fn default() -> Self {
-        Self::Normal
-    }
-}
-
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdapterMetadata {
-    pub address: Map<Symbol, Address>,
-    pub number: Map<Symbol, i128>,
+    pub address: Option<Map<Symbol, Address>>,
+    pub number: Option<Map<Symbol, i128>>,
 }
 
 #[contracttype]

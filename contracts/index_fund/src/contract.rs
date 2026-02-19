@@ -5,6 +5,7 @@ use crate::interface::{AdminInterface, IndexFundTrait, QueryInterface};
 
 use soroban_sdk::contractmeta;
 use soroban_sdk::Bytes;
+use soroban_sdk::IntoVal;
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, Address, BytesN, Env, Map, Symbol, Vec,
 };
@@ -17,7 +18,7 @@ use utils::validate;
 
 // Types
 use types::{
-    adapter::{AdapterTradeParams, AdapterType},
+    adapter::AdapterTradeParams,
     component::{Component, ComponentAllocation, RebalanceParams, RebalanceStatus, RefactorParams},
     index::{DeployIndexParams, IndexFundInfo, IndexFundMetrics, IndexFundStatus},
     volume::VolumeFeeTier,
@@ -103,7 +104,7 @@ impl IndexFund {
         token_share::put_token_share(&e, index_token_contract);
 
         // Set config
-        crate::storage::set_token_quote(&e, &params.token_quote);
+        crate::storage::set_token_quote(&e, &params.quote_token);
         crate::storage::set_public(&e, &params.is_public);
         crate::storage::set_initial_price(&e, &params.initial_price);
 
@@ -114,7 +115,7 @@ impl IndexFund {
             RefactorParams {
                 component_updates: params.components,
             },
-            current_time,
+            e.ledger().timestamp(),
         );
     }
 }
@@ -193,7 +194,7 @@ impl IndexFundTrait for IndexFund {
         }
 
         // Execute weight-based allocation only on net capital.
-        IndexFund::execute_weight_based_mint(&e, token_quote.clone(), net_amount);
+        crate::shares::execute_weight_based_mint(&e, token_quote.clone(), net_amount);
 
         token_share::mint_shares(&e, &user, n_shares as i128);
 
@@ -216,6 +217,8 @@ impl IndexFundTrait for IndexFund {
             nav_after,
             total_shares_before,
             total_shares_after,
+            protocol_fee,
+            manager_fee,
         );
     }
 
@@ -393,14 +396,14 @@ impl AdminInterface for IndexFund {
         }
 
         // Capture pre-refactor state
-        // let components_before = get_all_components(&e);
+        let components_before = crate::storage::get_all_components(&e);
         let current_time = e.ledger().timestamp();
 
         // Execute component updates without swap operations
         crate::refactor::refactor(&e, caller.clone(), params.clone(), current_time);
 
         // Capture post-refactor state
-        // let components_after = get_all_components(&e);
+        let components_after = crate::storage::get_all_components(&e);
 
         // Update last updated timestamp (but not rebalance timestamp)
         crate::storage::set_last_updated_ts(&e, &current_time);
@@ -463,7 +466,6 @@ impl AdminInterface for IndexFund {
         crate::storage::set_last_rebalance_ts(&e, &current_time);
         crate::storage::set_last_updated_ts(&e, &current_time);
 
-        // Emit enhanced rebalancing event
         Events::new(&e).rebalance(
             current_time,
             caller.clone(),
@@ -472,7 +474,6 @@ impl AdminInterface for IndexFund {
             components_before,
             components_after,
             0, // No swaps counted here - counted in execute_rebalancing
-            (nav_after as i128) - (nav_before as i128), // Performance impact
         );
     }
 
@@ -592,12 +593,7 @@ impl AdminInterface for IndexFund {
         admin.require_auth();
         require_operations_admin_or_owner(&e, &admin);
 
-        let old_threshold = crate::storage::get_rebalance_threshold(&e);
         crate::storage::set_rebalance_threshold(&e, &threshold);
-
-        let current_time = e.ledger().timestamp();
-        // Emit enhanced event
-        Events::new(&e).rebalance_threshold_updated(current_time, admin, old_threshold, threshold);
     }
 
     fn set_trade_fee_tiers(e: Env, admin: Address, tiers: Vec<VolumeFeeTier>) {
@@ -833,7 +829,7 @@ impl QueryInterface for IndexFund {
     fn get_index_info(e: Env) -> IndexFundInfo {
         IndexFundInfo {
             address: e.current_contract_address(),
-            admin_address: crate::storage::get_admin(&e),
+            admin_address: AccessControl::new(&e).get_role_safe(&Role::Admin).unwrap(),
             token_address: token_share::get_token_share(&e),
             total_shares: token_share::get_total_shares(&e),
             initial_price: crate::storage::get_initial_price(&e),
@@ -1007,118 +1003,5 @@ impl QueryInterface for IndexFund {
 
     fn get_trade_fee_tiers(e: Env) -> Vec<VolumeFeeTier> {
         crate::storage::get_trade_fee_tiers(&e)
-    }
-}
-
-// Additional helper functions for Index
-impl IndexFund {
-    // Helper function to get price based on component weight
-    fn get_price_from_component_weight(e: &Env, token: &Address) -> u128 {
-        // Get component information to use weight as a price indicator
-        match crate::storage::get_component_safe(e, token.clone()) {
-            Some(component) => {
-                // Use component weight as a price multiplier
-                // Higher weight = more valuable component
-                // Weight is typically in basis points (e.g., 5000 = 50%)
-                let base_price = 1_000_000u128; // Base price of 1.0 (6 decimals)
-                let weight_multiplier = if component.weight > 0 {
-                    // Scale weight (basis points) to a reasonable price multiplier
-                    // Weight 10000 (100%) = 1.0x, Weight 5000 (50%) = 0.5x, etc.
-                    component.weight.max(1000) // Minimum 10% weight
-                } else {
-                    1000u128 // Default 10% weight
-                };
-
-                // Calculate price: base_price * (weight / 10000)
-                base_price.saturating_mul(weight_multiplier) / 10000
-            }
-            None => {
-                // Token not found in components, use default price
-                1_000_000u128 // 1.0 with 6 decimals
-            }
-        }
-    }
-
-    fn execute_weight_based_mint(e: &Env, deposited_token: Address, deposited_amount: u128) {
-        // Get all current components and their weights
-        let components = crate::storage::get_all_components(e);
-
-        if components.len() == 0 {
-            // No components defined, just hold the deposited token as-is
-            panic_with_error!(&e, IndexFundError::ComponentNotFound);
-            // return;
-        }
-
-        let mut swaps = Vec::new(e);
-
-        // Get component addresses for iteration
-        let component_addresses = crate::storage::get_component_registry(e);
-
-        // For each component, calculate how much of the deposited amount should be allocated
-        let len = component_addresses.len();
-        for i in 0..len {
-            let component_token = component_addresses.get_unchecked(i);
-            let component = components.get(component_token.clone()).unwrap();
-
-            // Calculate target amount based on weight (weight is in basis points, 10000 = 100%)
-            let target_amount = (deposited_amount * component.weight) / 10000;
-
-            if target_amount > 0 {
-                if component_token == deposited_token {
-                    // No swap needed - the deposited token matches this component
-                    // Just update the component balance directly
-                    let current_balance =
-                        crate::storage::get_component_balance_safe(e, component_token.clone())
-                            .unwrap_or(0);
-                    crate::storage::set_component_balance(
-                        e,
-                        component_token.clone(),
-                        current_balance + target_amount,
-                    );
-                } else {
-                    // Need to swap deposited token for component token
-                    let swap = AdapterTradeParams {
-                        token_in: deposited_token.clone(),
-                        token_out: component_token.clone(),
-                        amount_in: target_amount,
-                        amount_out_min: (target_amount * 95) / 100, // 5% slippage tolerance
-                        to: e.current_contract_address(),
-                        asset: component.asset.clone(),
-                    };
-
-                    swaps.push_back(swap);
-                }
-            }
-        }
-
-        // Execute all swaps if any are needed
-        if swaps.len() > 0 {
-            let swap_results = crate::index::execute_swaps(e, swaps);
-
-            // Update component balances based on swap results
-            let mut swap_index = 0;
-            let len2 = component_addresses.len();
-            for i in 0..len2 {
-                let component_token = component_addresses.get_unchecked(i);
-                let component = components.get(component_token.clone()).unwrap();
-                let target_amount = (deposited_amount * component.weight) / 10000;
-
-                if target_amount > 0 && component_token != deposited_token {
-                    // This component required a swap
-                    if swap_index < swap_results.len() {
-                        let amount_received = swap_results.get(swap_index).unwrap_or(0u128);
-                        let current_balance =
-                            crate::storage::get_component_balance_safe(e, component_token.clone())
-                                .unwrap_or(0);
-                        crate::storage::set_component_balance(
-                            e,
-                            component_token.clone(),
-                            current_balance + amount_received,
-                        );
-                        swap_index += 1;
-                    }
-                }
-            }
-        }
     }
 }

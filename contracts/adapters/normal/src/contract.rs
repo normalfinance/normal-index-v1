@@ -47,10 +47,11 @@ impl AdapterTrait for NormalAdapter {
         let mut amount_out = 0;
 
         let pair = params
-            .metadata?
-            .address
-            .get(Symbol::new(&e, "pair"))
-            .unwrap();
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.address.as_ref())
+            .and_then(|addresses| addresses.get(Symbol::new(&e, "pair")))
+            .ok_or(AdapterError::InvalidArgument)?;
 
         match (direction, side) {
             (Direction::Buy, Side::Long) => {

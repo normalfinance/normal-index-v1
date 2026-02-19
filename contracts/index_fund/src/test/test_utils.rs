@@ -8,10 +8,7 @@ use access_control::access::AccessControl;
 use access_control::management::SingleAddressManagementTrait;
 use access_control::role::Role;
 use soroban_sdk::{contract, contractimpl, testutils::Address as _, Address, Env, Symbol, Vec};
-use types::{
-    adapter::{AdapterTradeParams, AdapterType},
-    component::Component,
-};
+use types::{adapter::AdapterTradeParams, component::Component};
 
 //TODO: Remove completely mock swaps from here and use the swap utility contract for testing
 
@@ -96,9 +93,9 @@ pub fn setup_test_contracts(e: &Env) -> (Address, Address, Address, Address) {
 
     e.as_contract(&index_contract, || {
         set_swap_utility(e, &swap_utility);
-        crate::storage::set_adapter_for_type(e, AdapterType::Normal, &swap_utility);
-        crate::storage::set_adapter_for_type(e, AdapterType::Aquarius, &swap_utility);
-        crate::storage::set_adapter_for_type(e, AdapterType::Soroswap, &swap_utility);
+        // crate::storage::set_adapter_for_type(e, Symbol::new(e, "Normal"), &swap_utility);
+        // crate::storage::set_adapter_for_type(e, AdapterType::Aquarius, &swap_utility);
+        // crate::storage::set_adapter_for_type(e, AdapterType::Soroswap, &swap_utility);
 
         // Set up admin role in AccessControl - required for permission checks
         let access_control = AccessControl::new(e);
@@ -178,7 +175,7 @@ pub fn setup_components_with_balances(
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
                 oracle,
-                adapter_type: AdapterType::Normal,
+                adapter: Symbol::new(e, "Normal"),
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -202,7 +199,7 @@ pub fn enhanced_setup_components(
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
                 oracle,
-                adapter_type: AdapterType::Normal,
+                adapter: Symbol::new(e, "Normal"),
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -225,7 +222,7 @@ pub fn setup_components_without_balances(
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
                 oracle,
-                adapter_type: AdapterType::Normal,
+                adapter: Symbol::new(e, "Normal"),
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -245,7 +242,7 @@ pub fn setup_components_with_zero_balances(
                 asset: Symbol::new(e, "TOKEN"),
                 weight,
                 oracle,
-                adapter_type: AdapterType::Normal,
+                adapter: Symbol::new(e, "Normal"),
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());
@@ -293,7 +290,7 @@ pub fn create_balanced_test_scenario(
                 asset: Symbol::new(e, "TOKEN"),
                 weight: weight_per_token,
                 oracle,
-                adapter_type: AdapterType::Normal,
+                adapter: Symbol::new(e, "Normal"),
             };
             crate::storage::set_component(e, token.clone(), component);
             crate::storage::add_component_to_registry(e, token.clone());

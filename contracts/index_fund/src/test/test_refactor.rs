@@ -12,7 +12,6 @@ use super::test_utils::{
 };
 use soroban_sdk::{log, testutils::Address as _, vec, Address, Env, Symbol, Vec};
 use token_share::get_total_shares;
-use types::adapter::AdapterType;
 use types::component::{ComponentAction, ComponentUpdate, RefactorParams};
 use utils::test_utils::jump;
 
@@ -58,10 +57,10 @@ fn test_refactor_add_component() {
         &e,
         ComponentUpdate {
             token: token.clone(),
-            new_weight: 10000, // 100%
+            new_weight: Some(10000), // 100%
             action: ComponentAction::Add,
-            oracle: Some(oracle),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle),
+            new_adapter: None,
         },
     ];
 
@@ -114,10 +113,10 @@ fn test_refactor_remove_component() {
         &e,
         ComponentUpdate {
             token: token.clone(),
-            new_weight: 0, // Weight doesn't matter for Remove
+            new_weight: Some(0), // Weight doesn't matter for Remove
             action: ComponentAction::Remove,
-            oracle: None,
-            adapter_type: AdapterType::Normal,
+            new_oracle: None,
+            new_adapter: None,
         },
     ];
 
@@ -156,10 +155,10 @@ fn test_refactor_update_weight() {
         &e,
         ComponentUpdate {
             token: token.clone(),
-            new_weight: 10000,
+            new_weight: Some(10000),
             action: ComponentAction::UpdateWeight,
-            oracle: None,
-            adapter_type: AdapterType::Normal,
+            new_oracle: None,
+            new_adapter: None,
         },
     ];
 
@@ -194,17 +193,17 @@ fn test_refactor_weight_sum_must_equal_10000() {
         &e,
         ComponentUpdate {
             token: token1.clone(),
-            new_weight: 6000,
+            new_weight: Some(6000),
             action: ComponentAction::Add,
-            oracle: Some(oracle1),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle1),
+            new_adapter: None,
         },
         ComponentUpdate {
             token: token2.clone(),
-            new_weight: 4000,
+            new_weight: Some(4000),
             action: ComponentAction::Add,
-            oracle: Some(oracle2),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle2),
+            new_adapter: None,
         },
     ];
 
@@ -239,17 +238,17 @@ fn test_refactor_weight_sum_not_10000_fails() {
         &e,
         ComponentUpdate {
             token: token1.clone(),
-            new_weight: 5000,
+            new_weight: Some(5000),
             action: ComponentAction::Add,
-            oracle: Some(oracle1),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle1),
+            new_adapter: None,
         },
         ComponentUpdate {
             token: token2.clone(),
-            new_weight: 4000,
+            new_weight: Some(4000),
             action: ComponentAction::Add,
-            oracle: Some(oracle2),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle2),
+            new_adapter: None,
         },
     ];
 
@@ -279,17 +278,17 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
         &e,
         ComponentUpdate {
             token: token1.clone(),
-            new_weight: 5000,
+            new_weight: Some(5000),
             action: ComponentAction::Add,
-            oracle: Some(oracle1),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle1),
+            new_adapter: None,
         },
         ComponentUpdate {
             token: token2.clone(),
-            new_weight: 5000,
+            new_weight: Some(5000),
             action: ComponentAction::Add,
-            oracle: Some(oracle2),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle2),
+            new_adapter: None,
         },
     ];
 
@@ -305,17 +304,17 @@ fn test_refactor_multiple_updates_weight_sum_validation() {
         &e,
         ComponentUpdate {
             token: token1.clone(),
-            new_weight: 6000,
+            new_weight: Some(6000),
             action: ComponentAction::UpdateWeight,
-            oracle: None,
-            adapter_type: AdapterType::Normal,
+            new_oracle: None,
+            new_adapter: None,
         },
         ComponentUpdate {
             token: token2.clone(),
-            new_weight: 4000,
+            new_weight: Some(4000),
             action: ComponentAction::UpdateWeight,
-            oracle: None,
-            adapter_type: AdapterType::Normal,
+            new_oracle: None,
+            new_adapter: None,
         },
     ];
 
@@ -354,10 +353,10 @@ fn test_refactor_requires_admin() {
         &e,
         ComponentUpdate {
             token,
-            new_weight: 10000,
+            new_weight: Some(10000),
             action: ComponentAction::Add,
-            oracle: Some(oracle),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle),
+            new_adapter: None,
         },
     ];
 
@@ -387,10 +386,10 @@ fn test_refactor_blacklisted_admin_fails() {
         &e,
         ComponentUpdate {
             token,
-            new_weight: 10000,
+            new_weight: Some(10000),
             action: ComponentAction::Add,
-            oracle: Some(oracle),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle),
+            new_adapter: None,
         },
     ];
 
@@ -418,10 +417,10 @@ fn test_refactor_admin_can_refactor_anytime() {
         &e,
         ComponentUpdate {
             token: token1.clone(),
-            new_weight: 10000,
+            new_weight: Some(10000),
             action: ComponentAction::Add,
-            oracle: Some(oracle1),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle1),
+            new_adapter: None,
         },
     ];
     client.refactor(
@@ -436,10 +435,10 @@ fn test_refactor_admin_can_refactor_anytime() {
         &e,
         ComponentUpdate {
             token: token1.clone(),
-            new_weight: 10000,
+            new_weight: Some(10000),
             action: ComponentAction::UpdateWeight,
-            oracle: None,
-            adapter_type: AdapterType::Normal,
+            new_oracle: None,
+            new_adapter: None,
         },
     ];
     client.refactor(
@@ -474,10 +473,10 @@ fn test_operations_allowed_after_rebalance() {
         &e,
         ComponentUpdate {
             token: comp_token,
-            new_weight: 10000,
+            new_weight: Some(10000),
             action: ComponentAction::Add,
-            oracle: Some(oracle),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle),
+            new_adapter: None,
         },
     ];
     client.refactor(
@@ -524,10 +523,10 @@ fn test_refactor_with_no_components() {
         &e,
         ComponentUpdate {
             token: token.clone(),
-            new_weight: 10000,
+            new_weight: Some(10000),
             action: ComponentAction::Add,
-            oracle: Some(oracle),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle),
+            new_adapter: None,
         },
     ];
     client.refactor(
@@ -564,10 +563,10 @@ fn test_refactor_remove_last_component() {
         &e,
         ComponentUpdate {
             token,
-            new_weight: 0,
+            new_weight: Some(0),
             action: ComponentAction::Remove,
-            oracle: None,
-            adapter_type: AdapterType::Normal,
+            new_oracle: None,
+            new_adapter: None,
         },
     ];
     client.refactor(
@@ -613,31 +612,31 @@ fn test_refactor_batch_updates() {
         &e,
         ComponentUpdate {
             token: token4.clone(),
-            new_weight: 2000,
+            new_weight: Some(2000),
             action: ComponentAction::Add,
-            oracle: Some(oracle4),
-            adapter_type: AdapterType::Normal,
+            new_oracle: Some(oracle4),
+            new_adapter: None,
         },
         ComponentUpdate {
             token: token3.clone(),
-            new_weight: 0,
+            new_weight: Some(0),
             action: ComponentAction::Remove,
-            oracle: None,
-            adapter_type: AdapterType::Normal,
+            new_oracle: None,
+            new_adapter: None,
         },
         ComponentUpdate {
             token: token1.clone(),
-            new_weight: 5000,
+            new_weight: Some(5000),
             action: ComponentAction::UpdateWeight,
-            oracle: None,
-            adapter_type: AdapterType::Normal,
+            new_oracle: None,
+            new_adapter: None,
         },
         ComponentUpdate {
             token: token2.clone(),
-            new_weight: 3000,
+            new_weight: Some(3000),
             action: ComponentAction::UpdateWeight,
-            oracle: None,
-            adapter_type: AdapterType::Normal,
+            new_oracle: None,
+            new_adapter: None,
         },
     ];
 

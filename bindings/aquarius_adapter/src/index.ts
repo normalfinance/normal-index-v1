@@ -388,7 +388,7 @@ export interface Client {
 export class Client extends ContractClient {
   static async deploy<T = Client>(
         /** Constructor/Initialization Args for the contract's `__constructor` method */
-        {admin, protocol_id, protocol_address, protocol_quote_token}: {admin: string, protocol_id: string, protocol_address: string, protocol_quote_token: string},
+        {admin, protocol_id, protocol_address}: {admin: string, protocol_id: string, protocol_address: string},
     /** Options for initializing a Client as well as for calling a method, with extras specific to deploying. */
     options: MethodOptions &
       Omit<ContractClientOptions, "contractId"> & {
@@ -400,11 +400,11 @@ export class Client extends ContractClient {
         format?: "hex" | "base64";
       }
   ): Promise<AssembledTransaction<T>> {
-    return ContractClient.deploy({admin, protocol_id, protocol_address, protocol_quote_token}, options)
+    return ContractClient.deploy({admin, protocol_id, protocol_address}, options)
   }
   constructor(public readonly options: ContractClientOptions) {
     super(
-      new ContractSpec([ "AAAAAAAAAAAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAQAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAALcHJvdG9jb2xfaWQAAAAAEAAAAAAAAAAQcHJvdG9jb2xfYWRkcmVzcwAAABMAAAAAAAAAFHByb3RvY29sX3F1b3RlX3Rva2VuAAAAEwAAAAA=",
+      new ContractSpec([ "AAAAAAAAAAAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAMAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAALcHJvdG9jb2xfaWQAAAAAEAAAAAAAAAAQcHJvdG9jb2xfYWRkcmVzcwAAABMAAAAA",
         "AAAAAAAAAAAAAAAEc3dhcAAAAAEAAAAAAAAABnBhcmFtcwAAAAAH0AAAABJBZGFwdGVyVHJhZGVQYXJhbXMAAAAAAAEAAAPpAAAACgAAB9AAAAAMQWRhcHRlckVycm9y",
         "AAAAAAAAAAAAAAAPZ2V0X3Byb3RvY29sX2lkAAAAAAAAAAABAAAD6QAAABAAAAfQAAAADEFkYXB0ZXJFcnJvcg==",
         "AAAAAAAAAAAAAAAUZ2V0X3Byb3RvY29sX2FkZHJlc3MAAAAAAAAAAQAAA+kAAAATAAAH0AAAAAxBZGFwdGVyRXJyb3I=",

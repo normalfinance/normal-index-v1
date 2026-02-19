@@ -2,19 +2,17 @@
 extern crate std;
 
 use crate::testutils;
-use crate::testutils::long_short_pair::PairTokens;
 use crate::testutils::Setup;
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{Address, String, Symbol, Vec};
 use types::component::ComponentUpdate;
 use types::index::{DeployIndexParams, IndexFundAuthorities};
-use types::pair::PairParams;
 
 #[test]
 fn test_deploy_contract() {
     let setup = Setup::default();
     let admin = setup.admin.clone();
-    let usdc = Address::generate(&e);
+    let usdc = Address::generate(&setup.env);
 
     let params = DeployIndexParams {
         authorities: IndexFundAuthorities {
@@ -25,20 +23,20 @@ fn test_deploy_contract() {
             operations_admin: setup.operations_admin,
             rebalance_authorities: Vec::from_array(&setup.env, []),
         },
-        quote_token: Address::generate(&e),
-        name: String::from("Top 5 Index"),
-        description: String::from("My amazing test index fund"),
-        symbol: String::from("TOP5"),
+        quote_token: Address::generate(&setup.env),
+        name: String::from_str(&setup.env, "Top 5 Index"),
+        description: String::from_str(&setup.env, "My amazing test index fund"),
+        symbol: String::from_str(&setup.env, "TOP5"),
         is_public: true,
         initial_price: 100_0000000,
         components: Vec::from_array(
-            &e,
+            &setup.env,
             [ComponentUpdate {
                 token: usdc,
-                new_weight: 1,
+                new_weight: Some(1_u128),
                 action: types::component::ComponentAction::Add,
-                oracle: Option(Address::generate(&e)),
-                adapter: Symbol::from("Normal"),
+                new_oracle: Some(Address::generate(&setup.env)),
+                new_adapter: Some(Symbol::new(&setup.env, "Normal")),
             }],
         ),
     };

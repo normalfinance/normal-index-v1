@@ -12,8 +12,8 @@ use super::test_utils::{
     setup_components_with_zero_balances, setup_components_without_balances,
     setup_mock_token_shares,
 };
+use soroban_sdk::Symbol;
 use soroban_sdk::{log, testutils::Address as _, vec, Address, Env, Vec};
-use types::adapter::AdapterType;
 use types::component::{
     ComponentAction, ComponentUpdate, RebalanceParams, RebalanceStatus, RefactorParams,
 };
@@ -710,24 +710,24 @@ fn test_full_refactor_rebalance_flow() {
         &e,
         ComponentUpdate {
             token: token1.clone(),
-            new_weight: 4000,
             action: ComponentAction::UpdateWeight,
-            oracle: None,
-            adapter_type: AdapterType::Normal,
+            new_weight: Some(4000),
+            new_oracle: None,
+            new_adapter: None,
         },
         ComponentUpdate {
             token: token2.clone(),
-            new_weight: 3000,
             action: ComponentAction::UpdateWeight,
-            oracle: None,
-            adapter_type: AdapterType::Normal,
+            new_weight: Some(4000),
+            new_oracle: None,
+            new_adapter: None,
         },
         ComponentUpdate {
             token: token3.clone(),
-            new_weight: 3000,
             action: ComponentAction::Add,
-            oracle: Some(create_mock_oracle(&e)),
-            adapter_type: AdapterType::Normal,
+            new_weight: Some(3000),
+            new_oracle: Some(create_mock_oracle(&e)),
+            new_adapter: None,
         },
     ];
 

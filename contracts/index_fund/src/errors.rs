@@ -37,4 +37,6 @@ pub enum IndexFundError {
 
     // Oracle Errors
     MissingOracleAddress = 49,
+
+    FailedToGetAdapter = 50,
 }

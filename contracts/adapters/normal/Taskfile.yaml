@@ -12,8 +12,8 @@ tasks:
   build:
     cmds:
       - soroban contract build --package normal_adapter
-      - soroban contract optimize --wasm ../../target/wasm32v1-none/release/normal_adapter.wasm --wasm-out ../../target/wasm32v1-none/release/normal_adapter.wasm
-      - cp ../../target/wasm32v1-none/release/normal_adapter.wasm ../../wasm/normal_adapter.wasm
+      - soroban contract optimize --wasm ../../../target/wasm32v1-none/release/normal_adapter.wasm --wasm-out ../../../target/wasm32v1-none/release/normal_adapter.wasm
+      - cp ../../../target/wasm32v1-none/release/normal_adapter.wasm ../../../wasm/normal_adapter.wasm
 
   test:
     deps:

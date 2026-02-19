@@ -1,3 +1,8 @@
+use crate::events::Events;
+use crate::events::IndexEvents;
+use index_access_control::access::IndexAccessControlTrait;
+use index_access_control::management::MapAddressesManagementTrait;
+use index_access_control::{access::IndexAccessControl as AccessControl, role::Role};
 use soroban_sdk::{panic_with_error, Address, Env};
 use types::component::RebalanceParams;
 
@@ -21,14 +26,13 @@ pub fn validate_rebalance(e: &Env, caller: &Address) {
     // Allow admin or rebalance authority
     if !access_control.address_has_role(caller, &Role::Admin) && !is_rebalance_authority {
         panic_with_error!(e, IndexFundError::UnauthorizedRebalance);
-        s
     }
 }
 
 pub fn rebalance(e: &Env, admin: Address, params: RebalanceParams, nav_before: u128) {
     let start_time = e.ledger().timestamp();
 
-    let can_rebalance = can_rebalance(e.clone());
+    let can_rebalance = can_rebalance(e);
     if !can_rebalance {
         panic_with_error!(e, IndexFundError::RebalanceNotAllowed);
     }
@@ -43,7 +47,7 @@ pub fn rebalance(e: &Env, admin: Address, params: RebalanceParams, nav_before: u
 
     // Capture end state for enhanced event
     let end_time = e.ledger().timestamp();
-    let nav_after = Self::get_current_nav(e.clone()) as u128;
+    let nav_after = crate::shares::get_current_nav(e);
     let duration_ms = (end_time - start_time) * 1000; // Convert to milliseconds
     let performance_delta = (nav_after as i128) - (nav_before as i128);
 

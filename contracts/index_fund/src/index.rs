@@ -50,6 +50,7 @@ pub fn generate_swap_params(
                 amount_out_min: min_output,
                 to: e.current_contract_address(),
                 asset: component.asset.clone(),
+                metadata: None,
             };
 
             swaps.push_back(swap);
@@ -77,34 +78,21 @@ pub fn execute_swaps(e: &Env, swaps: Vec<AdapterTradeParams>) -> Vec<u128> {
             params.token_out.clone()
         };
         let component = crate::storage::get_component(e, component_token.clone());
-        let adapter_address =
-            if let Some(adapter_name) = get_component_adapter_name_safe(e, &component_token) {
-                get_adapter_by_name_safe(e, &adapter_name)
-                    .or_else(|| get_adapter_for_type_safe(e, component.adapter_type.clone()))
-                    .unwrap_or(component.adapter.clone())
-            } else {
-                get_adapter_for_type_safe(e, component.adapter_type.clone())
-                    .unwrap_or(component.adapter.clone())
-            };
 
-        let method = if params.token_out == quote_token {
-            Symbol::new(e, "sell_token")
-        } else {
-            Symbol::new(e, "buy_token")
-        };
+        // let method = if params.token_out == quote_token {
+        //     Symbol::new(e, "sell_token")
+        // } else {
+        //     Symbol::new(e, "buy_token")
+        // };
 
-        let adapter_result = e.try_invoke_contract::<u128, soroban_sdk::Error>(
-            &adapter_address,
-            &method,
-            Vec::from_array(e, [params.into_val(e)]),
-        );
+        let adapter_address = crate::adapter::get_adapter_from_registry(e, &component.adapter);
 
         match adapter_result {
             Ok(Ok(amount_out)) => {
                 Events::new(&e).swap(
                     Vec::new(&e),
                     e.current_contract_address(),
-                    component.adapter_type,
+                    component.adapter,
                     params.token_in,
                     params.token_out,
                     params.amount_in,
@@ -180,6 +168,7 @@ pub fn generate_rebalance_swaps(e: &Env, params: &RebalanceParams) -> Vec<Adapte
                     amount_out_min: (amount_needed * 95) / 100, // 5% slippage tolerance
                     to: e.current_contract_address(),
                     asset: component.asset.clone(),
+                    metadata: None,
                 };
 
                 swaps.push_back(swap);
@@ -195,6 +184,7 @@ pub fn generate_rebalance_swaps(e: &Env, params: &RebalanceParams) -> Vec<Adapte
                     amount_out_min: (amount_to_sell * 95) / 100, // 5% slippage tolerance
                     to: e.current_contract_address(),
                     asset: component.asset.clone(),
+                    metadata: None,
                 };
 
                 swaps.push_back(swap);

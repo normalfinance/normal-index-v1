@@ -21,13 +21,18 @@ pub fn add_component(e: &Env, update: ComponentUpdate, current_time: u64) {
         panic_with_error!(e, IndexFundError::InvalidComponentAction);
     }
 
+    let (new_weight, new_oracle, new_adapter) =
+        match (update.new_weight, update.new_oracle, update.new_adapter) {
+            (Some(weight), Some(oracle), Some(adapter)) => (weight, oracle, adapter),
+            _ => panic_with_error!(e, IndexFundError::InvalidComponentAction),
+        };
+
     // Create component
     let component = Component {
         asset: Symbol::new(e, "TOKEN"),
-        weight: update.new_weight,
-        oracle: update.oracle,
-        adapter_type: update.adapter_type.clone(),
-        adapter: update.adapter.clone(),
+        weight: new_weight,
+        oracle: new_oracle,
+        adapter: new_adapter,
     };
     crate::storage::set_component(e, update.token.clone(), component);
     crate::storage::add_component_to_registry(e, update.token.clone());
@@ -38,15 +43,15 @@ pub fn add_component(e: &Env, update: ComponentUpdate, current_time: u64) {
 
     Events::new(e).component_added(
         current_time,
-        admin.clone(),
+        e.current_contract_address(),
         update.token.clone(),
-        update.new_weight,
+        new_weight,
         initial_balance,
         0, // TODO: Calculate actual NAV impact
     );
 }
 
-pub fn remove_component(e: &Env, update: ComponentUpdate, current_time: u64) {
+pub fn remove_component(e: &Env, authority: Address, update: ComponentUpdate, current_time: u64) {
     validate_component(e, update.token.clone());
 
     // Get component info before removing
@@ -59,7 +64,7 @@ pub fn remove_component(e: &Env, update: ComponentUpdate, current_time: u64) {
 
     Events::new(e).component_removed(
         current_time,
-        admin.clone(),
+        authority.clone(),
         update.token.clone(),
         final_balance,
         final_balance, // proceeds_distributed (approximation)
@@ -67,39 +72,50 @@ pub fn remove_component(e: &Env, update: ComponentUpdate, current_time: u64) {
     );
 }
 
-pub fn update_component(e: &Env, update: ComponentUpdate, current_time: u64) {
+pub fn update_component(e: &Env, authority: Address, update: ComponentUpdate, current_time: u64) {
     validate_component(e, update.token.clone());
 
     // Get component
     let mut component = crate::storage::get_component(e, update.token.clone());
 
-    // Update
-    if update.action == ComponentAction::UpdateWeight {
+    if let Some(new_weight) = update.new_weight {
         let old_weight = component.weight;
-        component.weight = update.new_weight;
-
+        let balance =
+            crate::storage::get_component_balance_safe(e, update.token.clone()).unwrap_or(0);
+        component.weight = new_weight;
         Events::new(e).component_weight_updated(
+            current_time,
+            authority.clone(),
             update.token.clone(),
             old_weight,
-            update.new_weight,
+            new_weight,
+            balance,
+            balance,
+            0,
         );
-    } else if update.action == ComponentAction::UpdateAdapter {
-        let old_adapter = component.adapter;
-        component.adapter = update.adapter;
+    }
 
+    if let Some(new_adapter) = update.new_adapter {
+        let old_adapter = component.adapter.clone();
+        component.adapter = new_adapter.clone();
         Events::new(e).component_adapter_updated(
+            current_time,
+            authority.clone(),
             update.token.clone(),
             old_adapter,
-            update.new_adapter,
+            new_adapter,
         );
-    } else if update.action == ComponentAction::UpdateOracle {
-        let old_oracle = component.oracle;
-        component.oracle = update.oracle;
+    }
 
+    if let Some(new_oracle) = update.new_oracle {
+        let old_oracle = component.oracle.clone();
+        component.oracle = new_oracle.clone();
         Events::new(e).component_oracle_updated(
+            current_time,
+            authority.clone(),
             update.token.clone(),
             old_oracle,
-            update.new_oracle,
+            new_oracle,
         );
     }
 
@@ -107,13 +123,13 @@ pub fn update_component(e: &Env, update: ComponentUpdate, current_time: u64) {
     crate::storage::set_component(e, update.token.clone(), component);
 }
 
-pub fn handle_update(e: &Env, update: ComponentUpdate, current_time: u64) {
+pub fn handle_update(e: &Env, authority: Address, update: ComponentUpdate, current_time: u64) {
     match update.action {
         ComponentAction::Add => add_component(e, update, current_time),
-        ComponentAction::Remove => remove_component(e, update, current_time),
+        ComponentAction::Remove => remove_component(e, authority, update, current_time),
         ComponentAction::UpdateWeight
         | ComponentAction::UpdateAdapter
-        | ComponentAction::UpdateOracle => update_component(e, update, current_time),
+        | ComponentAction::UpdateOracle => update_component(e, authority, update, current_time),
     }
 }
 
@@ -121,7 +137,12 @@ pub fn refactor(e: &Env, authority: Address, params: RefactorParams, current_tim
     // Validate and execute component updates (without swaps)
     let len = params.component_updates.len();
     for i in 0..len {
-        handle_update(e, params.component_updates.get_unchecked(i), current_time);
+        handle_update(
+            e,
+            authority.clone(),
+            params.component_updates.get_unchecked(i),
+            current_time,
+        );
     }
 
     // Validate that final weights sum to 10000

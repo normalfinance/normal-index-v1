@@ -39,6 +39,9 @@ tasks:
     cmds:
       - for: { var: SUBDIRS }
         cmd: task -d {{ .ITEM }} fmt || exit 1
+      - task -d contracts/adapters/normal fmt || exit 1
+      - task -d contracts/adapters/aquarius fmt || exit 1
+      - task -d contracts/adapters/soroswap fmt || exit 1
 
   clean:
     cmds:

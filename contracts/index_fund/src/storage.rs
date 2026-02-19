@@ -1,6 +1,5 @@
 use paste::paste;
-use soroban_sdk::token::TokenClient as SorobanTokenClient;
-use soroban_sdk::{contracttype, log, panic_with_error, Address, Env, Map, Vec};
+use soroban_sdk::{contracttype, panic_with_error, Address, Env, Map, Symbol, Vec};
 
 use types::component::Component;
 use types::volume::VolumeFeeTier;
@@ -14,6 +13,35 @@ use utils::{
 };
 
 /********** Storage Key Types **********/
+
+const KEY_FACTORY: &str = "Factory";
+const KEY_ADAPTER_REGISTRY: &str = "AdapterRegistry";
+
+/// The token accepted during minting and used to swap, i.e. USDC
+const KEY_TOKEN_QUOTE: &str = "TokenQuote";
+
+/// The price assigned to the index at inception (e.g. $100)
+const KEY_INITIAL_PRICE: &str = "InitialPrice";
+
+/// Private indexes are mutable and can only be minted by the admin and whitelist. Pubilic indexes are immutabel and can be minted by anyone
+const KEY_PUBLIC: &str = "Public";
+
+/// Minimum amount of time that must pass before the index can be rebalanced again
+const KEY_REBALANCE_THRESHOLD: &str = "RebalanceThreshold";
+
+/// The ts when the index was last rebalanced
+const KEY_LAST_REBALANCE_TS: &str = "LastRebalanceTs";
+
+/// The ts when the index was last updated (any property)
+const KEY_LAST_UPDATE_TS: &str = "LastUpdatedTs";
+
+const KEY_TRADE_FEE_TIERS: &str = "TradeFeeTiers";
+
+const KEY_TOTAL_MINTS: &str = "TotalMints";
+const KEY_TOTAL_REDEMPTIONS: &str = "TotalRedemptions";
+
+/// Vec<Address> - list of all component addresses
+const KEY_COMPONENT_REGISTRY: &str = "ComponentRegistry";
 
 /// Composite key for `(pair, user)` LP share balances.
 ///
@@ -32,33 +60,14 @@ pub struct UserMonthlyVolumeKey {
 #[derive(Clone)]
 #[contracttype]
 enum IndexFundDataKey {
-    Factory,
-    AdapterRegistry,
-    TokenQuote, // The token accepted during minting and used to swap, i.e. USDC
-
-    InitialPrice, // The price assigned to the index at inception (e.g. $100)
-
-    Component(Address), // Map of token address to Component
-    // Component registry
-    ComponentRegistry, // Vec<Address> - list of all component addresses
+    /// Map of token address to Component
+    Component(Address),
+    ///
     ComponentBalance(Address),
-
-    Public, // Private indexes are mutable and can only be minted by the admin and whitelist. Pubilic indexes are immutabel and can be minted by anyone
-
-    Whitelist(Address), // List of accounts explicitly allowed to mint the index
-    Blacklist(Address), // List of accounts blocked from minting the index
-
-    RebalanceThreshold, // Minimum amount of time that must pass before the index can be rebalanced again
-
-    LastRebalanceTs, // The ts when the index was last rebalanced
-    LastUpdatedTs,   // The ts when the index was last updated (any property)
-
-    // Metrics
-    TotalMints,
-    TotalRedemptions,
-
-    // Fee and volume tracking
-    TradeFeeTiers,
+    /// List of accounts explicitly allowed to mint the index
+    Whitelist(Address),
+    /// List of accounts blocked from minting the index
+    Blacklist(Address),
     /// user + month bucket -> volume
     UserMonthlyVolume(UserMonthlyVolumeKey),
     /// token -> amount
@@ -69,35 +78,144 @@ enum IndexFundDataKey {
 
 /********** Storage **********/
 
-generate_instance_storage_getter_and_setter!(factory, IndexFundDataKey::Factory, Address);
-generate_instance_storage_getter_and_setter!(
-    adapter_registry,
-    IndexFundDataKey::AdapterRegistry,
-    Address
-);
-generate_instance_storage_getter_and_setter!(token_quote, IndexFundDataKey::TokenQuote, Address);
-
-// Financial Configuration
+generate_instance_storage_getter_and_setter!(factory, KEY_FACTORY, Address);
+generate_instance_storage_getter_and_setter!(adapter_registry, KEY_ADAPTER_REGISTRY, Address);
+generate_instance_storage_getter_and_setter!(token_quote, KEY_TOKEN_QUOTE, Address);
 generate_instance_storage_getter_and_setter_with_default!(
     initial_price,
-    IndexFundDataKey::InitialPrice,
+    KEY_INITIAL_PRICE,
+    u128,
+    0
+);
+generate_instance_storage_getter_and_setter_with_default!(public, KEY_PUBLIC, bool, false);
+generate_instance_storage_getter_and_setter_with_default!(
+    rebalance_threshold,
+    KEY_REBALANCE_THRESHOLD,
+    u64,
+    THIRTY_DAY
+);
+generate_instance_storage_getter_and_setter_with_default!(
+    last_rebalance_ts,
+    KEY_LAST_REBALANCE_TS,
+    u64,
+    0
+);
+generate_instance_storage_getter_and_setter_with_default!(
+    last_updated_ts,
+    KEY_LAST_UPDATE_TS,
+    u64,
+    0
+);
+generate_instance_storage_getter_and_setter_with_default!(total_mints, KEY_TOTAL_MINTS, u128, 0);
+generate_instance_storage_getter_and_setter_with_default!(
+    total_redemptions,
+    KEY_TOTAL_REDEMPTIONS,
     u128,
     0
 );
 
-// State
-generate_instance_storage_getter_and_setter_with_default!(
-    public,
-    IndexFundDataKey::Public,
-    bool,
-    false
-);
-generate_instance_storage_getter_and_setter_with_default!(
-    rebalance_threshold,
-    IndexFundDataKey::RebalanceThreshold,
-    u64,
-    THIRTY_DAY
-);
+// Component registry management functions
+
+pub fn get_component_registry(e: &Env) -> Vec<Address> {
+    // let key = IndexFundDataKey::ComponentRegistry;
+    match e.storage().instance().get(&KEY_COMPONENT_REGISTRY) {
+        Some(registry) => {
+            bump_instance(e);
+            registry
+        }
+        None => Vec::new(e),
+    }
+}
+
+pub fn add_component_to_registry(env: &Env, token: Address) {
+    // let key = IndexFundDataKey::ComponentRegistry;
+    let mut registry: Vec<Address> = match env.storage().instance().get(&KEY_COMPONENT_REGISTRY) {
+        Some(reg) => reg,
+        None => Vec::new(env),
+    };
+
+    // Check if component is already in registry
+    let len = registry.len();
+    for i in 0..len {
+        let existing_token = registry.get_unchecked(i);
+        if existing_token == token {
+            return; // Already exists, don't add duplicate
+        }
+    }
+
+    // Add new component to registry
+    registry.push_back(token);
+    env.storage()
+        .instance()
+        .set(&KEY_COMPONENT_REGISTRY, &registry);
+    bump_instance(env);
+}
+
+pub fn remove_component_from_registry(env: &Env, token: Address) {
+    // let key = IndexFundDataKey::ComponentRegistry;
+    let registry: Vec<Address> = match env.storage().instance().get(&KEY_COMPONENT_REGISTRY) {
+        Some(reg) => reg,
+        None => {
+            return;
+        } // No registry exists
+    };
+
+    // Find and remove the component
+    let mut new_registry = Vec::new(env);
+    let len = registry.len();
+    for i in 0..len {
+        let existing_token = registry.get_unchecked(i);
+        if existing_token != token {
+            new_registry.push_back(existing_token);
+        }
+    }
+
+    env.storage()
+        .instance()
+        .set(&KEY_COMPONENT_REGISTRY, &new_registry);
+    bump_instance(env);
+}
+
+pub fn set_trade_fee_tiers(e: &Env, tiers: Vec<VolumeFeeTier>) {
+    e.storage().instance().set(&KEY_TRADE_FEE_TIERS, &tiers);
+    bump_instance(e);
+}
+
+pub fn get_trade_fee_tiers(e: &Env) -> Vec<VolumeFeeTier> {
+    bump_instance(e);
+    e.storage()
+        .instance()
+        .get(&KEY_TRADE_FEE_TIERS)
+        .unwrap_or_else(|| {
+            Vec::from_array(
+                e,
+                [
+                    VolumeFeeTier {
+                        min_monthly_volume: 0,
+                        protocol_fee_bps: 100,
+                        manager_fee_bps: 0,
+                    },
+                    VolumeFeeTier {
+                        min_monthly_volume: 10_000 * 1_0000000,
+                        protocol_fee_bps: 80,
+                        manager_fee_bps: 0,
+                    },
+                    VolumeFeeTier {
+                        min_monthly_volume: 50_000 * 1_0000000,
+                        protocol_fee_bps: 60,
+                        manager_fee_bps: 0,
+                    },
+                    VolumeFeeTier {
+                        min_monthly_volume: 100_000 * 1_0000000,
+                        protocol_fee_bps: 40,
+                        manager_fee_bps: 0,
+                    },
+                ],
+            )
+        })
+}
+
+/** PERSTISTENT STORAGE */
 
 // Monthly Volume
 
@@ -127,47 +245,6 @@ pub fn add_user_monthly_volume(e: &Env, user: &Address, month_bucket: u64, amoun
 }
 
 // Fees
-
-pub fn set_trade_fee_tiers(e: &Env, tiers: Vec<VolumeFeeTier>) {
-    e.storage()
-        .instance()
-        .set(&IndexFundDataKey::TradeFeeTiers, &tiers);
-    bump_instance(e);
-}
-
-pub fn get_trade_fee_tiers(e: &Env) -> Vec<VolumeFeeTier> {
-    bump_instance(e);
-    e.storage()
-        .instance()
-        .get(&IndexFundDataKey::TradeFeeTiers)
-        .unwrap_or_else(|| {
-            Vec::from_array(
-                e,
-                [
-                    VolumeFeeTier {
-                        min_monthly_volume: 0,
-                        protocol_fee_bps: 100,
-                        manager_fee_bps: 0,
-                    },
-                    VolumeFeeTier {
-                        min_monthly_volume: 10_000 * 1_0000000,
-                        protocol_fee_bps: 80,
-                        manager_fee_bps: 0,
-                    },
-                    VolumeFeeTier {
-                        min_monthly_volume: 50_000 * 1_0000000,
-                        protocol_fee_bps: 60,
-                        manager_fee_bps: 0,
-                    },
-                    VolumeFeeTier {
-                        min_monthly_volume: 100_000 * 1_0000000,
-                        protocol_fee_bps: 40,
-                        manager_fee_bps: 0,
-                    },
-                ],
-            )
-        })
-}
 
 pub fn get_accrued_manager_fee(e: &Env, token: Address) -> u128 {
     let key = IndexFundDataKey::AccruedManagerFee(token);
@@ -266,20 +343,6 @@ pub fn set_blacklist_status(e: &Env, address: &Address, status: bool) {
     }
 }
 
-// Timestamps
-generate_instance_storage_getter_and_setter_with_default!(
-    last_rebalance_ts,
-    IndexFundDataKey::LastRebalanceTs,
-    u64,
-    0
-);
-generate_instance_storage_getter_and_setter_with_default!(
-    last_updated_ts,
-    IndexFundDataKey::LastUpdatedTs,
-    u64,
-    0
-);
-
 // Component Balance
 
 pub fn get_component_balance(e: &Env, token: Address) -> u128 {
@@ -318,18 +381,6 @@ pub fn get_all_components(e: &Env) -> Map<Address, Component> {
     components_map
 }
 
-// Helper function to get component registry
-pub fn get_component_registry(e: &Env) -> Vec<Address> {
-    let key = IndexFundDataKey::ComponentRegistry;
-    match e.storage().persistent().get(&key) {
-        Some(registry) => {
-            bump_persistent(e, &key);
-            registry
-        }
-        None => Vec::new(e),
-    }
-}
-
 // Helper function to get component without panicking
 pub fn get_component_safe(e: &Env, token: Address) -> Option<Component> {
     let key = IndexFundDataKey::Component(token);
@@ -348,8 +399,6 @@ pub fn get_component_safe(e: &Env, token: Address) -> Option<Component> {
 
 pub fn get_component(e: &Env, token: Address) -> Component {
     let key = IndexFundDataKey::Component(token.clone());
-    log!(e, "Getting component for token: {:?}", token);
-    log!(e, "Key in get_component: {:?}", key);
     match e
         .storage()
         .persistent()
@@ -357,7 +406,6 @@ pub fn get_component(e: &Env, token: Address) -> Component {
     {
         Some(component) => {
             bump_persistent(e, &key);
-            log!(e, "Component in get_component: {:?}", component);
             component
         }
         None => panic_with_error!(e, StorageError::ValueNotInitialized),
@@ -413,10 +461,7 @@ pub fn get_all_component_balances(e: &Env) -> Map<Address, u128> {
 
 // Helper function to get component balance without panicking
 pub fn get_component_balance_safe(e: &Env, token: Address) -> Option<u128> {
-    let token_clone = token.clone();
-    let key = IndexFundDataKey::ComponentBalance(token);
-    log!(e, "Getting component balance for token: {:?}", token_clone);
-    log!(e, "Key: {:?}", key);
+    let key = IndexFundDataKey::ComponentBalance(token.clone());
     match e.storage().persistent().get::<IndexFundDataKey, u128>(&key) {
         Some(balance) => {
             bump_persistent(e, &key);
@@ -430,80 +475,4 @@ pub fn set_component_balance(env: &Env, token: Address, balance: u128) {
     let key = IndexFundDataKey::ComponentBalance(token);
     env.storage().persistent().set(&key, &balance);
     env.storage().persistent().extend_ttl(&key, 100000, 100000);
-}
-
-// Component registry management functions
-pub fn add_component_to_registry(env: &Env, token: Address) {
-    let key = IndexFundDataKey::ComponentRegistry;
-    let mut registry: Vec<Address> = match env.storage().persistent().get(&key) {
-        Some(reg) => reg,
-        None => Vec::new(env),
-    };
-
-    // Check if component is already in registry
-    let len = registry.len();
-    for i in 0..len {
-        let existing_token = registry.get_unchecked(i);
-        if existing_token == token {
-            return; // Already exists, don't add duplicate
-        }
-    }
-
-    // Add new component to registry
-    registry.push_back(token);
-    env.storage().persistent().set(&key, &registry);
-    bump_persistent(env, &key);
-}
-
-pub fn remove_component_from_registry(env: &Env, token: Address) {
-    let key = IndexFundDataKey::ComponentRegistry;
-    let registry: Vec<Address> = match env.storage().persistent().get(&key) {
-        Some(reg) => reg,
-        None => {
-            return;
-        } // No registry exists
-    };
-
-    // Find and remove the component
-    let mut new_registry = Vec::new(env);
-    let len = registry.len();
-    for i in 0..len {
-        let existing_token = registry.get_unchecked(i);
-        if existing_token != token {
-            new_registry.push_back(existing_token);
-        }
-    }
-
-    env.storage().persistent().set(&key, &new_registry);
-    bump_persistent(env, &key);
-}
-
-// Helper function to get factory address safely
-pub fn get_factory_safe(e: &Env) -> Option<Address> {
-    let key = IndexFundDataKey::Factory;
-    match e.storage().instance().get(&key) {
-        Some(factory) => {
-            bump_instance(e);
-            Some(factory)
-        }
-        None => None,
-    }
-}
-
-// Metrics
-generate_instance_storage_getter_and_setter_with_default!(
-    total_mints,
-    IndexFundDataKey::TotalMints,
-    u128,
-    0
-);
-generate_instance_storage_getter_and_setter_with_default!(
-    total_redemptions,
-    IndexFundDataKey::TotalRedemptions,
-    u128,
-    0
-);
-
-pub fn get_index_vault_amount(e: &Env, token: &Address) -> u128 {
-    SorobanTokenClient::new(e, token).balance(&e.current_contract_address()) as u128
 }

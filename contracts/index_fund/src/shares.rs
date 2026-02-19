@@ -1,6 +1,9 @@
 use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::Env;
+use soroban_sdk::{panic_with_error, Address, Env, Vec};
+use types::adapter::AdapterTradeParams;
 use utils::validate;
+
+use crate::errors::IndexFundError;
 
 pub fn shares_to_nav(e: &Env, n_shares: u128, total_shares: u128, current_nav: u128) -> u128 {
     validate!(
@@ -76,7 +79,7 @@ pub fn get_current_nav(e: &Env) -> u128 {
         if balance > 0 {
             // Get the token price - for now we'll use a placeholder approach
             let token_price =
-                crate::oracle::OracleUtils::get_token_price_usd(e, component_address.clone());
+                crate::oracle::OracleUtils::get_token_price_usd(e, &component_address);
 
             // Calculate value: balance * price
             let component_value = balance.saturating_mul(token_price);
@@ -85,4 +88,87 @@ pub fn get_current_nav(e: &Env) -> u128 {
     }
 
     total_value
+}
+
+pub fn execute_weight_based_mint(e: &Env, deposited_token: Address, deposited_amount: u128) {
+    // Get all current components and their weights
+    let components = crate::storage::get_all_components(e);
+
+    if components.len() == 0 {
+        // No components defined, just hold the deposited token as-is
+        panic_with_error!(&e, IndexFundError::ComponentNotFound);
+    }
+
+    let mut swaps = Vec::new(e);
+
+    // Get component addresses for iteration
+    let component_addresses = crate::storage::get_component_registry(e);
+
+    // For each component, calculate how much of the deposited amount should be allocated
+    let len = component_addresses.len();
+    for i in 0..len {
+        let component_token = component_addresses.get_unchecked(i);
+        let component = components.get(component_token.clone()).unwrap();
+
+        // Calculate target amount based on weight (weight is in basis points, 10000 = 100%)
+        let target_amount = (deposited_amount * component.weight) / 10000;
+
+        if target_amount > 0 {
+            if component_token == deposited_token {
+                // No swap needed - the deposited token matches this component
+                // Just update the component balance directly
+                let current_balance =
+                    crate::storage::get_component_balance_safe(e, component_token.clone())
+                        .unwrap_or(0);
+                crate::storage::set_component_balance(
+                    e,
+                    component_token.clone(),
+                    current_balance + target_amount,
+                );
+            } else {
+                // Need to swap deposited token for component token
+                let swap = AdapterTradeParams {
+                    token_in: deposited_token.clone(),
+                    token_out: component_token.clone(),
+                    amount_in: target_amount,
+                    amount_out_min: (target_amount * 95) / 100, // 5% slippage tolerance
+                    to: e.current_contract_address(),
+                    asset: component.asset.clone(),
+                    metadata: None,
+                };
+
+                swaps.push_back(swap);
+            }
+        }
+    }
+
+    // Execute all swaps if any are needed
+    if swaps.len() > 0 {
+        let swap_results = crate::index::execute_swaps(e, swaps);
+
+        // Update component balances based on swap results
+        let mut swap_index = 0;
+        let len2 = component_addresses.len();
+        for i in 0..len2 {
+            let component_token = component_addresses.get_unchecked(i);
+            let component = components.get(component_token.clone()).unwrap();
+            let target_amount = (deposited_amount * component.weight) / 10000;
+
+            if target_amount > 0 && component_token != deposited_token {
+                // This component required a swap
+                if swap_index < swap_results.len() {
+                    let amount_received = swap_results.get(swap_index).unwrap_or(0u128);
+                    let current_balance =
+                        crate::storage::get_component_balance_safe(e, component_token.clone())
+                            .unwrap_or(0);
+                    crate::storage::set_component_balance(
+                        e,
+                        component_token.clone(),
+                        current_balance + amount_received,
+                    );
+                    swap_index += 1;
+                }
+            }
+        }
+    }
 }
