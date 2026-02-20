@@ -1,13 +1,20 @@
 use crate::errors::IndexFundError;
 use crate::events::Events;
 use crate::events::IndexEvents;
-use crate::interface::{AdminInterface, IndexFundTrait, QueryInterface};
+use crate::interface::{ AdminInterface, IndexFundTrait, QueryInterface };
 
 use soroban_sdk::contractmeta;
-use soroban_sdk::Bytes;
 use soroban_sdk::IntoVal;
 use soroban_sdk::{
-    contract, contractimpl, panic_with_error, Address, BytesN, Env, Map, Symbol, Vec,
+    contract,
+    contractimpl,
+    panic_with_error,
+    Address,
+    BytesN,
+    Env,
+    Map,
+    Symbol,
+    Vec,
 };
 use token_share;
 use token_share::Client as IndexTokenClient;
@@ -18,24 +25,24 @@ use utils::validate;
 
 // Types
 use types::{
-    adapter::AdapterTradeParams,
-    component::{Component, ComponentAllocation, RebalanceParams, RebalanceStatus, RefactorParams},
-    index::{DeployIndexParams, IndexFundInfo, IndexFundMetrics, IndexFundStatus},
+    component::{ Component, ComponentAllocation, RebalanceParams, RebalanceStatus, RefactorParams },
+    index::{ DeployIndexParams, IndexFundInfo, IndexFundMetrics, IndexFundStatus },
     volume::VolumeFeeTier,
 };
 
 // Access control
 use index_access_control::access::{
-    IndexAccessControl as AccessControl, IndexAccessControlTrait as AccessControlTrait,
+    IndexAccessControl as AccessControl,
+    IndexAccessControlTrait as AccessControlTrait,
 };
-use index_access_control::emergency::{get_emergency_mode, set_emergency_mode};
+use index_access_control::emergency::{ get_emergency_mode, set_emergency_mode };
 use index_access_control::errors::IndexAccessControlError;
 use index_access_control::events::Events as AccessControlEvents;
 use index_access_control::interface::TransferableContract;
 use index_access_control::management::MapAddressesManagementTrait;
 use index_access_control::management::MultipleAddressesManagementTrait;
 use index_access_control::management::SingleAddressManagementTrait;
-use index_access_control::role::{Role, SymbolRepresentation};
+use index_access_control::role::{ Role, SymbolRepresentation };
 use index_access_control::transfer::TransferOwnershipTrait;
 use index_access_control::utils::require_admin;
 use index_access_control::utils::require_fee_admin_or_owner;
@@ -44,7 +51,7 @@ use index_access_control::utils::require_operations_admin_or_owner;
 // Upgrade
 use upgrade::events::Events as UpgradeEvents;
 use upgrade::interface::UpgradeableContract;
-use upgrade::{apply_upgrade, commit_upgrade, revert_upgrade};
+use upgrade::{ apply_upgrade, commit_upgrade, revert_upgrade };
 
 contractmeta!(
     key = "Description",
@@ -77,7 +84,7 @@ impl IndexFund {
         index_token_wasm: BytesN<32>,
         adapter_registry: Address,
         factory_sequence: u32,
-        params: DeployIndexParams,
+        params: DeployIndexParams
     ) {
         // params.authorities.admin.require_auth();
 
@@ -87,11 +94,13 @@ impl IndexFund {
         access_control.set_role_address(&Role::EmergencyAdmin, &params.authorities.emergency_admin);
         access_control.set_role_address(&Role::FeeAdmin, &params.authorities.fee_admin);
         access_control.set_role_address(&Role::RewardsAdmin, &params.authorities.rewards_admin);
-        access_control
-            .set_role_address(&Role::OperationsAdmin, &params.authorities.operations_admin);
+        access_control.set_role_address(
+            &Role::OperationsAdmin,
+            &params.authorities.operations_admin
+        );
         access_control.set_role_addresses(
             &Role::RebalanceAuthorities,
-            &params.authorities.rebalance_authorities,
+            &params.authorities.rebalance_authorities
         );
 
         // Set constants from factory
@@ -99,13 +108,16 @@ impl IndexFund {
         crate::storage::set_adapter_registry(&e, &adapter_registry);
 
         // Deploy the index token
-        let index_token_contract =
-            crate::token::create_contract(&e, index_token_wasm, &factory_sequence);
+        let index_token_contract = crate::token::create_contract(
+            &e,
+            index_token_wasm,
+            &factory_sequence
+        );
         IndexTokenClient::new(&e, &index_token_contract).initialize(
             &e.current_contract_address(),
             &7u32,
             &params.name.into_val(&e),
-            &params.symbol.into_val(&e),
+            &params.symbol.into_val(&e)
         );
         token_share::put_token_share(&e, index_token_contract);
 
@@ -121,7 +133,7 @@ impl IndexFund {
             RefactorParams {
                 component_updates: params.components,
             },
-            e.ledger().timestamp(),
+            e.ledger().timestamp()
         );
     }
 }
@@ -159,28 +171,31 @@ impl IndexFundTrait for IndexFund {
         // Calculate fee tier
         let month_bucket = crate::volume::get_month_bucket(current_time);
         let current_volume = crate::storage::get_user_monthly_volume(&e, &user, month_bucket);
-        let (protocol_fee_bps, manager_fee_bps) =
-            crate::volume::get_volume_tier_fee_bps(&e, current_volume);
+        let (protocol_fee_bps, manager_fee_bps) = crate::volume::get_volume_tier_fee_bps(
+            &e,
+            current_volume
+        );
 
         // Apply the fees
-        let (total_fee, protocol_fee, manager_fee) =
-            crate::fee::calculate_fee_split(amount, protocol_fee_bps, manager_fee_bps);
+        let (total_fee, protocol_fee, manager_fee) = crate::fee::calculate_fee_split(
+            amount,
+            protocol_fee_bps,
+            manager_fee_bps
+        );
         let net_amount = amount.saturating_sub(total_fee);
 
         // Shares
         let total_shares_before = token_share::get_total_shares(&e);
         let nav_before = crate::shares::get_current_nav(&e);
-        let n_shares =
-            crate::shares::nav_amount_to_shares(&e, net_amount, total_shares_before, nav_before);
+        let n_shares = crate::shares::nav_amount_to_shares(
+            &e,
+            net_amount,
+            total_shares_before,
+            nav_before
+        );
 
         // Deposit the token first
-        transfer_token(
-            &e,
-            &token_quote,
-            &user,
-            &e.current_contract_address(),
-            &(amount as i128),
-        );
+        transfer_token(&e, &token_quote, &user, &e.current_contract_address(), &(amount as i128));
 
         // Collect the fees
         if protocol_fee > 0 {
@@ -188,7 +203,7 @@ impl IndexFundTrait for IndexFund {
             crate::storage::set_accrued_protocol_fee(
                 &e,
                 token_quote.clone(),
-                current.saturating_add(protocol_fee),
+                current.saturating_add(protocol_fee)
             );
         }
         if manager_fee > 0 {
@@ -196,7 +211,7 @@ impl IndexFundTrait for IndexFund {
             crate::storage::set_accrued_manager_fee(
                 &e,
                 token_quote.clone(),
-                current.saturating_add(manager_fee),
+                current.saturating_add(manager_fee)
             );
         }
 
@@ -225,7 +240,7 @@ impl IndexFundTrait for IndexFund {
             total_shares_before,
             total_shares_after,
             protocol_fee,
-            manager_fee,
+            manager_fee
         );
     }
 
@@ -253,13 +268,6 @@ impl IndexFundTrait for IndexFund {
             }
         }
 
-        // Fee
-        let current_time = e.ledger().timestamp();
-        let month_bucket = crate::volume::get_month_bucket(current_time);
-        let current_volume = crate::storage::get_user_monthly_volume(&e, &user, month_bucket);
-        let (protocol_fee_bps, manager_fee_bps) =
-            crate::volume::get_volume_tier_fee_bps(&e, current_volume);
-
         // Shares
         let total_shares_before = token_share::get_total_shares(&e);
         let nav_before = crate::shares::get_current_nav(&e);
@@ -274,8 +282,12 @@ impl IndexFundTrait for IndexFund {
             panic_with_error!(e, IndexFundError::InsufficientBalance);
         }
 
-        let nav_to_redeem =
-            crate::shares::shares_to_nav(&e, share_amount, total_shares_before, nav_before);
+        let nav_to_redeem = crate::shares::shares_to_nav(
+            &e,
+            share_amount,
+            total_shares_before,
+            nav_before
+        );
 
         let redemption_ratio = if total_shares_before > 0 {
             (share_amount * 10000) / total_shares_before
@@ -289,69 +301,40 @@ impl IndexFundTrait for IndexFund {
 
         for i in 0..registry_len {
             let component_token = component_registry.get_unchecked(i);
-            let current_balance =
-                crate::storage::get_component_balance_safe(&e, component_token.clone())
-                    .unwrap_or(0);
+            let current_balance = crate::storage
+                ::get_component_balance_safe(&e, component_token.clone())
+                .unwrap_or(0);
 
             if current_balance > 0 {
                 let user_component_amount = (current_balance * redemption_ratio) / 10000;
 
                 if user_component_amount > 0 {
-                    let (component_fee, manager_fee, protocol_fee) =
-                        crate::fee::calculate_fee_split(
-                            user_component_amount,
-                            protocol_fee_bps,
-                            manager_fee_bps,
-                        );
-                    let net_component_amount = user_component_amount.saturating_sub(component_fee);
-
                     transfer_token(
                         &e,
                         &component_token,
                         &e.current_contract_address(),
                         &user,
-                        &(net_component_amount as i128),
+                        &(user_component_amount as i128)
                     );
 
-                    if protocol_fee > 0 {
-                        let current =
-                            crate::storage::get_accrued_protocol_fee(&e, component_token.clone());
-                        crate::storage::set_accrued_protocol_fee(
-                            &e,
-                            component_token.clone(),
-                            current.saturating_add(protocol_fee),
-                        );
-                    }
-                    if manager_fee > 0 {
-                        let current =
-                            crate::storage::get_accrued_manager_fee(&e, component_token.clone());
-                        crate::storage::set_accrued_manager_fee(
-                            &e,
-                            component_token.clone(),
-                            current.saturating_add(manager_fee),
-                        );
-                    }
-
-                    let new_balance = current_balance - net_component_amount;
+                    let new_balance = current_balance - user_component_amount;
                     crate::storage::set_component_balance(&e, component_token.clone(), new_balance);
 
-                    component_payouts.set(component_token, net_component_amount);
+                    component_payouts.set(component_token, user_component_amount);
                 }
             }
         }
 
         token_share::burn_shares(&e, &user, share_amount);
 
+        let current_time = e.ledger().timestamp();
         let current_total_redemptions = crate::storage::get_total_redemptions(&e);
         crate::storage::set_total_redemptions(&e, &(current_total_redemptions + share_amount));
+        let month_bucket = crate::volume::get_month_bucket(current_time);
         crate::storage::add_user_monthly_volume(&e, &user, month_bucket, nav_to_redeem);
 
         let nav_after = crate::shares::get_current_nav(&e);
         let total_shares_after = token_share::get_total_shares(&e);
-
-        // let redemption_usd_value =
-        //     VolumeTracker::calculate_redeem_usd_value(&e, share_amount, share_price);
-        // VolumeTracker::record_redeem_volume(&e, &user, redemption_usd_value);
 
         Events::new(&e).redemption(
             current_time,
@@ -362,7 +345,7 @@ impl IndexFundTrait for IndexFund {
             nav_after,
             total_shares_before,
             total_shares_after,
-            component_payouts,
+            component_payouts
         );
     }
 
@@ -427,7 +410,7 @@ impl AdminInterface for IndexFund {
             caller.clone(),
             components_before,
             components_after,
-            params.component_updates.len() as u32,
+            params.component_updates.len() as u32
         );
     }
 
@@ -487,7 +470,7 @@ impl AdminInterface for IndexFund {
             nav_after,
             components_before,
             components_after,
-            0, // No swaps counted here - counted in execute_rebalancing
+            0 // No swaps counted here - counted in execute_rebalancing
         );
     }
 
@@ -505,7 +488,7 @@ impl AdminInterface for IndexFund {
         admin: Address,
         rewards_admin: Address,
         operations_admin: Address,
-        fee_admin: Address,
+        fee_admin: Address
     ) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -517,7 +500,7 @@ impl AdminInterface for IndexFund {
         AccessControlEvents::new(&e).set_privileged_addrs(
             rewards_admin,
             operations_admin,
-            fee_admin,
+            fee_admin
         );
     }
 
@@ -542,18 +525,15 @@ impl AdminInterface for IndexFund {
             Role::OperationsAdmin,
             Role::FeeAdmin,
         ] {
-            result.set(
-                role.as_symbol(&e),
-                match access_control.get_role_safe(&role) {
-                    Some(v) => Vec::from_array(&e, [v]),
-                    None => Vec::new(&e),
-                },
-            );
+            result.set(role.as_symbol(&e), match access_control.get_role_safe(&role) {
+                Some(v) => Vec::from_array(&e, [v]),
+                None => Vec::new(&e),
+            });
         }
 
         result.set(
             Role::RebalanceAuthorities.as_symbol(&e),
-            access_control.get_role_addresses(&Role::RebalanceAuthorities),
+            access_control.get_role_addresses(&Role::RebalanceAuthorities)
         );
 
         result
@@ -589,7 +569,7 @@ impl AdminInterface for IndexFund {
             admin,
             address,
             old_status,
-            status,
+            status
         );
     }
 
@@ -606,7 +586,7 @@ impl AdminInterface for IndexFund {
             admin,
             address,
             old_status,
-            status,
+            status
         );
     }
 
@@ -654,13 +634,7 @@ impl AdminInterface for IndexFund {
         if accrued == 0 {
             return 0;
         }
-        transfer_token(
-            &e,
-            &token,
-            &e.current_contract_address(),
-            &destination,
-            &(accrued as i128),
-        );
+        transfer_token(&e, &token, &e.current_contract_address(), &destination, &(accrued as i128));
         crate::storage::set_accrued_protocol_fee(&e, token, 0);
         accrued
     }
@@ -674,13 +648,7 @@ impl AdminInterface for IndexFund {
         if accrued == 0 {
             return 0;
         }
-        transfer_token(
-            &e,
-            &token,
-            &e.current_contract_address(),
-            &destination,
-            &(accrued as i128),
-        );
+        transfer_token(&e, &token, &e.current_contract_address(), &destination, &(accrued as i128));
         crate::storage::set_accrued_manager_fee(&e, token, 0);
         accrued
     }
@@ -851,10 +819,11 @@ impl TransferableContract for IndexFund {
         let access_control = AccessControl::new(&e);
         let role = Role::from_symbol(&e, role_name);
         match access_control.get_transfer_ownership_deadline(&role) {
-            0 => match access_control.get_role_safe(&role) {
-                Some(address) => address,
-                None => panic_with_error!(&e, IndexAccessControlError::RoleNotFound),
-            },
+            0 =>
+                match access_control.get_role_safe(&role) {
+                    Some(address) => address,
+                    None => panic_with_error!(&e, IndexAccessControlError::RoleNotFound),
+                }
             _ => access_control.get_future_address(&role),
         }
     }
@@ -992,8 +961,8 @@ impl QueryInterface for IndexFund {
             access_control.address_has_role(&caller, &Role::Admin)
         } else {
             // Private index: admin or rebalance authority
-            access_control.address_has_role(&caller, &Role::Admin)
-                || access_control
+            access_control.address_has_role(&caller, &Role::Admin) ||
+                access_control
                     .get_role_address_status_safe(&Role::RebalanceAuthorities, &caller)
                     .unwrap_or(false)
         }
@@ -1013,8 +982,9 @@ impl QueryInterface for IndexFund {
             let token = component_addresses.get_unchecked(i);
             let component = components.get(token.clone()).unwrap();
 
-            let current_balance =
-                crate::storage::get_component_balance_safe(&e, token.clone()).unwrap_or(0);
+            let current_balance = crate::storage
+                ::get_component_balance_safe(&e, token.clone())
+                .unwrap_or(0);
             // Target balance is based on base_nav (intended portfolio value)
             let target_balance = if current_nav > 0 {
                 (current_nav * (component.weight as u128)) / 10000
