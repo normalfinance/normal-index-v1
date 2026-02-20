@@ -18,44 +18,40 @@
 
 # ✨ Normal Index v1 🦄
 
-Fully customizable on-chain index funds supporting any crypto token, real-world asset, NFT, yield, and more.
+Customizable on-chain index funds supporting any cryptocurrencies, commodities, equities, forex, and more.
 
 ## Features
 
-- Diversify your choice of over 200 crypto assets with ease
+- Diversify your choice of hundreds of global assets and asset classes with ease
 - Create public index funds to invest with friends, family, or your community
 - Create private index funds to invest personally or deploy unique strategies for clients
 - Earn passive income when someone invests in your public index
 
 ## Todo
 
-- [x] Add an interface to the `IndexFactory`
-- [ ] Finish the `generate_swap_params()` function
-- [ ] Finish the `execute_swaps()` function interfacing with the Soroswap Aggregator
-- [ ] Add index fee checkpointing to token transfers (i.e. https://github.com/normalfinance/normal-stellar-amm/blob/c66b7b6b2ba9a1814878ba06e606d1e1c30a261e/contracts/token/src/contract.rs#L99)
-- [ ] Add rebalance functionality
-- [ ] Add all necessary getters and setters
-- [ ] Update `IndexFactory` salting method to index token symbol
-- [ ] Add manager fee revenue share feature
-- [ ] Update `access_control` to support whitelist and blacklist
-- [ ] Add useful queries and getters to `IndexFactory`
-- [ ] Write tests for `Index`
-- [ ] Write tests for `IndexFactory`
-- [ ] Add asset weight obfuscation to private index funds (for proprietary strategies)
-- [ ] Add relevant events to each contract
-- [ ] Add support for DAO management of public indexes (possibly using Soroban Governor)
+- [ ] Component obfuscation for private index funds (for proprietary strategies)
+- [ ] Normal DAO management of public indexes (possibly using Soroban Governor)
 - [ ] ...
 
 ## Smart Contracts
 
-- **index** - ...
-- **index_factory** - ...
-- **token** - [SEP-0041](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md) compatible token smart contract designed for index fund share management
+- **index_fund** - A DeFi primitive for diverisified portfolios using a basket of assets
+- **index_fund_factory** - Factory for creating and interacting with Index Fund contracts
+- **adapter_registry** - A registry tracking supported adapters for use with Index Funds
+
+## Adapters
+
+- **normal** - An adapter for buying and selling long and short Normal tokens via the Normal Treasury
+- **aquarius** - An adapter for swapping tokens using Aquarius AMM pools
+- **soroswap** - An adapter for swapping tokens using the Soroswap AMM Aggregator
 
 ## Modules
 
 - **access_control** - Handles permissioned access to contracts using role-based authentication
+- **adapter** - Defines the interface adapters must export to work with index funds
+- **index_access_control** - Handles permissioned access to Index Fund contracts using role-based authentication
 - **token_share** - Handles index token utilities
+- **types** - Handles contract types
 - **upgrade** - Handles contract upgrades
 - **utils** - Handles shared types, utils, constants, errors, macros, and more
 
@@ -94,6 +90,7 @@ check the Soroban documentation: https://soroban.stellar.org/docs/reference/rpc
 ## Authors
 
 - [@jblewnormal](https://github.com/jblewnormal)
+- [@jaymalve](ttps://github.com/jaymalve)
 
 ## Contributing
 
@@ -115,7 +112,7 @@ Don't forget to give the project a star! Thanks again!
 - 🐣 Twitter: [@normalfi](https://twitter.com/normalfi)
 - 🥷🏼 GitHub: [@normalfinance](https://github.com/normalfinance)
 - 👾 Discord: [@Normal](https://discord.gg/xQMvceZjeS)
-- 📚 Docs: [@normalfinance](https://docs.normalfinance.io/)
+- 📚 Docs: [@normalfinance](https://normalfinance.gitbook.io/docs/)
 - 🤓 Blog: [@normalfinance](https://blog.normalfinance.io/)
 
 ## License
