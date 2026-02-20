@@ -9,8 +9,11 @@ use utils::{
 
 /********** Storage Key Types **********/
 
+/// Instance key for adapter admin.
 const KEY_ADMIN: &str = "Admin";
+/// Instance key for protocol identifier string.
 const KEY_PROTOCOL_ID: &str = "ProtocolId";
+/// Instance key for protocol contract address.
 const KEY_PROTOCOL_ADDRESS: &str = "ProtocolAddress";
 
 /********** Storage **********/

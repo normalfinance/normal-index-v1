@@ -8,6 +8,15 @@ use crate::events::{Events, IndexEvents};
 use crate::interface::QueryInterface;
 use crate::storage::get_all_components;
 
+/// Builds swap instructions that allocate a deposit across components by target weight.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `deposit_token` (`Address`): Token being deposited.
+/// - `deposit_amount` (`u128`): Total deposit amount to allocate.
+///
+/// # Returns
+/// - `Vec<AdapterTradeParams>`: Swap instructions to execute for allocation.
 pub fn generate_swap_params(
     e: &Env,
     deposit_token: Address,
@@ -60,6 +69,14 @@ pub fn generate_swap_params(
     swaps
 }
 
+/// Executes adapter trades and returns the output amount of each trade in order.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `swaps` (`Vec<AdapterTradeParams>`): Swap instructions to execute.
+///
+/// # Returns
+/// - `Vec<u128>`: Amount-out for each swap, preserving input order.
 pub fn execute_swaps(e: &Env, swaps: Vec<AdapterTradeParams>) -> Vec<u128> {
     let quote_token = crate::storage::get_token_quote(e);
 
@@ -132,7 +149,14 @@ pub fn execute_swaps(e: &Env, swaps: Vec<AdapterTradeParams>) -> Vec<u128> {
     results
 }
 
-// Enhanced rebalancing swap generation - now focuses on balancing existing components
+/// Builds buy/sell swaps required to move component balances toward target allocations.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `params` (`&RebalanceParams`): Rebalance target configuration.
+///
+/// # Returns
+/// - `Vec<AdapterTradeParams>`: Swap instructions required for rebalancing.
 pub fn generate_rebalance_swaps(e: &Env, params: &RebalanceParams) -> Vec<AdapterTradeParams> {
     let current_nav = crate::IndexFund::get_current_nav(e.clone()); // Simplified NAV calculation
     let target_nav = params.target_nav.map(|n| n as u128).unwrap_or(current_nav);

@@ -13,6 +13,7 @@ pub struct AquariusAdapter;
 
 #[contractimpl]
 impl AquariusAdapter {
+    /// Initializes adapter configuration for Aquarius pools.
     pub fn __constructor(e: Env, admin: Address, protocol_id: String, protocol_address: Address) {
         crate::storage::set_admin(&e, &admin);
         crate::storage::set_protocol_id(&e, &protocol_id);
@@ -22,6 +23,7 @@ impl AquariusAdapter {
 
 #[contractimpl]
 impl AdapterTrait for AquariusAdapter {
+    /// Executes a swap through Aquarius using exact-input routing.
     fn swap(e: Env, params: AdapterTradeParams) -> Result<u128, AdapterError> {
         params.to.require_auth();
 
@@ -39,10 +41,12 @@ impl AdapterTrait for AquariusAdapter {
         Ok(amount_out)
     }
 
+    /// Returns the configured upstream protocol identifier.
     fn get_protocol_id(e: &Env) -> Result<String, AdapterError> {
         Ok(crate::storage::get_protocol_id(&e))
     }
 
+    /// Returns the configured upstream protocol address.
     fn get_protocol_address(e: &Env) -> Result<Address, AdapterError> {
         Ok(crate::storage::get_protocol_address(&e))
     }

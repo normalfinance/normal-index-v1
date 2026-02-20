@@ -16,6 +16,7 @@ pub struct AdapterRegistry;
 
 #[contractimpl]
 impl AdapterRegistry {
+    /// Initializes the registry with its admin address.
     pub fn __constructor(e: Env, admin: Address) {
         if storage::get_admin(&e).is_some() {
             panic_with_error!(&e, AdapterRegistryError::Unauthorized);
@@ -26,6 +27,7 @@ impl AdapterRegistry {
 
 #[contractimpl]
 impl AdapterRegistryTrait for AdapterRegistry {
+    /// Adds or updates a named adapter mapping.
     fn set_adapter(e: Env, admin: Address, name: Symbol, adapter: Address) {
         admin.require_auth();
 
@@ -51,6 +53,7 @@ impl AdapterRegistryTrait for AdapterRegistry {
         storage::add_adapter_name(&e, &name);
     }
 
+    /// Returns adapter address for a required adapter name.
     fn get_adapter(e: Env, name: Symbol) -> Address {
         match storage::get_adapter_by_name(&e, &name) {
             Some(address) => address,
@@ -58,10 +61,12 @@ impl AdapterRegistryTrait for AdapterRegistry {
         }
     }
 
+    /// Returns adapter address for a name when present.
     fn get_adapter_safe(e: Env, name: Symbol) -> Option<Address> {
         storage::get_adapter_by_name(&e, &name)
     }
 
+    /// Returns the registered name for an adapter address.
     fn get_adapter_name(e: Env, adapter: Address) -> Symbol {
         match storage::get_name_by_adapter(&e, &adapter) {
             Some(name) => name,
@@ -69,6 +74,7 @@ impl AdapterRegistryTrait for AdapterRegistry {
         }
     }
 
+    /// Returns all registered adapter mappings.
     fn get_adapters(e: Env) -> Map<Symbol, Address> {
         storage::get_all_adapters(&e)
     }

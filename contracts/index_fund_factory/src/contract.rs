@@ -53,6 +53,7 @@ impl IndexFundFactory {
     //   - operations_admin: The address to be assigned the OperationsAdmin role.
     //   - fee_admin: The address to be assigned the FeeAdmin role.
     //   - config: The WASM hash (BytesN<32>) for the index fund contract.
+    /// Initializes factory roles and deployment configuration.
     pub fn __constructor(
         e: Env,
         admin: Address,
@@ -85,6 +86,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
     /// @param params Constructor params used to initialize the Index:
     ///     - `params`: Config parameters of the Index Fund contract.
     /// @return index_fund_address the deployed address of the new Index Fundrcontract.
+    /// Deploys a new index fund contract and records it in factory registry.
     fn deploy_index_contract(e: Env, params: DeployIndexParams) -> Address {
         params.authorities.admin.require_auth();
 
@@ -127,6 +129,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
         index_fund_address
     }
 
+    /// Proxies a mint call to a managed index contract.
     fn mint(e: Env, user: Address, index: Address, amount: u128) {
         user.require_auth();
 
@@ -139,6 +142,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
         Events::new(&e).mint(user, index, amount, 0, 0, e.ledger().timestamp());
     }
 
+    /// Proxies a redeem call to a managed index contract.
     fn redeem(e: Env, user: Address, index: Address, share_amount: u128) {
         user.require_auth();
         e.invoke_contract::<()>(
@@ -149,6 +153,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
         Events::new(&e).redeem(e.ledger().timestamp(), index, user, share_amount);
     }
 
+    /// Proxies a rebalance call to a managed index contract.
     fn rebalance(e: Env, caller: Address, index: Address, params: RebalanceParams) {
         caller.require_auth();
         e.invoke_contract::<()>(
@@ -159,6 +164,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
         Events::new(&e).rebalance(e.ledger().timestamp(), index, caller);
     }
 
+    /// Proxies a refactor call to a managed index contract.
     fn refactor(e: Env, caller: Address, index: Address, params: RefactorParams) {
         caller.require_auth();
         e.invoke_contract::<()>(
@@ -169,6 +175,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
         Events::new(&e).refactor(e.ledger().timestamp(), index, caller);
     }
 
+    /// Proxies protocol/system fee withdrawal to a managed index contract.
     fn claim_system_fees(
         e: Env,
         caller: Address,
@@ -200,6 +207,7 @@ impl IndexFundFactoryTrait for IndexFundFactory {
         amount
     }
 
+    /// Proxies manager fee withdrawal to a managed index contract.
     fn claim_manager_fees(
         e: Env,
         caller: Address,
@@ -242,6 +250,7 @@ impl AdminInterface for IndexFundFactory {
     // * `rewards_admin` - The address of the rewards admin.
     // * `operations_admin` - The address of the operations admin.
     // * `fee_admin` - The address of the system fee admin.
+    /// Updates privileged role addresses on the factory access-control module.
     fn set_privileged_addrs(
         e: Env,
         admin: Address,
@@ -271,6 +280,7 @@ impl AdminInterface for IndexFundFactory {
     // (:   _(  _|(:      "|    \:  |        \:  |   (:      "||:  __   \  /" \   :)
     //  \_______)  \_______)     \__|         \__|    \_______)|__|  \___)(_______/
 
+    /// Returns the current factory deployment configuration.
     fn get_factory_config(e: Env) -> IndexFundFactoryConfig {
         IndexFundFactoryConfig {
             index_contract_wasm: crate::storage::get_index_contract_wasm(&e),
@@ -279,6 +289,7 @@ impl AdminInterface for IndexFundFactory {
         }
     }
 
+    /// Returns all privileged role addresses keyed by role symbol.
     fn get_privileged_addrs(e: Env) -> Map<Symbol, Vec<Address>> {
         let access_control = AccessControl::new(&e);
         let mut result: Map<Symbol, Vec<Address>> = Map::new(&e);
@@ -301,14 +312,17 @@ impl AdminInterface for IndexFundFactory {
         result
     }
 
+    /// Returns all indexes deployed by a manager.
     fn get_indexes_by_manager(e: Env, manager: Address) -> Vec<Address> {
         crate::storage::get_deployed_indexes_by_manager(&e, &manager)
     }
 
+    /// Returns the total number of deployed indexes.
     fn get_total_index_count(e: Env) -> u32 {
         crate::storage::get_contract_sequence(&e)
     }
 
+    /// Returns an index address by deployment sequence id.
     fn get_index_by_id(e: Env, sequence: u32) -> Address {
         crate::storage::get_deployed_index(&e, &sequence)
     }
@@ -328,6 +342,7 @@ impl AdminInterface for IndexFundFactory {
     //   - e: The Soroban environment.
     //   - admin: The admin address (must be authorized).
     //   - index_contract_wasm: The new WASM hash (BytesN<32>) for the Index Fund contract.
+    /// Sets the index-fund contract WASM hash used for future deployments.
     fn set_index_contract_wasm(e: Env, admin: Address, index_contract_wasm: BytesN<32>) {
         admin.require_auth();
         require_operations_admin_or_owner(&e, &admin);
@@ -350,6 +365,7 @@ impl AdminInterface for IndexFundFactory {
     //   - e: The Soroban environment.
     //   - admin: The admin address (must be authorized).
     //   - index_token_wasm: The new WASM hash (BytesN<32>) for the Index Fund token contract.
+    /// Sets the index-token contract WASM hash used for future deployments.
     fn set_index_token_wasm(e: Env, admin: Address, index_token_wasm: BytesN<32>) {
         admin.require_auth();
         require_operations_admin_or_owner(&e, &admin);
@@ -372,6 +388,7 @@ impl AdminInterface for IndexFundFactory {
     //   - e: The Soroban environment.
     //   - admin: The admin address (must be authorized).
     //   - adapter_registry: The new address for the Adapter Registry contract.
+    /// Sets the adapter registry address used by future deployments.
     fn set_adapter_registry(e: Env, admin: Address, adapter_registry: Address) {
         admin.require_auth();
         require_operations_admin_or_owner(&e, &admin);
@@ -395,11 +412,13 @@ impl UpgradeableContract for IndexFundFactory {
     //
     // Returns:
     //   - A u32 representing the version.
+    /// Returns the contract version number.
     fn version() -> u32 {
         100
     }
 
     // Get contract type symbolic name
+    /// Returns the contract type name.
     fn contract_name(e: Env) -> Symbol {
         Symbol::new(&e, "IndexFundFactory")
     }
@@ -411,6 +430,7 @@ impl UpgradeableContract for IndexFundFactory {
     //   - e: The Soroban environment.
     //   - admin: The admin address (must be authorized).
     //   - new_wasm_hash: The new WASM hash (BytesN<32>) to be committed.
+    /// Commits a staged upgrade hash for later application.
     fn commit_upgrade(e: Env, admin: Address, new_wasm_hash: BytesN<32>) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
@@ -427,6 +447,7 @@ impl UpgradeableContract for IndexFundFactory {
     //
     // Returns:
     //   - The new WASM hash (BytesN<32>) that was applied.
+    /// Applies the currently staged contract upgrade.
     fn apply_upgrade(e: Env, admin: Address) -> BytesN<32> {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
@@ -441,6 +462,7 @@ impl UpgradeableContract for IndexFundFactory {
     // Arguments:
     //   - e: The Soroban environment.
     //   - admin: The admin address (must be authorized).
+    /// Reverts the currently staged contract upgrade.
     fn revert_upgrade(e: Env, admin: Address) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
@@ -455,6 +477,7 @@ impl UpgradeableContract for IndexFundFactory {
     //   - e: The Soroban environment.
     //   - emergency_admin: The emergency admin address (must be authorized).
     //   - value: Boolean indicating whether to enable (true) or disable (false) emergency mode.
+    /// Toggles emergency mode for upgrade behavior.
     fn set_emergency_mode(e: Env, emergency_admin: Address, value: bool) {
         emergency_admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&emergency_admin, &Role::EmergencyAdmin);
@@ -471,6 +494,7 @@ impl UpgradeableContract for IndexFundFactory {
     //
     // Returns:
     //   - A boolean indicating whether emergency mode is active.
+    /// Returns current emergency mode status.
     fn get_emergency_mode(e: Env) -> bool {
         get_emergency_mode(&e)
     }
@@ -486,6 +510,7 @@ impl TransferableContract for IndexFundFactory {
     //   - admin: The admin address (must be authorized).
     //   - role_name: The symbol representing the role (e.g., "Admin" or "EmergencyAdmin").
     //   - new_address: The new address to assume the role.
+    /// Commits ownership transfer for a role.
     fn commit_transfer_ownership(e: Env, admin: Address, role_name: Symbol, new_address: Address) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -503,6 +528,7 @@ impl TransferableContract for IndexFundFactory {
     //   - e: The Soroban environment.
     //   - admin: The admin address (must be authorized).
     //   - role_name: The symbol representing the role.
+    /// Applies a previously committed ownership transfer.
     fn apply_transfer_ownership(e: Env, admin: Address, role_name: Symbol) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -528,6 +554,7 @@ impl TransferableContract for IndexFundFactory {
     //   - e: The Soroban environment.
     //   - admin: The admin address (must be authorized).
     //   - role_name: The symbol representing the role.
+    /// Reverts a previously committed ownership transfer.
     fn revert_transfer_ownership(e: Env, admin: Address, role_name: Symbol) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -548,6 +575,7 @@ impl TransferableContract for IndexFundFactory {
     //
     // Returns:
     //   - The Address scheduled to assume the role, or the current address if none pending.
+    /// Returns pending transfer target or current role address.
     fn get_future_address(e: Env, role_name: Symbol) -> Address {
         let access_control = AccessControl::new(&e);
         let role = Role::from_symbol(&e, role_name);

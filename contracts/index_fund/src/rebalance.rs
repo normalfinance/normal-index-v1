@@ -8,6 +8,13 @@ use types::component::RebalanceParams;
 
 use crate::errors::IndexFundError;
 
+/// Returns whether the rebalance cooldown window has elapsed.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+///
+/// # Returns
+/// - `bool`: `true` when the current timestamp is past the configured threshold.
 pub fn can_rebalance(e: &Env) -> bool {
     let current_time = e.ledger().timestamp();
     let last_rebalance = crate::storage::get_last_rebalance_ts(&e);
@@ -16,7 +23,16 @@ pub fn can_rebalance(e: &Env) -> bool {
     current_time >= last_rebalance + threshold
 }
 
-// Rebalancing helper functions
+/// Validates that `caller` has permission to rebalance.
+///
+/// A caller must be either admin or an approved rebalance authority.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `caller` (`&Address`): Address requesting the rebalance.
+///
+/// # Returns
+/// - `()` (unit): Panics on authorization failure, otherwise returns unit.
 pub fn validate_rebalance(e: &Env, caller: &Address) {
     let access_control = AccessControl::new(e);
     let is_rebalance_authority = access_control
@@ -29,6 +45,16 @@ pub fn validate_rebalance(e: &Env, caller: &Address) {
     }
 }
 
+/// Executes a rebalance by generating and running swaps, then emits a completion event.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `admin` (`Address`): Caller address recorded in events.
+/// - `params` (`RebalanceParams`): Rebalance parameters.
+/// - `nav_before` (`u128`): NAV captured before executing swaps.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned; state/events are updated.
 pub fn rebalance(e: &Env, admin: Address, params: RebalanceParams, nav_before: u128) {
     let start_time = e.ledger().timestamp();
 

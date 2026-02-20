@@ -2,6 +2,7 @@ use soroban_sdk::{Address, Env, Map, Symbol, Vec};
 use types::component::Component;
 
 #[derive(Clone)]
+/// Event publisher wrapper for index-fund domain events.
 pub(crate) struct Events(Env);
 
 impl Events {
@@ -17,6 +18,7 @@ impl Events {
 }
 
 pub(crate) trait IndexEvents {
+    /// Publishes a mint event.
     fn mint(
         &self,
         ts: u64,
@@ -33,6 +35,7 @@ pub(crate) trait IndexEvents {
         manager_fee: u128,
     );
 
+    /// Publishes a redemption event.
     fn redemption(
         &self,
         ts: u64,
@@ -46,6 +49,7 @@ pub(crate) trait IndexEvents {
         component_payouts: Map<Address, u128>,
     );
 
+    /// Publishes a rebalance event.
     fn rebalance(
         &self,
         ts: u64,
@@ -57,6 +61,7 @@ pub(crate) trait IndexEvents {
         total_swaps: u32,
     );
 
+    /// Publishes a refactor event.
     fn refactor(
         &self,
         ts: u64,
@@ -66,6 +71,7 @@ pub(crate) trait IndexEvents {
         components_updated: u32,
     );
 
+    /// Publishes a successful swap event.
     fn swap(
         &self,
         tokens: Vec<Address>,
@@ -77,6 +83,7 @@ pub(crate) trait IndexEvents {
         amount_out: u128,
     );
 
+    /// Publishes a failed swap event.
     fn swap_failed(
         &self,
         user: Address,
@@ -86,6 +93,7 @@ pub(crate) trait IndexEvents {
         error_code: u32,
     );
 
+    /// Publishes an update to whitelist status.
     fn whitelist_status_updated(
         &self,
         ts: u64,
@@ -95,6 +103,7 @@ pub(crate) trait IndexEvents {
         new_status: bool,
     );
 
+    /// Publishes an update to blacklist status.
     fn blacklist_status_updated(
         &self,
         ts: u64,
@@ -104,7 +113,7 @@ pub(crate) trait IndexEvents {
         new_status: bool,
     );
 
-    // Enhanced component management events
+    /// Publishes component-added details.
     fn component_added(
         &self,
         ts: u64,
@@ -115,6 +124,7 @@ pub(crate) trait IndexEvents {
         nav_impact: u128,
     );
 
+    /// Publishes component-removed details.
     fn component_removed(
         &self,
         ts: u64,
@@ -125,6 +135,7 @@ pub(crate) trait IndexEvents {
         nav_impact: u128,
     );
 
+    /// Publishes component weight update details.
     fn component_weight_updated(
         &self,
         ts: u64,
@@ -137,6 +148,7 @@ pub(crate) trait IndexEvents {
         nav_impact: u128,
     );
 
+    /// Publishes component oracle update details.
     fn component_oracle_updated(
         &self,
         ts: u64,
@@ -146,6 +158,7 @@ pub(crate) trait IndexEvents {
         new_oracle: Address,
     );
 
+    /// Publishes component adapter update details.
     fn component_adapter_updated(
         &self,
         ts: u64,
@@ -155,6 +168,7 @@ pub(crate) trait IndexEvents {
         new_adapter: Symbol,
     );
 
+    /// Publishes rebalance-authority status changes.
     fn rebalance_authority_updated(
         &self,
         ts: u64,
@@ -164,6 +178,7 @@ pub(crate) trait IndexEvents {
         new_status: bool,
     );
 
+    /// Publishes summary information for a completed rebalance.
     fn rebalance_completed(
         &self,
         ts: u64,

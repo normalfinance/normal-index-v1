@@ -3,37 +3,58 @@ use crate::errors::IndexAccessControlError;
 use crate::role::Role;
 use soroban_sdk::{contracttype, panic_with_error, Address};
 
+/// Instance storage keys used by index access-control role management.
 #[derive(Clone)]
 #[contracttype]
 pub(crate) enum DataKey {
-    Admin,           // owner - upgrade, set privileged roles
-    EmergencyAdmin,  // emergency admin - put system into emergency mode, allowing instant upgrade
-    Operator,        // rewards admin - configure rewards. legacy name cannot be changed
-    OperationsAdmin, // operations admin - add/remove pools, ramp A, set fees, etc
+    /// Owner role allowed to manage privileged roles and upgrades.
+    Admin,
+    /// Emergency admin allowed to toggle emergency mode and emergency upgrade paths.
+    EmergencyAdmin,
+    /// Legacy operator role (rewards admin).
+    Operator,
+    /// Operations admin role for day-to-day protocol operations.
+    OperationsAdmin,
+    /// Fee admin role for fee-related configuration.
     FeeAdmin,
+    /// Vector containing all rebalance authority addresses.
     RebalanceAuthoritiesVec,
+    /// Boolean key for a specific rebalance authority address.
     RebalanceAuthorities(Address),
 
-    // transfer ownership - pending values
+    /// Pending new admin for two-step transfers.
     FutureAdmin,
+    /// Pending new emergency admin for two-step transfers.
     FutureEmergencyAdmin,
 
-    // transfer ownership - deadlines
+    /// Deadline for completing admin ownership transfer.
     TransferOwnershipDeadline,
+    /// Deadline for completing emergency-admin ownership transfer.
     EmAdminTransferOwnershipDeadline,
 
-    // emergency mode
+    /// Emergency-mode status flag.
     EmergencyMode,
 }
 
+/// Maps index access-control roles to concrete storage keys.
 pub(crate) trait StorageTrait {
+    /// Returns the primary key for a role.
+    /// Arguments: `role` (`&Role`). Returns: `DataKey`.
     fn get_key(&self, role: &Role) -> DataKey;
+    /// Returns the address-specific key for roles with per-address entries.
+    /// Arguments: `role` (`&Role`), `address` (`&Address`). Returns: `DataKey`.
     fn get_address_key(&self, role: &Role, address: &Address) -> DataKey;
+    /// Returns the pending-transfer key for a role.
+    /// Arguments: `role` (`&Role`). Returns: `DataKey`.
     fn get_future_key(&self, role: &Role) -> DataKey;
+    /// Returns the transfer deadline key for a role.
+    /// Arguments: `role` (`&Role`). Returns: `DataKey`.
     fn get_future_deadline_key(&self, role: &Role) -> DataKey;
 }
 
 impl StorageTrait for IndexAccessControl {
+    /// Maps a role to its primary storage key.
+    /// Arguments: `role` (`&Role`). Returns: `DataKey`.
     fn get_key(&self, role: &Role) -> DataKey {
         match role {
             Role::Admin => DataKey::Admin,
@@ -45,6 +66,8 @@ impl StorageTrait for IndexAccessControl {
         }
     }
 
+    /// Maps a role/address pair to its per-address storage key.
+    /// Arguments: `role` (`&Role`), `address` (`&Address`). Returns: `DataKey`.
     fn get_address_key(&self, role: &Role, address: &Address) -> DataKey {
         match role {
             Role::RebalanceAuthorities => DataKey::RebalanceAuthorities(address.clone()),
@@ -52,6 +75,8 @@ impl StorageTrait for IndexAccessControl {
         }
     }
 
+    /// Maps a role to its pending-transfer key.
+    /// Arguments: `role` (`&Role`). Returns: `DataKey`.
     fn get_future_key(&self, role: &Role) -> DataKey {
         match role {
             Role::Admin => DataKey::FutureAdmin,
@@ -60,6 +85,8 @@ impl StorageTrait for IndexAccessControl {
         }
     }
 
+    /// Maps a role to its transfer-deadline key.
+    /// Arguments: `role` (`&Role`). Returns: `DataKey`.
     fn get_future_deadline_key(&self, role: &Role) -> DataKey {
         match role {
             Role::Admin => DataKey::TransferOwnershipDeadline,

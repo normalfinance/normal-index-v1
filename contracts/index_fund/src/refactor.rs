@@ -6,6 +6,14 @@ use crate::events::IndexEvents;
 
 use crate::errors::IndexFundError;
 
+/// Ensures a component exists for the provided token.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Component token address to validate.
+///
+/// # Returns
+/// - `()` (unit): Panics if the component does not exist.
 fn validate_component(e: &Env, token: Address) {
     // Check if component exists first
     let component_exists = crate::storage::get_component_safe(e, token).is_some();
@@ -15,6 +23,15 @@ fn validate_component(e: &Env, token: Address) {
     }
 }
 
+/// Adds a new component and emits the component-added event.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `update` (`ComponentUpdate`): Add action payload containing token/weight/oracle/adapter.
+/// - `current_time` (`u64`): Current ledger timestamp.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn add_component(e: &Env, update: ComponentUpdate, current_time: u64) {
     // Check if component already exists
     if crate::storage::get_component_safe(e, update.token.clone()).is_some() {
@@ -51,6 +68,16 @@ pub fn add_component(e: &Env, update: ComponentUpdate, current_time: u64) {
     );
 }
 
+/// Removes a component and emits the component-removed event.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `authority` (`Address`): Caller authority recorded in emitted event.
+/// - `update` (`ComponentUpdate`): Remove action payload.
+/// - `current_time` (`u64`): Current ledger timestamp.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn remove_component(e: &Env, authority: Address, update: ComponentUpdate, current_time: u64) {
     validate_component(e, update.token.clone());
 
@@ -72,6 +99,16 @@ pub fn remove_component(e: &Env, authority: Address, update: ComponentUpdate, cu
     );
 }
 
+/// Applies in-place changes to an existing component (weight, adapter, and/or oracle).
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `authority` (`Address`): Caller authority recorded in emitted events.
+/// - `update` (`ComponentUpdate`): Update action payload.
+/// - `current_time` (`u64`): Current ledger timestamp.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn update_component(e: &Env, authority: Address, update: ComponentUpdate, current_time: u64) {
     validate_component(e, update.token.clone());
 
@@ -123,6 +160,16 @@ pub fn update_component(e: &Env, authority: Address, update: ComponentUpdate, cu
     crate::storage::set_component(e, update.token.clone(), component);
 }
 
+/// Dispatches a component update to the correct handler by action.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `authority` (`Address`): Caller authority for event attribution.
+/// - `update` (`ComponentUpdate`): Component change request.
+/// - `current_time` (`u64`): Current ledger timestamp.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn handle_update(e: &Env, authority: Address, update: ComponentUpdate, current_time: u64) {
     match update.action {
         ComponentAction::Add => add_component(e, update, current_time),
@@ -133,6 +180,16 @@ pub fn handle_update(e: &Env, authority: Address, update: ComponentUpdate, curre
     }
 }
 
+/// Executes a full component refactor and validates final weights sum to 10_000 bps.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `authority` (`Address`): Caller authority for event attribution.
+/// - `params` (`RefactorParams`): Batch of component updates to apply.
+/// - `current_time` (`u64`): Current ledger timestamp.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn refactor(e: &Env, authority: Address, params: RefactorParams, current_time: u64) {
     // Validate and execute component updates (without swaps)
     let len = params.component_updates.len();

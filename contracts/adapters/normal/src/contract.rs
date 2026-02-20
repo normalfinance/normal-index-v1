@@ -14,6 +14,7 @@ pub struct NormalAdapter;
 
 #[contractimpl]
 impl NormalAdapter {
+    /// Initializes adapter configuration for the Normal treasury protocol.
     pub fn __constructor(
         e: Env,
         admin: Address,
@@ -30,6 +31,7 @@ impl NormalAdapter {
 
 #[contractimpl]
 impl AdapterTrait for NormalAdapter {
+    /// Executes a swap through the Normal treasury using pair metadata.
     fn swap(e: Env, params: AdapterTradeParams) -> Result<u128, AdapterError> {
         let normal_treasury_address = crate::storage::get_protocol_address(&e);
         let normal_treasury_client = NormalTreasuryClient::new(&e, &normal_treasury_address);
@@ -99,10 +101,12 @@ impl AdapterTrait for NormalAdapter {
         Ok(amount_out)
     }
 
+    /// Returns the configured upstream protocol identifier.
     fn get_protocol_id(e: &Env) -> Result<String, AdapterError> {
         Ok(crate::storage::get_protocol_id(&e))
     }
 
+    /// Returns the configured upstream protocol address.
     fn get_protocol_address(e: &Env) -> Result<Address, AdapterError> {
         Ok(crate::storage::get_protocol_address(&e))
     }

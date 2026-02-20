@@ -52,19 +52,25 @@ contractmeta!(
 );
 
 #[contract]
+/// Main index-fund contract implementation.
 pub struct IndexFund;
 
 impl IndexFund {
-    // __constructor
-    // Initializes the ProviderSwapFeeCollector contract.
-    //
-    // Arguments:
-    //   - e: The Soroban environment.
-    //   - factory: The address of the Index Fund Factory contract.
-    //   - index_token_wasm: The hash of the Index Fund Token contract wasm.
-    //   - adapter_registry: The address of the Adapter Registry contract.
-    //   - factory_sequence: The index salt from the factory.
-    //   - params: Config parameters of the Index Fund.
+    /// Initializes the index fund and deploys its share token.
+    ///
+    /// This sets access-control roles, stores immutable factory configuration,
+    /// initializes core index config, and applies initial component definitions.
+    ///
+    /// # Arguments
+    /// - `e` (`Env`): Soroban environment.
+    /// - `factory` (`Address`): Index-fund factory contract address.
+    /// - `index_token_wasm` (`BytesN<32>`): WASM hash used to deploy the index token.
+    /// - `adapter_registry` (`Address`): Adapter registry contract address.
+    /// - `factory_sequence` (`u32`): Sequence value used for token deployment salt.
+    /// - `params` (`DeployIndexParams`): Initial index configuration and authorities.
+    ///
+    /// # Returns
+    /// - `()` (unit): No direct value is returned.
     pub fn __constructor(
         e: Env,
         factory: Address,
@@ -123,6 +129,7 @@ impl IndexFund {
 // The `IndexTrait` trait provides the interface for interacting with a liquidity pool.
 #[contractimpl]
 impl IndexFundTrait for IndexFund {
+    /// Mints index shares for a user using quote-token deposit.
     fn mint(e: Env, user: Address, amount: u128) {
         user.require_auth();
 
@@ -222,6 +229,7 @@ impl IndexFundTrait for IndexFund {
         );
     }
 
+    /// Redeems index shares into underlying component payouts.
     fn redeem(e: Env, user: Address, share_amount: u128) {
         user.require_auth();
 
@@ -358,18 +366,22 @@ impl IndexFundTrait for IndexFund {
         );
     }
 
+    /// Returns whitelist status for an address.
     fn get_whitelist_status(e: Env, address: Address) -> bool {
         crate::storage::get_whitelist_status(&e, &address)
     }
 
+    /// Returns blacklist status for an address.
     fn get_blacklist_status(e: Env, address: Address) -> bool {
         crate::storage::get_blacklist_status(&e, &address)
     }
 
+    /// Returns component metadata for a token address.
     fn get_component(e: Env, token: Address) -> Component {
         crate::storage::get_component(&e, token)
     }
 
+    /// Returns tracked component balance for a token address.
     fn get_component_balance(e: Env, token: Address) -> u128 {
         crate::storage::get_component_balance_safe(&e, token).unwrap_or(0)
     }
@@ -378,6 +390,7 @@ impl IndexFundTrait for IndexFund {
 // The `AdminInterface` trait provides the interface for administrative actions.
 #[contractimpl]
 impl AdminInterface for IndexFund {
+    /// Applies component refactor updates.
     fn refactor(e: Env, caller: Address, params: RefactorParams) {
         caller.require_auth();
 
@@ -418,6 +431,7 @@ impl AdminInterface for IndexFund {
         );
     }
 
+    /// Executes portfolio rebalance operations.
     fn rebalance(e: Env, caller: Address, params: RebalanceParams) {
         caller.require_auth();
 
@@ -485,6 +499,7 @@ impl AdminInterface for IndexFund {
     // * `rewards_admin` - The address of the rewards admin.
     // * `operations_admin` - The address of the operations admin.
     // * `fee_admin` - The address of the system fee admin.
+    /// Updates privileged role addresses.
     fn set_privileged_addrs(
         e: Env,
         admin: Address,
@@ -506,6 +521,7 @@ impl AdminInterface for IndexFund {
         );
     }
 
+    /// Returns configured factory address.
     fn get_factory(e: Env) -> Address {
         crate::storage::get_factory(&e)
     }
@@ -515,6 +531,7 @@ impl AdminInterface for IndexFund {
     // # Returns
     //
     // A map of privileged roles to their respective addresses.
+    /// Returns privileged role addresses keyed by role symbol.
     fn get_privileged_addrs(e: Env) -> Map<Symbol, Vec<Address>> {
         let access_control = AccessControl::new(&e);
         let mut result: Map<Symbol, Vec<Address>> = Map::new(&e);
@@ -542,6 +559,7 @@ impl AdminInterface for IndexFund {
         result
     }
 
+    /// Adds or removes a rebalance authority.
     fn set_rebalance_authority(e: Env, admin: Address, authority: Address, status: bool) {
         admin.require_auth();
         require_operations_admin_or_owner(&e, &admin);
@@ -550,6 +568,7 @@ impl AdminInterface for IndexFund {
         access_control.set_role_address_status(&Role::RebalanceAuthorities, &authority, status);
     }
 
+    /// Sets factory address reference.
     fn set_factory(e: Env, admin: Address, factory: Address) {
         admin.require_auth();
         require_operations_admin_or_owner(&e, &admin);
@@ -557,6 +576,7 @@ impl AdminInterface for IndexFund {
         crate::storage::set_factory(&e, &factory);
     }
 
+    /// Updates whitelist membership for an address.
     fn set_whitelist_status(e: Env, admin: Address, address: Address, status: bool) {
         admin.require_auth();
         require_operations_admin_or_owner(&e, &admin);
@@ -573,6 +593,7 @@ impl AdminInterface for IndexFund {
         );
     }
 
+    /// Updates blacklist membership for an address.
     fn set_blacklist_status(e: Env, admin: Address, address: Address, status: bool) {
         admin.require_auth();
         require_operations_admin_or_owner(&e, &admin);
@@ -589,6 +610,7 @@ impl AdminInterface for IndexFund {
         );
     }
 
+    /// Sets rebalance cooldown threshold.
     fn set_rebalance_threshold(e: Env, admin: Address, threshold: u64) {
         admin.require_auth();
         require_operations_admin_or_owner(&e, &admin);
@@ -596,6 +618,7 @@ impl AdminInterface for IndexFund {
         crate::storage::set_rebalance_threshold(&e, &threshold);
     }
 
+    /// Sets full trade-fee tier schedule.
     fn set_trade_fee_tiers(e: Env, admin: Address, tiers: Vec<VolumeFeeTier>) {
         admin.require_auth();
         require_fee_admin_or_owner(&e, &admin);
@@ -604,6 +627,7 @@ impl AdminInterface for IndexFund {
         crate::storage::set_trade_fee_tiers(&e, tiers);
     }
 
+    /// Updates manager fee bps for all trade tiers.
     fn set_trade_fee_tiers_manager(e: Env, admin: Address, manager_fee_bps: u32) {
         admin.require_auth();
         require_fee_admin_or_owner(&e, &admin);
@@ -614,12 +638,14 @@ impl AdminInterface for IndexFund {
         // TODO:
     }
 
+    /// Sets adapter registry address reference.
     fn set_adapter_registry(e: Env, admin: Address, registry: Address) {
         admin.require_auth();
         require_operations_admin_or_owner(&e, &admin);
         crate::storage::set_adapter_registry(&e, &registry);
     }
 
+    /// Claims accrued protocol fees to a destination address.
     fn claim_protocol_fees(e: Env, admin: Address, token: Address, destination: Address) -> u128 {
         admin.require_auth();
         require_fee_admin_or_owner(&e, &admin);
@@ -639,6 +665,7 @@ impl AdminInterface for IndexFund {
         accrued
     }
 
+    /// Claims accrued manager fees to a destination address.
     fn claim_manager_fees(e: Env, admin: Address, token: Address, destination: Address) -> u128 {
         admin.require_auth();
         require_admin(&e, &admin);
@@ -667,11 +694,13 @@ impl UpgradeableContract for IndexFund {
     // # Returns
     //
     // The version of the contract as a u32.
+    /// Returns contract version number.
     fn version() -> u32 {
         100
     }
 
     // Get contract type symbolic name
+    /// Returns contract type name.
     fn contract_name(e: Env) -> Symbol {
         Symbol::new(&e, "IndexFund")
     }
@@ -684,6 +713,7 @@ impl UpgradeableContract for IndexFund {
     //
     // * `admin` - The address of the admin.
     // * `new_wasm_hash` - The new wasm hash to commit.
+    /// Commits a staged contract upgrade hash.
     fn commit_upgrade(e: Env, admin: Address, new_wasm_hash: BytesN<32>) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
@@ -696,6 +726,7 @@ impl UpgradeableContract for IndexFund {
     // # Arguments
     //
     // * `admin` - The address of the admin.
+    /// Applies the staged contract upgrade.
     fn apply_upgrade(e: Env, admin: Address) -> BytesN<32> {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
@@ -712,6 +743,7 @@ impl UpgradeableContract for IndexFund {
     // # Arguments
     //
     // * `admin` - The address of the admin.
+    /// Reverts the staged contract upgrade.
     fn revert_upgrade(e: Env, admin: Address) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
@@ -729,6 +761,7 @@ impl UpgradeableContract for IndexFund {
     //
     // * `admin` - The address of the emergency admin.
     // * `value` - The value to set the emergency mode to.
+    /// Sets emergency mode status.
     fn set_emergency_mode(e: Env, admin: Address, value: bool) {
         admin.require_auth();
         AccessControl::new(&e).assert_address_has_role(&admin, &Role::Admin);
@@ -737,6 +770,7 @@ impl UpgradeableContract for IndexFund {
     }
 
     // Returns the emergency mode flag value.
+    /// Returns emergency mode status.
     fn get_emergency_mode(e: Env) -> bool {
         get_emergency_mode(&e)
     }
@@ -754,6 +788,7 @@ impl TransferableContract for IndexFund {
     //     * `Admin`
     //     * `EmergencyAdmin`
     // * `new_address` - New address for the role
+    /// Commits ownership transfer for a role.
     fn commit_transfer_ownership(e: Env, admin: Address, role_name: Symbol, new_address: Address) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -772,6 +807,7 @@ impl TransferableContract for IndexFund {
     // * `role_name` - The name of the role to transfer ownership of. The role must be one of the following:
     //     * `Admin`
     //     * `EmergencyAdmin`
+    /// Applies previously committed ownership transfer for a role.
     fn apply_transfer_ownership(e: Env, admin: Address, role_name: Symbol) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -790,6 +826,7 @@ impl TransferableContract for IndexFund {
     // * `role_name` - The name of the role to transfer ownership of. The role must be one of the following:
     //     * `Admin`
     //     * `EmergencyAdmin`
+    /// Reverts previously committed ownership transfer for a role.
     fn revert_transfer_ownership(e: Env, admin: Address, role_name: Symbol) {
         admin.require_auth();
         let access_control = AccessControl::new(&e);
@@ -809,6 +846,7 @@ impl TransferableContract for IndexFund {
     //
     // * `role_name` - The name of the role to get the future address for. The role must be one of the following:
     //    * `Admin`
+    /// Returns pending future role address or current one when no transfer exists.
     fn get_future_address(e: Env, role_name: Symbol) -> Address {
         let access_control = AccessControl::new(&e);
         let role = Role::from_symbol(&e, role_name);
@@ -826,6 +864,7 @@ impl TransferableContract for IndexFund {
 #[contractimpl]
 impl QueryInterface for IndexFund {
     // Comprehensive index information
+    /// Returns aggregated index metadata and configuration.
     fn get_index_info(e: Env) -> IndexFundInfo {
         IndexFundInfo {
             address: e.current_contract_address(),
@@ -843,19 +882,23 @@ impl QueryInterface for IndexFund {
     }
 
     // Component and balance queries
+    /// Returns all configured components.
     fn get_all_components(e: Env) -> Map<Address, Component> {
         crate::storage::get_all_components(&e)
     }
 
+    /// Returns a single component by token.
     fn get_component_info(e: Env, token: Address) -> Component {
         crate::storage::get_component(&e, token)
     }
 
+    /// Returns balances for all configured components.
     fn get_all_component_balances(e: Env) -> Map<Address, u128> {
         crate::storage::get_all_component_balances(&e)
     }
 
     // Financial metrics
+    /// Returns financial metrics for the index.
     fn get_index_metrics(e: Env) -> IndexFundMetrics {
         let current_nav = IndexFund::get_current_nav(e.clone());
         let share_price = IndexFund::get_share_price(e.clone());
@@ -869,15 +912,18 @@ impl QueryInterface for IndexFund {
         }
     }
 
+    /// Returns current index share price.
     fn get_share_price(e: Env) -> u128 {
         crate::shares::get_current_share_price(&e)
     }
 
+    /// Returns current index NAV.
     fn get_current_nav(e: Env) -> u128 {
         crate::shares::get_current_nav(&e)
     }
 
     // Operational status
+    /// Returns operational status information for the index.
     fn get_index_status(e: Env) -> IndexFundStatus {
         let current_time = e.ledger().timestamp();
         let last_rebalance = crate::storage::get_last_rebalance_ts(&e);
@@ -892,11 +938,13 @@ impl QueryInterface for IndexFund {
         }
     }
 
+    /// Returns whether rebalance is currently allowed.
     fn can_rebalance(e: Env) -> bool {
         crate::rebalance::can_rebalance(&e)
     }
 
     // Rebalancing queries
+    /// Returns detailed rebalance timing and permission status.
     fn get_rebalance_status(e: Env) -> RebalanceStatus {
         let current_time = e.ledger().timestamp();
         let last_rebalance = crate::storage::get_last_rebalance_ts(&e);
@@ -926,6 +974,7 @@ impl QueryInterface for IndexFund {
         }
     }
 
+    /// Returns whether a caller can execute rebalance.
     fn can_address_rebalance(e: Env, caller: Address) -> bool {
         let current_time = e.ledger().timestamp();
         let last_rebalance = crate::storage::get_last_rebalance_ts(&e);
@@ -950,6 +999,7 @@ impl QueryInterface for IndexFund {
         }
     }
 
+    /// Returns live allocation snapshot for each component.
     fn get_component_allocation(e: Env) -> Map<Address, ComponentAllocation> {
         let mut allocations = Map::new(&e);
         let components = crate::storage::get_all_components(&e);
@@ -991,16 +1041,19 @@ impl QueryInterface for IndexFund {
         allocations
     }
 
+    /// Returns addresses authorized for rebalancing.
     fn get_rebalance_authorities(e: Env) -> Vec<Address> {
         let access_control = AccessControl::new(&e);
         access_control.get_role_addresses(&Role::RebalanceAuthorities)
     }
 
+    /// Returns user monthly volume for the current bucket.
     fn get_user_monthly_volume(e: Env, user: Address) -> u128 {
         let month = crate::volume::get_month_bucket(e.ledger().timestamp());
         crate::storage::get_user_monthly_volume(&e, &user, month)
     }
 
+    /// Returns configured trade fee tiers.
     fn get_trade_fee_tiers(e: Env) -> Vec<VolumeFeeTier> {
         crate::storage::get_trade_fee_tiers(&e)
     }

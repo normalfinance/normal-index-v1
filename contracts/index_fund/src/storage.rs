@@ -14,7 +14,9 @@ use utils::{
 
 /********** Storage Key Types **********/
 
+/// Instance key for the originating factory contract address.
 const KEY_FACTORY: &str = "Factory";
+/// Instance key for the adapter registry contract address.
 const KEY_ADAPTER_REGISTRY: &str = "AdapterRegistry";
 
 /// The token accepted during minting and used to swap, i.e. USDC
@@ -35,9 +37,12 @@ const KEY_LAST_REBALANCE_TS: &str = "LastRebalanceTs";
 /// The ts when the index was last updated (any property)
 const KEY_LAST_UPDATE_TS: &str = "LastUpdatedTs";
 
+/// Instance key for configured volume-based fee tiers.
 const KEY_TRADE_FEE_TIERS: &str = "TradeFeeTiers";
 
+/// Instance key for cumulative minted shares.
 const KEY_TOTAL_MINTS: &str = "TotalMints";
+/// Instance key for cumulative redeemed shares.
 const KEY_TOTAL_REDEMPTIONS: &str = "TotalRedemptions";
 
 /// Vec<Address> - list of all component addresses
@@ -62,7 +67,7 @@ pub struct UserMonthlyVolumeKey {
 enum IndexFundDataKey {
     /// Map of token address to Component
     Component(Address),
-    ///
+    /// Map of token address to tracked balance.
     ComponentBalance(Address),
     /// List of accounts explicitly allowed to mint the index
     Whitelist(Address),
@@ -114,8 +119,13 @@ generate_instance_storage_getter_and_setter_with_default!(
     0
 );
 
-// Component registry management functions
-
+/// Returns the component registry address list.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+///
+/// # Returns
+/// - `Vec<Address>`: Registered component token addresses.
 pub fn get_component_registry(e: &Env) -> Vec<Address> {
     // let key = IndexFundDataKey::ComponentRegistry;
     match e.storage().instance().get(&KEY_COMPONENT_REGISTRY) {
@@ -127,6 +137,14 @@ pub fn get_component_registry(e: &Env) -> Vec<Address> {
     }
 }
 
+/// Adds a token to the component registry if it is not already present.
+///
+/// # Arguments
+/// - `env` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Component token address to add.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn add_component_to_registry(env: &Env, token: Address) {
     // let key = IndexFundDataKey::ComponentRegistry;
     let mut registry: Vec<Address> = match env.storage().instance().get(&KEY_COMPONENT_REGISTRY) {
@@ -151,6 +169,14 @@ pub fn add_component_to_registry(env: &Env, token: Address) {
     bump_instance(env);
 }
 
+/// Removes a token from the component registry.
+///
+/// # Arguments
+/// - `env` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Component token address to remove.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn remove_component_from_registry(env: &Env, token: Address) {
     // let key = IndexFundDataKey::ComponentRegistry;
     let registry: Vec<Address> = match env.storage().instance().get(&KEY_COMPONENT_REGISTRY) {
@@ -176,11 +202,26 @@ pub fn remove_component_from_registry(env: &Env, token: Address) {
     bump_instance(env);
 }
 
+/// Sets configured volume fee tiers.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `tiers` (`Vec<VolumeFeeTier>`): Fee-tier schedule to persist.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn set_trade_fee_tiers(e: &Env, tiers: Vec<VolumeFeeTier>) {
     e.storage().instance().set(&KEY_TRADE_FEE_TIERS, &tiers);
     bump_instance(e);
 }
 
+/// Returns configured volume fee tiers or the default tier schedule.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+///
+/// # Returns
+/// - `Vec<VolumeFeeTier>`: Configured tiers, or built-in defaults when unset.
 pub fn get_trade_fee_tiers(e: &Env) -> Vec<VolumeFeeTier> {
     bump_instance(e);
     e.storage()
@@ -217,8 +258,15 @@ pub fn get_trade_fee_tiers(e: &Env) -> Vec<VolumeFeeTier> {
 
 /** PERSTISTENT STORAGE */
 
-// Monthly Volume
-
+/// Returns tracked monthly trading volume for a user and month bucket.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `user` (`&Address`): User address.
+/// - `month_bucket` (`u64`): Month bucket index.
+///
+/// # Returns
+/// - `u128`: Tracked monthly volume.
 pub fn get_user_monthly_volume(e: &Env, user: &Address, month_bucket: u64) -> u128 {
     let key = IndexFundDataKey::UserMonthlyVolume(UserMonthlyVolumeKey {
         user: user.clone(),
@@ -233,6 +281,16 @@ pub fn get_user_monthly_volume(e: &Env, user: &Address, month_bucket: u64) -> u1
     }
 }
 
+/// Adds `amount` to tracked monthly user volume using saturating arithmetic.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `user` (`&Address`): User address.
+/// - `month_bucket` (`u64`): Month bucket index.
+/// - `amount` (`u128`): Additional volume to add.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn add_user_monthly_volume(e: &Env, user: &Address, month_bucket: u64, amount: u128) {
     let key = IndexFundDataKey::UserMonthlyVolume(UserMonthlyVolumeKey {
         user: user.clone(),
@@ -244,8 +302,14 @@ pub fn add_user_monthly_volume(e: &Env, user: &Address, month_bucket: u64, amoun
     bump_persistent(e, &key);
 }
 
-// Fees
-
+/// Returns manager fees accrued for a token.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Token address keyed for fee accrual.
+///
+/// # Returns
+/// - `u128`: Accrued manager fee amount.
 pub fn get_accrued_manager_fee(e: &Env, token: Address) -> u128 {
     let key = IndexFundDataKey::AccruedManagerFee(token);
     match e.storage().persistent().get::<IndexFundDataKey, u128>(&key) {
@@ -257,12 +321,29 @@ pub fn get_accrued_manager_fee(e: &Env, token: Address) -> u128 {
     }
 }
 
+/// Sets manager fees accrued for a token.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Token address keyed for fee accrual.
+/// - `amount` (`u128`): New accrued manager fee amount.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn set_accrued_manager_fee(e: &Env, token: Address, amount: u128) {
     let key = IndexFundDataKey::AccruedManagerFee(token);
     e.storage().persistent().set(&key, &amount);
     bump_persistent(e, &key);
 }
 
+/// Returns protocol fees accrued for a token.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Token address keyed for fee accrual.
+///
+/// # Returns
+/// - `u128`: Accrued protocol fee amount.
 pub fn get_accrued_protocol_fee(e: &Env, token: Address) -> u128 {
     let key = IndexFundDataKey::AccruedProtocolFee(token);
     match e.storage().persistent().get::<IndexFundDataKey, u128>(&key) {
@@ -274,6 +355,15 @@ pub fn get_accrued_protocol_fee(e: &Env, token: Address) -> u128 {
     }
 }
 
+/// Sets protocol fees accrued for a token.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Token address keyed for fee accrual.
+/// - `amount` (`u128`): New accrued protocol fee amount.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn set_accrued_protocol_fee(e: &Env, token: Address, amount: u128) {
     let key = IndexFundDataKey::AccruedProtocolFee(token);
     e.storage().persistent().set(&key, &amount);
@@ -287,6 +377,13 @@ pub fn set_accrued_protocol_fee(e: &Env, token: Address, amount: u128) {
 
 /// Checks if an address is whitelisted
 /// Returns true if whitelisted, false if not (missing entries are treated as not whitelisted)
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `address` (`&Address`): Address to check.
+///
+/// # Returns
+/// - `bool`: `true` if the address is whitelisted.
 pub fn get_whitelist_status(e: &Env, address: &Address) -> bool {
     let key = IndexFundDataKey::Whitelist(address.clone());
     match e
@@ -304,6 +401,14 @@ pub fn get_whitelist_status(e: &Env, address: &Address) -> bool {
 
 /// Sets whitelist status for an address
 /// If status is true, adds the address to whitelist; if false, removes it
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `address` (`&Address`): Address to update.
+/// - `status` (`bool`): Target whitelist status.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn set_whitelist_status(e: &Env, address: &Address, status: bool) {
     let key = IndexFundDataKey::Whitelist(address.clone());
     if status {
@@ -316,6 +421,13 @@ pub fn set_whitelist_status(e: &Env, address: &Address, status: bool) {
 
 /// Checks if an address is blacklisted
 /// Returns true if blacklisted, false if not (missing entries are treated as not blacklisted)
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `address` (`&Address`): Address to check.
+///
+/// # Returns
+/// - `bool`: `true` if the address is blacklisted.
 pub fn get_blacklist_status(e: &Env, address: &Address) -> bool {
     let key = IndexFundDataKey::Blacklist(address.clone());
     match e
@@ -333,6 +445,14 @@ pub fn get_blacklist_status(e: &Env, address: &Address) -> bool {
 
 /// Sets blacklist status for an address
 /// If status is true, adds the address to blacklist; if false, removes it
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `address` (`&Address`): Address to update.
+/// - `status` (`bool`): Target blacklist status.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn set_blacklist_status(e: &Env, address: &Address, status: bool) {
     let key = IndexFundDataKey::Blacklist(address.clone());
     if status {
@@ -343,8 +463,14 @@ pub fn set_blacklist_status(e: &Env, address: &Address, status: bool) {
     }
 }
 
-// Component Balance
-
+/// Returns stored balance for a component token, or panics if uninitialized.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Component token address.
+///
+/// # Returns
+/// - `u128`: Stored component balance.
 pub fn get_component_balance(e: &Env, token: Address) -> u128 {
     let key = IndexFundDataKey::ComponentBalance(token);
     match e.storage().persistent().get::<IndexFundDataKey, u128>(&key) {
@@ -356,7 +482,13 @@ pub fn get_component_balance(e: &Env, token: Address) -> u128 {
     }
 }
 
-// Component
+/// Returns all existing components keyed by token address.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+///
+/// # Returns
+/// - `Map<Address, Component>`: Component metadata by token.
 pub fn get_all_components(e: &Env) -> Map<Address, Component> {
     let mut components_map = Map::new(e);
 
@@ -381,7 +513,14 @@ pub fn get_all_components(e: &Env) -> Map<Address, Component> {
     components_map
 }
 
-// Helper function to get component without panicking
+/// Returns component metadata for a token, or `None` when missing.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Component token address.
+///
+/// # Returns
+/// - `Option<Component>`: Component metadata if present.
 pub fn get_component_safe(e: &Env, token: Address) -> Option<Component> {
     let key = IndexFundDataKey::Component(token);
     match e
@@ -397,6 +536,14 @@ pub fn get_component_safe(e: &Env, token: Address) -> Option<Component> {
     }
 }
 
+/// Returns component metadata for a token, or panics if uninitialized.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Component token address.
+///
+/// # Returns
+/// - `Component`: Component metadata.
 pub fn get_component(e: &Env, token: Address) -> Component {
     let key = IndexFundDataKey::Component(token.clone());
     match e
@@ -412,12 +559,29 @@ pub fn get_component(e: &Env, token: Address) -> Component {
     }
 }
 
+/// Stores component metadata for a token and refreshes persistent TTL.
+///
+/// # Arguments
+/// - `env` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Component token address.
+/// - `component` (`Component`): Component metadata to persist.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn set_component(env: &Env, token: Address, component: Component) {
     let key = IndexFundDataKey::Component(token.clone());
     env.storage().persistent().set(&key, &component);
     env.storage().persistent().extend_ttl(&key, 100000, 100000);
 }
 
+/// Removes a component and its tracked balance, and updates the registry.
+///
+/// # Arguments
+/// - `env` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Component token address.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn remove_component(env: &Env, token: Address) {
     let key = IndexFundDataKey::Component(token.clone());
     env.storage().persistent().remove(&key);
@@ -428,13 +592,28 @@ pub fn remove_component(env: &Env, token: Address) {
     env.storage().persistent().remove(&balance_key);
 }
 
+/// Updates only the weight field for an existing component.
+///
+/// # Arguments
+/// - `env` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Component token address.
+/// - `new_weight` (`u128`): New component weight in basis points.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn update_component_weight(env: &Env, token: Address, new_weight: u128) {
     let mut component = get_component(env, token.clone());
     component.weight = new_weight;
     set_component(env, token, component);
 }
 
-// Proper implementation of get_all_component_balances
+/// Returns balances for all registry components, defaulting missing entries to zero.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+///
+/// # Returns
+/// - `Map<Address, u128>`: Balances by component token address.
 pub fn get_all_component_balances(e: &Env) -> Map<Address, u128> {
     let mut balances_map = Map::new(e);
 
@@ -459,7 +638,14 @@ pub fn get_all_component_balances(e: &Env) -> Map<Address, u128> {
     balances_map
 }
 
-// Helper function to get component balance without panicking
+/// Returns a component balance if present.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Component token address.
+///
+/// # Returns
+/// - `Option<u128>`: Stored balance if present.
 pub fn get_component_balance_safe(e: &Env, token: Address) -> Option<u128> {
     let key = IndexFundDataKey::ComponentBalance(token.clone());
     match e.storage().persistent().get::<IndexFundDataKey, u128>(&key) {
@@ -471,6 +657,15 @@ pub fn get_component_balance_safe(e: &Env, token: Address) -> Option<u128> {
     }
 }
 
+/// Stores component balance for a token and refreshes persistent TTL.
+///
+/// # Arguments
+/// - `env` (`&Env`): Soroban environment.
+/// - `token` (`Address`): Component token address.
+/// - `balance` (`u128`): New component balance.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned.
 pub fn set_component_balance(env: &Env, token: Address, balance: u128) {
     let key = IndexFundDataKey::ComponentBalance(token);
     env.storage().persistent().set(&key, &balance);

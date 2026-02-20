@@ -5,6 +5,16 @@ use utils::validate;
 
 use crate::errors::IndexFundError;
 
+/// Converts a share quantity into NAV-denominated value.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `n_shares` (`u128`): Number of shares to value.
+/// - `total_shares` (`u128`): Current total share supply.
+/// - `current_nav` (`u128`): Current portfolio NAV.
+///
+/// # Returns
+/// - `u128`: NAV amount corresponding to `n_shares`.
 pub fn shares_to_nav(e: &Env, n_shares: u128, total_shares: u128, current_nav: u128) -> u128 {
     validate!(
         e,
@@ -25,6 +35,16 @@ pub fn shares_to_nav(e: &Env, n_shares: u128, total_shares: u128, current_nav: u
     amount
 }
 
+/// Converts a NAV amount into shares using current supply and NAV.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `amount` (`u128`): NAV-denominated amount.
+/// - `total_shares` (`u128`): Current total share supply.
+/// - `current_nav` (`u128`): Current portfolio NAV.
+///
+/// # Returns
+/// - `u128`: Number of shares corresponding to `amount`.
 pub fn nav_amount_to_shares(e: &Env, amount: u128, total_shares: u128, current_nav: u128) -> u128 {
     let n_shares = if current_nav > 0 {
         // Use round-to-nearest for fair share calculation
@@ -42,6 +62,15 @@ pub fn nav_amount_to_shares(e: &Env, amount: u128, total_shares: u128, current_n
     n_shares
 }
 
+/// Returns the current per-share price.
+///
+/// When supply or NAV is zero, this falls back to the configured initial price.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+///
+/// # Returns
+/// - `u128`: Current share price.
 pub fn get_current_share_price(e: &Env) -> u128 {
     let total_shares = token_share::get_total_shares(e);
     let nav = get_current_nav(e);
@@ -54,6 +83,13 @@ pub fn get_current_share_price(e: &Env) -> u128 {
     nav / total_shares
 }
 
+/// Computes portfolio NAV as the sum of all component balances priced in USD.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+///
+/// # Returns
+/// - `u128`: Current NAV in quote/USD units.
 pub fn get_current_nav(e: &Env) -> u128 {
     let mut total_value: u128 = 0;
 
@@ -85,6 +121,15 @@ pub fn get_current_nav(e: &Env) -> u128 {
     total_value
 }
 
+/// Allocates a mint deposit across components using target weights and executes required swaps.
+///
+/// # Arguments
+/// - `e` (`&Env`): Soroban environment.
+/// - `deposited_token` (`Address`): Token deposited for minting.
+/// - `deposited_amount` (`u128`): Net amount to allocate across components.
+///
+/// # Returns
+/// - `()` (unit): No direct value is returned; component balances are updated in storage.
 pub fn execute_weight_based_mint(e: &Env, deposited_token: Address, deposited_amount: u128) {
     // Get all current components and their weights
     let components = crate::storage::get_all_components(e);

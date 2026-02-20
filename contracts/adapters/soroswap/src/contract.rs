@@ -16,6 +16,7 @@ pub struct SoroswapAdapter;
 
 #[contractimpl]
 impl SoroswapAdapter {
+    /// Initializes adapter configuration for the Soroswap router.
     pub fn __constructor(e: Env, admin: Address, protocol_id: String, protocol_address: Address) {
         crate::storage::set_admin(&e, &admin);
         crate::storage::set_protocol_id(&e, &protocol_id);
@@ -25,6 +26,7 @@ impl SoroswapAdapter {
 
 #[contractimpl]
 impl AdapterTrait for SoroswapAdapter {
+    /// Executes a swap through Soroswap using exact-input routing.
     fn swap(e: Env, params: AdapterTradeParams) -> Result<u128, AdapterError> {
         params.to.require_auth();
 
@@ -56,10 +58,12 @@ impl AdapterTrait for SoroswapAdapter {
         Ok(total_swapped_amount.safe_to_u128(&e))
     }
 
+    /// Returns the configured upstream protocol identifier.
     fn get_protocol_id(e: &Env) -> Result<String, AdapterError> {
         Ok(crate::storage::get_protocol_id(&e))
     }
 
+    /// Returns the configured upstream protocol address.
     fn get_protocol_address(e: &Env) -> Result<Address, AdapterError> {
         Ok(crate::storage::get_protocol_address(&e))
     }
