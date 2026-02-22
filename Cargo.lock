@@ -22,7 +22,12 @@ dependencies = [
 name = "adapter_registry"
 version = "0.1.0"
 dependencies = [
+ "access_control",
+ "paste",
  "soroban-sdk",
+ "types",
+ "upgrade",
+ "utils",
 ]
 
 [[package]]

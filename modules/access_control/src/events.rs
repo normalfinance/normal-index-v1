@@ -57,6 +57,16 @@ impl Events {
         )
     }
 
+    pub fn set_adapter_registry_privileged_addrs(&self, operations_admin: Address) {
+        self.env().events().publish(
+            (Symbol::new(
+                self.env(),
+                "set_adapter_registry_privileged_addrs",
+            ),),
+            operations_admin,
+        )
+    }
+
     pub fn set_emergency_mode(&self, emergency_mode: bool) {
         self.env().events().publish(
             match emergency_mode {

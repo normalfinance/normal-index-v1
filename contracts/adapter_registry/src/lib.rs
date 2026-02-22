@@ -1,8 +1,11 @@
 #![no_std]
 
 mod contract;
-mod errors;
+pub mod errors;
 mod interface;
 mod storage;
+mod test;
+mod test_permissions;
+mod testutils;
 
-pub use contract::AdapterRegistry;
+pub use crate::contract::{AdapterRegistry, AdapterRegistryClient};

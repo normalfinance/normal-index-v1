@@ -1,11 +1,11 @@
 use soroban_sdk::{contracttype, Address, Env, Map, Symbol, Vec};
 
+/********** Storage Key Types **********/
+
 /// Instance storage keys for adapter-registry mappings.
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {
-    /// Registry admin address.
-    Admin,
     /// Adapter address keyed by symbolic adapter name.
     AdapterByName(Symbol),
     /// Adapter name keyed by adapter contract address.
@@ -14,28 +14,7 @@ pub enum DataKey {
     AdapterNames,
 }
 
-/// Returns the configured registry admin.
-///
-/// # Arguments
-/// - `e` (`&Env`): Soroban environment.
-///
-/// # Returns
-/// - `Option<Address>`: Admin address if configured.
-pub fn get_admin(e: &Env) -> Option<Address> {
-    e.storage().instance().get(&DataKey::Admin)
-}
-
-/// Sets the registry admin.
-///
-/// # Arguments
-/// - `e` (`&Env`): Soroban environment.
-/// - `admin` (`&Address`): Admin address to store.
-///
-/// # Returns
-/// - `()` (unit): No direct value is returned.
-pub fn set_admin(e: &Env, admin: &Address) {
-    e.storage().instance().set(&DataKey::Admin, admin);
-}
+/********** Storage **********/
 
 /// Returns adapter address for a given adapter name.
 ///
@@ -47,7 +26,7 @@ pub fn set_admin(e: &Env, admin: &Address) {
 /// - `Option<Address>`: Adapter contract address if present.
 pub fn get_adapter_by_name(e: &Env, name: &Symbol) -> Option<Address> {
     e.storage()
-        .instance()
+        .persistent()
         .get(&DataKey::AdapterByName(name.clone()))
 }
 
@@ -62,7 +41,7 @@ pub fn get_adapter_by_name(e: &Env, name: &Symbol) -> Option<Address> {
 /// - `()` (unit): No direct value is returned.
 pub fn set_adapter_by_name(e: &Env, name: &Symbol, adapter: &Address) {
     e.storage()
-        .instance()
+        .persistent()
         .set(&DataKey::AdapterByName(name.clone()), adapter);
 }
 
@@ -76,7 +55,7 @@ pub fn set_adapter_by_name(e: &Env, name: &Symbol, adapter: &Address) {
 /// - `Option<Symbol>`: Adapter name if present.
 pub fn get_name_by_adapter(e: &Env, adapter: &Address) -> Option<Symbol> {
     e.storage()
-        .instance()
+        .persistent()
         .get(&DataKey::NameByAdapter(adapter.clone()))
 }
 
@@ -91,7 +70,7 @@ pub fn get_name_by_adapter(e: &Env, adapter: &Address) -> Option<Symbol> {
 /// - `()` (unit): No direct value is returned.
 pub fn set_name_by_adapter(e: &Env, adapter: &Address, name: &Symbol) {
     e.storage()
-        .instance()
+        .persistent()
         .set(&DataKey::NameByAdapter(adapter.clone()), name);
 }
 
@@ -105,7 +84,7 @@ pub fn set_name_by_adapter(e: &Env, adapter: &Address, name: &Symbol) {
 /// - `()` (unit): No direct value is returned.
 pub fn remove_name_by_adapter(e: &Env, adapter: &Address) {
     e.storage()
-        .instance()
+        .persistent()
         .remove(&DataKey::NameByAdapter(adapter.clone()));
 }
 
@@ -118,7 +97,7 @@ pub fn remove_name_by_adapter(e: &Env, adapter: &Address) {
 /// - `Vec<Symbol>`: Registered adapter names.
 pub fn get_adapter_names(e: &Env) -> Vec<Symbol> {
     e.storage()
-        .instance()
+        .persistent()
         .get(&DataKey::AdapterNames)
         .unwrap_or(Vec::new(e))
 }
@@ -140,7 +119,7 @@ pub fn add_adapter_name(e: &Env, name: &Symbol) {
         }
     }
     names.push_back(name.clone());
-    e.storage().instance().set(&DataKey::AdapterNames, &names);
+    e.storage().persistent().set(&DataKey::AdapterNames, &names);
 }
 
 /// Returns a complete name-to-address map for all registered adapters.
