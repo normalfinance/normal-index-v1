@@ -1,6 +1,8 @@
 use adapter::{AdapterError, AdapterTrait};
 use core::convert::TryFrom;
-use soroban_sdk::{contract, contractimpl, contractmeta, Address, Env, String, Symbol, Vec};
+use soroban_sdk::{
+    contract, contractimpl, contractmeta, panic_with_error, Address, Env, String, Symbol, Vec,
+};
 use types::adapter::AdapterTradeParams;
 use utils::math::safe_math::SafeConversion;
 
@@ -18,6 +20,13 @@ pub struct SoroswapAdapter;
 impl SoroswapAdapter {
     /// Initializes adapter configuration for the Soroswap router.
     pub fn __constructor(e: Env, admin: Address, protocol_id: String, protocol_address: Address) {
+        admin.require_auth();
+
+        if crate::storage::get_initialized(&e) == true {
+            panic_with_error!(&e, AdapterError::NotInitialized);
+        }
+
+        crate::storage::set_initialized(&e, &true);
         crate::storage::set_admin(&e, &admin);
         crate::storage::set_protocol_id(&e, &protocol_id);
         crate::storage::set_protocol_address(&e, &protocol_address);

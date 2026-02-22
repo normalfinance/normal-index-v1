@@ -1,5 +1,7 @@
 use adapter::{AdapterError, AdapterTrait};
-use soroban_sdk::{contract, contractimpl, contractmeta, Address, Env, String, Symbol};
+use soroban_sdk::{
+    contract, contractimpl, contractmeta, panic_with_error, Address, Env, String, Symbol,
+};
 use types::adapter::AdapterTradeParams;
 
 use crate::normal_treasury::{Direction, NormalTreasuryClient, Side};
@@ -22,6 +24,13 @@ impl NormalAdapter {
         protocol_address: Address,
         protocol_quote_token: Address,
     ) {
+        admin.require_auth();
+
+        if crate::storage::get_initialized(&e) == true {
+            panic_with_error!(&e, AdapterError::NotInitialized);
+        }
+
+        crate::storage::set_initialized(&e, &true);
         crate::storage::set_admin(&e, &admin);
         crate::storage::set_protocol_id(&e, &protocol_id);
         crate::storage::set_protocol_address(&e, &protocol_address);
